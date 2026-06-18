@@ -10,4 +10,4 @@ process.env.NODE_ENV = 'production';
 
 // Memulai backend server yang sudah di-bundle oleh esbuild
 console.log('Memulai Zendiix Server di cPanel...');
-require('./dist/server.cjs');
+import './dist/server.cjs';
