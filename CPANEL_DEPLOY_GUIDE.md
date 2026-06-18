@@ -69,7 +69,17 @@ Setelah aplikasi berhasil dibuat di cPanel, gulir ke bawah ke bagian **Environme
 
 1. Masih di halaman panel **Setup Node.js App** Anda.
 2. Temukan bagian tombol **Run NPM Install**, lalu klik tombol tersebut.
-3. Tunggu hingga proses instalasi paket selesai (biasanya memakan waktu 1-2 menit). Setelah selesai, Anda akan melihat notifikasi sukses.
+3. Tunggu hingga proses instalasi paket selesai (biasanya memakan waktu 1-2 menit).
+
+> 💡 **Troubleshooting: Mengatasi Error / Peringatan saat NPM Install di cPanel**
+> 
+> Jika cPanel menampilkan pesan peringatan merah seperti: *"...check availability of application has failed... return code 'None'..."*, **jangan khawatir!** 
+> 
+> Pesan ini adalah peringatan umum (benign warning) dari sistem Passenger cPanel. Hal ini terjadi karena cPanel otomatis mengetes/memanggil aplikasi sesaat setelah instalasi modul selesai, namun pada saat itu database Anda belum migrasi atau konfigurasi belum sepenuhnya dimuat oleh sistem.
+> 
+> **Cara memastikannya:**
+> - Cek folder proyek Anda di **File Manager**. Jika folder `node_modules` sudah muncul dan berisi banyak file, artinya instalasi **telah berhasil dengan sempurna**.
+> - Anda dapat mengabaikan peringatan tersebut dan langsung melanjutkan ke **Langkah 6**.
 
 ---
 
