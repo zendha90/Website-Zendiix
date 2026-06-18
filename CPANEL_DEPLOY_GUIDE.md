@@ -29,6 +29,8 @@ Karena aplikasi dan database MySQL akan berjalan berdampingan pada server cPanel
 2. Buat folder baru di luar folder `public_html` untuk keamanan (misalnya buat folder bernama `zendiix`).
 3. Masuk ke dalam folder `zendiix` yang baru dibuat, lalu **Unggah (Upload)** file ZIP proyek Anda.
 4. **Ekstrak (Extract)** file ZIP tersebut di dalam folder tersebut.
+5. **⚠️ PENTING AGAR TIDAK BLANK (MIME ERROR):** Setelah diekstrak, temukan berkas bernama `index.html` yang berada langsung di **root folder** (bukan `dist/index.html`, melainkan berkas `index.html` yang sejajar dengan `app.js`). **Ubah Nama (Rename)** berkas root `index.html` tersebut menjadi `index.html.bak` atau hapus saja.
+   > **Kenapa?** Jika `index.html` dev mentah ini dibiarkan di root, Apache/LiteSpeed akan langsung menyajikannya ke pengunjung, membypass engine Node.js Anda, yang mengakibatkan eror MIME type `main.tsx` di browser dan halaman menjadi blank putih. Dengan menghapusnya/me-renamenya, seluruh request akan diserahkan sempurna ke Express server Node.js.
 
 ---
 
