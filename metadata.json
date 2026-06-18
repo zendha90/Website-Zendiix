@@ -1,0 +1,6 @@
+{
+  "name": "Zendiix Storefront",
+  "description": "Premium softlens storefront with customizable branding, banner management, and inventory database.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

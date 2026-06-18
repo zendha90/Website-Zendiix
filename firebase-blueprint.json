@@ -1,0 +1,39 @@
+{
+  "entities": {
+    "BrandingSettings": {
+      "title": "Branding Settings",
+      "description": "Global branding configurations for the storefront.",
+      "type": "object",
+      "properties": {
+        "announcementTexts": {
+          "type": "array",
+          "description": "List of texts to rotate in the announcement bar"
+        },
+        "logoText": {
+          "type": "string",
+          "description": "Text logo for the header"
+        },
+        "logoUrl": {
+          "type": "string",
+          "description": "URL of the logo image"
+        },
+        "footerAboutText": {
+          "type": "string",
+          "description": "Description text in the footer about section"
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp of the last update"
+        }
+      },
+      "required": ["announcementTexts", "logoText", "footerAboutText"]
+    }
+  },
+  "firestore": {
+    "/settings/branding": {
+      "schema": "BrandingSettings",
+      "description": "Storefront global configuration document"
+    }
+  }
+}
