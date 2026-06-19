@@ -840,6 +840,21 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [hasCustomPassword, setHasCustomPassword] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/admin/check-config')
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.hasCustomPassword) {
+          setHasCustomPassword(true);
+        }
+      })
+      .catch(err => {
+        console.error('Failed to check admin password config', err);
+      });
+  }, []);
+
   const [activeTab, setActiveTab] = useState("form"); // form, stok_barang, database_penjualan
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [databaseSubTab, setDatabaseSubTab] = useState<"regular" | "dropship">("regular");
@@ -2054,18 +2069,27 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    const envPassword = (import.meta as any).env.ADMIN_PASSWORD;
-    const isMatched = envPassword
-      ? passwordInput === envPassword
-      : passwordInput === "admin123" || passwordInput === "admin";
-
-    if (isMatched) {
-      setIsAuthenticated(true);
-      localStorage.setItem("isAdminLoggedIn", "true");
-      setLoginError("");
-    } else {
-      setLoginError("Password salah!");
-    }
+    fetch('/api/admin/login', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({ password: passwordInput })
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.success) {
+          setIsAuthenticated(true);
+          localStorage.setItem("isAdminLoggedIn", "true");
+          setLoginError("");
+        } else {
+          setLoginError(data.error || "Password salah!");
+        }
+      })
+      .catch(err => {
+        console.error('Failed to login via API', err);
+        setLoginError("Koneksi gagal / Server sedang sibuk.");
+      });
   };
 
   const handleLogout = () => {
@@ -2519,7 +2543,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 value={passwordInput}
                 onChange={(e) => setPasswordInput(e.target.value)}
                 placeholder={
-                  (import.meta as any).env.ADMIN_PASSWORD
+                  hasCustomPassword
                     ? "Masukkan Password"
                     : "Password (admin)"
                 }

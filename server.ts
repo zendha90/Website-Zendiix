@@ -39,6 +39,27 @@ async function startServer() {
     }
   });
 
+  // Admin password check & login APIs
+  app.get('/api/admin/check-config', (req, res) => {
+    res.json({
+      hasCustomPassword: !!process.env.ADMIN_PASSWORD
+    });
+  });
+
+  app.post('/api/admin/login', (req, res) => {
+    const { password } = req.body;
+    const envPassword = process.env.ADMIN_PASSWORD;
+    const isMatched = envPassword
+      ? password === envPassword
+      : password === "admin123" || password === "admin";
+
+    if (isMatched) {
+      res.json({ success: true });
+    } else {
+      res.json({ success: false, error: "Password salah!" });
+    }
+  });
+
   // API Routes
   
   // Products
