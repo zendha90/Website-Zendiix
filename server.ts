@@ -94,7 +94,7 @@ async function startServer() {
 
   let isDbOnline = false;
   let dbCircuitTrippedAt = 0;
-  const CIRCUIT_COOLDOWN_MS = 60000; // Keep DB offline for 1 minute after failing
+  const CIRCUIT_COOLDOWN_MS = 15000; // Keep DB offline for 15 seconds after failing
   let isCheckingHealth = false;
 
   function tripDbCircuit(reason: string) {
@@ -112,7 +112,7 @@ async function startServer() {
     try {
       await Promise.race([
         db.execute(sql`SELECT 1`),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 2000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 3000))
       ]);
       console.log('Database health check succeeded. Restoring database connection.');
       isDbOnline = true;
@@ -178,6 +178,14 @@ async function startServer() {
 
   // Health Check / DB Test
   app.get('/api/health-check', async (req, res) => {
+    if (!isDbOnline) {
+      return res.json({
+        status: 'error',
+        message: 'Database is offline (local fallback active)',
+        details: 'Circuit breaker is active. Bypassing database to maintain high performance.',
+        suggestedIp: '34.96.48.15'
+      });
+    }
     try {
       // Simple query to test connection with timeout protection
       await Promise.race([
@@ -198,6 +206,8 @@ async function startServer() {
           suggestedIp = match[1];
         }
       }
+      // Automatically trip the circuit breaker on health check failure
+      tripDbCircuit(`Health check failed: ${error?.message || error}`);
       res.json({ 
         status: 'error', 
         message: 'Database connection failed or timed out', 
@@ -260,10 +270,10 @@ async function startServer() {
     }
     
     try {
-      // Timeout database read after 3.5 seconds to protect request/response loop
+      // Timeout database read after 5 seconds to protect request/response loop
       const fresh = await Promise.race([
         fetchFn(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 3500))
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 5000))
       ]);
       serverCache.set(key, { data: fresh, expires: now + CACHE_STALE_MS });
       return fresh;
@@ -280,6 +290,13 @@ async function startServer() {
 
   function clearCache(key: string) {
     serverCache.delete(key);
+  }
+
+  async function runDbWrite<T>(writeFn: () => Promise<T>): Promise<T> {
+    return Promise.race([
+      writeFn(),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database write operation timed out')), 5000))
+    ]);
   }
 
   // API Routes
@@ -319,16 +336,19 @@ async function startServer() {
         return res.json({ id, ...data });
       }
 
-      const existing = data.id ? await db.select().from(products).where(eq(products.id, data.id)).limit(1) : [];
-      if (existing.length > 0) {
-        await db.update(products).set({ ...cleaned, updatedAt: new Date() }).where(eq(products.id, id));
-      } else {
-        await db.insert(products).values({ ...cleaned, id });
-      }
+      await runDbWrite(async () => {
+        const existing = data.id ? await db.select().from(products).where(eq(products.id, data.id)).limit(1) : [];
+        if (existing.length > 0) {
+          await db.update(products).set({ ...cleaned, updatedAt: new Date() }).where(eq(products.id, id));
+        } else {
+          await db.insert(products).values({ ...cleaned, id });
+        }
+      });
       clearCache('products');
       res.json({ id, ...data });
     } catch (error) {
       console.error('Error creating product in DB, falling back to local storage:', error);
+      tripDbCircuit(`Error creating product: ${error}`);
       const existingIdx = fallbackData.products.findIndex((p: any) => p.id === id);
       if (existingIdx !== -1) {
         fallbackData.products[existingIdx] = { ...fallbackData.products[existingIdx], ...cleaned, id, updatedAt: new Date().toISOString() };
@@ -374,15 +394,18 @@ async function startServer() {
         return res.json({ id: 'branding', ...data });
       }
 
-      await db.insert(settings)
-        .values({ id: 'branding', ...data })
-        .onDuplicateKeyUpdate({
-          set: { ...data, updatedAt: new Date() }
-        });
+      await runDbWrite(async () => {
+        await db.insert(settings)
+          .values({ id: 'branding', ...data })
+          .onDuplicateKeyUpdate({
+            set: { ...data, updatedAt: new Date() }
+          });
+      });
       clearCache('branding');
       res.json({ id: 'branding', ...data });
     } catch (error) {
       console.error('Error updating settings in DB, falling back to local storage:', error);
+      tripDbCircuit(`Error updating setting: ${error}`);
       fallbackData.settings[0] = { id: 'branding', ...data, updatedAt: new Date().toISOString() };
       saveFallbackData();
       res.json({ id: 'branding', ...data });
@@ -430,11 +453,14 @@ async function startServer() {
         saveFallbackData();
         return res.json({ id, ...data });
       }
-      await db.insert(incomingGoods).values({ ...data, id, tanggal: new Date() });
+      await runDbWrite(async () => {
+        await db.insert(incomingGoods).values({ ...data, id, tanggal: new Date() });
+      });
       clearCache('incoming-goods');
       res.json({ id, ...data });
     } catch (error) {
       console.error('Error creating incoming good in DB, falling back to local storage:', error);
+      tripDbCircuit(`Error creating incoming good: ${error}`);
       fallbackData.incomingGoods.push({ ...data, id, tanggal: new Date().toISOString() });
       saveFallbackData();
       res.json({ id, ...data });
