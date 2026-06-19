@@ -1,3 +1,5 @@
+import { queryClient } from './queryClient';
+
 export interface Product {
   id?: string;
   kodeBarang: string;
@@ -186,19 +188,22 @@ export function subscribeToSales(callback: (sales: Sale[]) => void) {
 }
 
 export async function upsertProduct(product: Omit<Product, 'createdAt' | 'updatedAt'>): Promise<string> {
+  let id: string;
   if (product.id) {
     await fetchApi(`/api/products/${product.id}`, {
       method: 'PUT',
       body: JSON.stringify(product),
     });
-    return product.id;
+    id = product.id;
   } else {
     const res = await fetchApi('/api/products', {
       method: 'POST',
       body: JSON.stringify(product),
     });
-    return res.id;
+    id = res.id;
   }
+  queryClient.invalidateQueries({ queryKey: ["products"] });
+  return id;
 }
 
 export async function processSale(product: Product, qty: number, additionalFields: Partial<Sale> = {}) {
@@ -213,6 +218,7 @@ export async function processSale(product: Product, qty: number, additionalField
       ...additionalFields,
     }),
   });
+  queryClient.invalidateQueries({ queryKey: ["sales"] });
 }
 
 export function subscribeToIncomingGoods(callback: (goods: IncomingGood[]) => void) {
@@ -224,6 +230,7 @@ export async function addIncomingGood(good: Omit<IncomingGood, 'id'>) {
     method: 'POST',
     body: JSON.stringify(good),
   });
+  queryClient.invalidateQueries({ queryKey: ["incomingGoods"] });
 }
 
 export function subscribeToSalesDS(callback: (salesDS: SaleDS[]) => void) {
@@ -235,6 +242,7 @@ export async function addSaleDSRecord(sale: Omit<SaleDS, 'id' | 'tanggal'>) {
     method: 'POST',
     body: JSON.stringify(sale),
   });
+  queryClient.invalidateQueries({ queryKey: ["salesDS"] });
 }
 
 export function subscribeToIklan(callback: (iklanList: Iklan[]) => void) {
@@ -286,25 +294,34 @@ export async function updateBranding(settings: BrandingSettings) {
 
 export async function deleteAllProducts() {
   await fetchApi('/api/products', { method: 'DELETE' });
+  queryClient.invalidateQueries({ queryKey: ["products"] });
 }
 
 export async function deleteAllSales() {
   await fetchApi('/api/sales', { method: 'DELETE' });
+  queryClient.invalidateQueries({ queryKey: ["sales"] });
 }
 
 export async function deleteAllIncomingGoods() {
   await fetchApi('/api/incoming-goods', { method: 'DELETE' });
+  queryClient.invalidateQueries({ queryKey: ["incomingGoods"] });
 }
 
 export async function deleteSale(sale: Sale) {
-  if (sale.id) await fetchApi(`/api/sales/${sale.id}`, { method: 'DELETE' });
+  if (sale.id) {
+    await fetchApi(`/api/sales/${sale.id}`, { method: 'DELETE' });
+    queryClient.invalidateQueries({ queryKey: ["sales"] });
+  }
 }
 
 export async function updateSale(sale: Sale) {
-  if (sale.id) await fetchApi(`/api/sales/${sale.id}`, {
-    method: 'PUT',
-    body: JSON.stringify(sale),
-  });
+  if (sale.id) {
+    await fetchApi(`/api/sales/${sale.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(sale),
+    });
+    queryClient.invalidateQueries({ queryKey: ["sales"] });
+  }
 }
 
 export async function addSaleRecord(kodeBarang: string, namaBarang: string, qty: number, totalHarga: number, additionalFields: any) {
@@ -312,25 +329,36 @@ export async function addSaleRecord(kodeBarang: string, namaBarang: string, qty:
     method: 'POST',
     body: JSON.stringify({ kodeBarang, namaBarang, qty, totalHarga, ...additionalFields }),
   });
+  queryClient.invalidateQueries({ queryKey: ["sales"] });
 }
 
 export async function deleteIncomingGood(good: IncomingGood) {
-  if (good.id) await fetchApi(`/api/incoming-goods/${good.id}`, { method: 'DELETE' });
+  if (good.id) {
+    await fetchApi(`/api/incoming-goods/${good.id}`, { method: 'DELETE' });
+    queryClient.invalidateQueries({ queryKey: ["incomingGoods"] });
+  }
 }
 
 export async function deleteSaleDS(sale: SaleDS) {
-  if (sale.id) await fetchApi(`/api/sales-ds/${sale.id}`, { method: 'DELETE' });
+  if (sale.id) {
+    await fetchApi(`/api/sales-ds/${sale.id}`, { method: 'DELETE' });
+    queryClient.invalidateQueries({ queryKey: ["salesDS"] });
+  }
 }
 
 export async function updateSaleDS(sale: SaleDS) {
-  if (sale.id) await fetchApi(`/api/sales-ds/${sale.id}`, {
-    method: 'PUT',
-    body: JSON.stringify(sale),
-  });
+  if (sale.id) {
+    await fetchApi(`/api/sales-ds/${sale.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(sale),
+    });
+    queryClient.invalidateQueries({ queryKey: ["salesDS"] });
+  }
 }
 
 export async function deleteAllSalesDS() {
   await fetchApi('/api/sales-ds', { method: 'DELETE' });
+  queryClient.invalidateQueries({ queryKey: ["salesDS"] });
 }
 
 export async function updateIklan(iklan: Iklan) {

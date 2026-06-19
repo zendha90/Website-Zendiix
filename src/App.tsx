@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Routes, Route, Navigate, useLocation, Link } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -874,6 +875,48 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const [loginError, setLoginError] = useState("");
   const [hasCustomPassword, setHasCustomPassword] = useState(false);
 
+  const queryClient = useQueryClient();
+
+  const ROW_HEIGHT = 48; // Standard row height in pixels
+  const VISIBLE_ROWS_COUNT = 15; // Number of rows fully rendered simultaneously in the viewport
+
+  // TanStack Query for state caching, auto window-focus-refetching, and smart client sync
+  const { data: qSales } = useQuery<Sale[]>({
+    queryKey: ["sales"],
+    queryFn: () => fetch("/api/sales").then(res => res.json()),
+    refetchInterval: 60000,
+    staleTime: 30000,
+    enabled: isAuthenticated,
+  });
+
+  const { data: qSalesDS } = useQuery<SaleDS[]>({
+    queryKey: ["salesDS"],
+    queryFn: () => fetch("/api/sales-ds").then(res => res.json()),
+    refetchInterval: 60000,
+    staleTime: 30000,
+    enabled: isAuthenticated,
+  });
+
+  const { data: qIncoming } = useQuery<IncomingGood[]>({
+    queryKey: ["incomingGoods"],
+    queryFn: () => fetch("/api/incoming-goods").then(res => res.json()),
+    refetchInterval: 60000,
+    staleTime: 30000,
+    enabled: isAuthenticated,
+  });
+
+  useEffect(() => {
+    if (qSales) setSales(qSales);
+  }, [qSales]);
+
+  useEffect(() => {
+    if (qSalesDS) setSalesDS(qSalesDS);
+  }, [qSalesDS]);
+
+  useEffect(() => {
+    if (qIncoming) setIncomingGoods(qIncoming);
+  }, [qIncoming]);
+
   useEffect(() => {
     fetch('/api/admin/check-config')
       .then(res => res.json())
@@ -926,7 +969,165 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const [allowDualPower, setAllowDualPower] = useState(true);
   const [groupName, setGroupName] = useState("");
 
+  // Product stats and stock map precomputation to completely avoid heavy O(N^2) loops during render
+  const productStats = React.useMemo(() => {
+    const prodIncoming = new Map<string, number>();
+    const prodSales = new Map<string, number>();
+
+    const kodeToProduct = new Map<string, Product>();
+    products.forEach(p => {
+      if (p.kodeBarang) {
+        kodeToProduct.set(p.kodeBarang.trim().toLowerCase(), p);
+      }
+    });
+
+    incomingGoods.forEach(ig => {
+      let pId: string | undefined = ig.productId;
+      if (!pId && ig.kodeBarang) {
+        pId = kodeToProduct.get(ig.kodeBarang.trim().toLowerCase())?.id;
+      }
+      if (pId) {
+        prodIncoming.set(pId, (prodIncoming.get(pId) || 0) + (ig.qty || 0));
+      }
+    });
+
+    sales.forEach(s => {
+      let pId: string | undefined = s.productId;
+      if (!pId && s.kodeBarang) {
+        pId = kodeToProduct.get(s.kodeBarang.trim().toLowerCase())?.id;
+      }
+      if (pId) {
+        prodSales.set(pId, (prodSales.get(pId) || 0) + (s.qty || 0));
+      }
+    });
+
+    return {
+      incoming: prodIncoming,
+      sales: prodSales,
+      kodeToProduct
+    };
+  }, [products, sales, incomingGoods]);
+
+  const productStockMap = React.useMemo(() => {
+    const stockMap: Record<string, number> = {};
+    const { incoming, sales: salesMap } = productStats;
+    
+    products.forEach(p => {
+      const tt = p.id ? (salesMap.get(p.id) || 0) : 0;
+      const tm = p.id ? (incoming.get(p.id) || 0) : 0;
+      const finalStock = p.stokAwal + tm - tt;
+      if (p.id) {
+        stockMap[p.id] = finalStock;
+      }
+      if (p.kodeBarang) {
+        stockMap[p.kodeBarang.trim().toLowerCase()] = finalStock;
+      }
+    });
+
+    return stockMap;
+  }, [products, productStats]);
+
   const [searchInventory, setSearchInventory] = useState("");
+  const [localSearchInventory, setLocalSearchInventory] = useState("");
+
+  const [salesPage, setSalesPage] = useState(1);
+  const [salesLimit, setSalesLimit] = useState<number | "all">(50);
+  const [salesSearch, setSalesSearch] = useState("");
+  const [localSalesSearch, setLocalSalesSearch] = useState("");
+
+  const [salesDSPage, setSalesDSPage] = useState(1);
+  const [salesDSLimit, setSalesDSLimit] = useState<number | "all">(50);
+  const [salesDSSearch, setSalesDSSearch] = useState("");
+  const [localSalesDSSearch, setLocalSalesDSSearch] = useState("");
+
+  const [incomingPage, setIncomingPage] = useState(1);
+  const [incomingLimit, setIncomingLimit] = useState<number | "all">(50);
+  const [incomingSearch, setIncomingSearch] = useState("");
+  const [localIncomingSearch, setLocalIncomingSearch] = useState("");
+
+  // Debouncing handlers for search queries to prevent input lag on keystrokes
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setSearchInventory(localSearchInventory);
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [localSearchInventory]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setSalesSearch(localSalesSearch);
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [localSalesSearch]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setSalesDSSearch(localSalesDSSearch);
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [localSalesDSSearch]);
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setIncomingSearch(localIncomingSearch);
+    }, 200);
+    return () => clearTimeout(handler);
+  }, [localIncomingSearch]);
+
+  useEffect(() => {
+    setSalesPage(1);
+  }, [salesSearch, salesLimit]);
+
+  useEffect(() => {
+    setSalesDSPage(1);
+  }, [salesDSSearch, salesDSLimit]);
+
+  useEffect(() => {
+    setIncomingPage(1);
+  }, [incomingSearch, incomingLimit]);
+
+  // Virtualization Scroll Start Indices
+  const [salesStartIndex, setSalesStartIndex] = useState(0);
+  const [salesDSStartIndex, setSalesDSStartIndex] = useState(0);
+  const [incomingStartIndex, setIncomingStartIndex] = useState(0);
+
+  // Sync virtual scroll ranges to 0 when pagination, search, or limits change
+  useEffect(() => {
+    setSalesStartIndex(0);
+  }, [salesPage, salesLimit, salesSearch]);
+
+  useEffect(() => {
+    setSalesDSStartIndex(0);
+  }, [salesDSPage, salesDSLimit, salesDSSearch]);
+
+  useEffect(() => {
+    setIncomingStartIndex(0);
+  }, [incomingPage, incomingLimit, incomingSearch]);
+
+  const handleSalesScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    const computedIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 5);
+    if (Math.abs(computedIndex - salesStartIndex) >= 3 || computedIndex === 0) {
+      setSalesStartIndex(computedIndex);
+    }
+  };
+
+  const handleSalesDSScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    const computedIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 5);
+    if (Math.abs(computedIndex - salesDSStartIndex) >= 3 || computedIndex === 0) {
+      setSalesDSStartIndex(computedIndex);
+    }
+  };
+
+  const handleIncomingScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    const computedIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 5);
+    if (Math.abs(computedIndex - incomingStartIndex) >= 3 || computedIndex === 0) {
+      setIncomingStartIndex(computedIndex);
+    }
+  };
+
   const [editProductId, setEditProductId] = useState<string | null>(null);
 
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
@@ -1309,25 +1510,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   };
 
   const sortedAndFilteredProducts = React.useMemo(() => {
+    const { incoming, sales: salesMap } = productStats;
     let baseProducts = products.map((p) => {
-      const pSales = sales.filter(
-        (s) =>
-          s.productId === p.id ||
-          (s.kodeBarang &&
-            p.kodeBarang &&
-            s.kodeBarang.trim().toLowerCase() ===
-              p.kodeBarang.trim().toLowerCase()),
-      );
-      const tt = pSales.reduce((sum, s) => sum + s.qty, 0);
-      const pIncoming = incomingGoods.filter(
-        (ig) =>
-          ig.productId === p.id ||
-          (ig.kodeBarang &&
-            p.kodeBarang &&
-            ig.kodeBarang.trim().toLowerCase() ===
-              p.kodeBarang.trim().toLowerCase()),
-      );
-      const tm = pIncoming.reduce((sum, ig) => sum + ig.qty, 0);
+      const tt = p.id ? (salesMap.get(p.id) || 0) : 0;
+      const tm = p.id ? (incoming.get(p.id) || 0) : 0;
       return {
         ...p,
         terjual: tt,
@@ -1337,10 +1523,11 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     });
 
     if (searchInventory) {
+      const q = searchInventory.toLowerCase().trim();
       baseProducts = baseProducts.filter(
         (p) =>
-          p.namaBarang.toLowerCase().includes(searchInventory.toLowerCase()) ||
-          p.kodeBarang.toLowerCase().includes(searchInventory.toLowerCase()),
+          (p.namaBarang && p.namaBarang.toLowerCase().includes(q)) ||
+          (p.kodeBarang && p.kodeBarang.toLowerCase().includes(q)),
       );
     }
 
@@ -1359,7 +1546,104 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       });
     }
     return baseProducts;
-  }, [products, sales, incomingGoods, searchInventory, sortConfig]);
+  }, [products, productStats, searchInventory, sortConfig]);
+
+  const filteredSales = React.useMemo(() => {
+    let result = [...sales];
+    if (salesSearch) {
+      const q = salesSearch.toLowerCase().trim();
+      result = result.filter(s => 
+        (s.namaBarang && s.namaBarang.toLowerCase().includes(q)) ||
+        (s.kodeBarang && s.kodeBarang.toLowerCase().includes(q)) ||
+        (s.noPesanan && s.noPesanan.toLowerCase().includes(q)) ||
+        (s.noResi && s.noResi.toLowerCase().includes(q)) ||
+        (s.channel && s.channel.toLowerCase().includes(q)) ||
+        (s.namaEkspedisi && s.namaEkspedisi.toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [sales, salesSearch]);
+
+  const paginatedSales = React.useMemo(() => {
+    if (salesLimit === "all") return filteredSales;
+    const startIndex = (salesPage - 1) * salesLimit;
+    return filteredSales.slice(startIndex, startIndex + salesLimit);
+  }, [filteredSales, salesPage, salesLimit]);
+
+  const filteredSalesDS = React.useMemo(() => {
+    let result = [...salesDS];
+    if (salesDSSearch) {
+      const q = salesDSSearch.toLowerCase().trim();
+      result = result.filter(s => 
+        (s.namaProduk && s.namaProduk.toLowerCase().includes(q)) ||
+        (s.noPesanan && s.noPesanan.toLowerCase().includes(q)) ||
+        (s.noResi && s.noResi.toLowerCase().includes(q)) ||
+        (s.channel && s.channel.toLowerCase().includes(q)) ||
+        (s.namaPelanggan && s.namaPelanggan.toLowerCase().includes(q)) ||
+        (s.kodeSupplier && s.kodeSupplier.toLowerCase().includes(q))
+      );
+    }
+    return result;
+  }, [salesDS, salesDSSearch]);
+
+  const paginatedSalesDS = React.useMemo(() => {
+    if (salesDSLimit === "all") return filteredSalesDS;
+    const startIndex = (salesDSPage - 1) * salesDSLimit;
+    return filteredSalesDS.slice(startIndex, startIndex + salesDSLimit);
+  }, [filteredSalesDS, salesDSPage, salesDSLimit]);
+
+  const filteredIncomingGoods = React.useMemo(() => {
+    let result = [...incomingGoods];
+    if (incomingSearch) {
+      const q = incomingSearch.toLowerCase().trim();
+      result = result.filter(g => 
+        (g.namaBarang && g.namaBarang.toLowerCase().includes(q)) ||
+        (g.kodeBarang && g.kodeBarang.toLowerCase().includes(q)) ||
+        (g.supplier && g.supplier.toLowerCase().includes(q))
+      );
+    }
+    return result.sort((a, b) => {
+      const d1 = new Date(a.tanggal?.seconds ? a.tanggal.seconds * 1000 : a.tanggal).getTime();
+      const d2 = new Date(b.tanggal?.seconds ? b.tanggal.seconds * 1000 : b.tanggal).getTime();
+      return d2 - d1;
+    });
+  }, [incomingGoods, incomingSearch]);
+
+  const paginatedIncomingGoods = React.useMemo(() => {
+    if (incomingLimit === "all") return filteredIncomingGoods;
+    const startIndex = (incomingPage - 1) * incomingLimit;
+    return filteredIncomingGoods.slice(startIndex, startIndex + incomingLimit);
+  }, [filteredIncomingGoods, incomingPage, incomingLimit]);
+
+  const virtualizedSales = React.useMemo(() => {
+    const start = Math.min(salesStartIndex, Math.max(0, paginatedSales.length - VISIBLE_ROWS_COUNT));
+    const end = Math.min(paginatedSales.length, start + VISIBLE_ROWS_COUNT + 10);
+    return {
+      slice: paginatedSales.slice(start, end),
+      topSpacerHeight: start * ROW_HEIGHT,
+      bottomSpacerHeight: Math.max(0, (paginatedSales.length - end) * ROW_HEIGHT)
+    };
+  }, [paginatedSales, salesStartIndex]);
+
+  const virtualizedSalesDS = React.useMemo(() => {
+    const start = Math.min(salesDSStartIndex, Math.max(0, paginatedSalesDS.length - VISIBLE_ROWS_COUNT));
+    const end = Math.min(paginatedSalesDS.length, start + VISIBLE_ROWS_COUNT + 10);
+    return {
+      slice: paginatedSalesDS.slice(start, end),
+      topSpacerHeight: start * ROW_HEIGHT,
+      bottomSpacerHeight: Math.max(0, (paginatedSalesDS.length - end) * ROW_HEIGHT)
+    };
+  }, [paginatedSalesDS, salesDSStartIndex]);
+
+  const virtualizedIncomingGoods = React.useMemo(() => {
+    const start = Math.min(incomingStartIndex, Math.max(0, paginatedIncomingGoods.length - VISIBLE_ROWS_COUNT));
+    const end = Math.min(paginatedIncomingGoods.length, start + VISIBLE_ROWS_COUNT + 10);
+    return {
+      slice: paginatedIncomingGoods.slice(start, end),
+      topSpacerHeight: start * ROW_HEIGHT,
+      bottomSpacerHeight: Math.max(0, (paginatedIncomingGoods.length - end) * ROW_HEIGHT)
+    };
+  }, [paginatedIncomingGoods, incomingStartIndex]);
 
   interface DraftSale {
     id: string;
@@ -2076,15 +2360,9 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
   useEffect(() => {
     if (isAuthenticated) {
-      const unsubS = subscribeToSales(setSales);
-      const unsubI = subscribeToIncomingGoods(setIncomingGoods);
-      const unsubDS = subscribeToSalesDS(setSalesDS);
       const unsubIklan = subscribeToIklan(setIklanList);
       const unsubWeekly = subscribeToWeeklySales(setWeeklySalesList);
       return () => {
-        unsubS();
-        unsubI();
-        unsubDS();
         unsubIklan();
         unsubWeekly();
       };
@@ -2391,6 +2669,62 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     });
   };
 
+  const parseIndonesianDate = (dateStr: string): Date => {
+    if (!dateStr) return new Date();
+    
+    let cleanStr = dateStr.trim().replace(/\s+/g, ' ');
+    
+    // Attempt standard parse first
+    const parsed = Date.parse(cleanStr);
+    if (!isNaN(parsed)) {
+      return new Date(parsed);
+    }
+    
+    const indonesianMonths: { [key: string]: number } = {
+      januari: 0, jan: 0,
+      februari: 1, feb: 1,
+      maret: 2, mar: 2,
+      april: 3, apr: 3,
+      mei: 4, may: 4,
+      juni: 5, jun: 5,
+      juli: 6, jul: 6,
+      agustus: 7, agt: 7, agst: 7, agu: 7,
+      oktober: 9, okt: 9,
+      september: 8, sep: 8,
+      november: 10, nov: 10,
+      desember: 11, des: 11
+    };
+
+    // e.g. "13 Jun 2026" or "13 Juni 2026"
+    const matches = cleanStr.toLowerCase().match(/^(\d{1,2})\s+([a-z]+)\s+(\d{4})/i);
+    if (matches) {
+      const day = parseInt(matches[1], 10);
+      const monthName = matches[2];
+      const year = parseInt(matches[3], 10);
+      
+      if (indonesianMonths[monthName] !== undefined) {
+        return new Date(year, indonesianMonths[monthName], day);
+      }
+    }
+
+    // e.g. "DD/MM/YYYY" or "DD-MM-YYYY"
+    const parts = cleanStr.split(/[-/.]/);
+    if (parts.length === 3) {
+      const d = parseInt(parts[0], 10);
+      const m = parseInt(parts[1], 10);
+      const y = parseInt(parts[2], 10);
+      if (!isNaN(d) && !isNaN(m) && !isNaN(y)) {
+        if (y > 999) {
+          return new Date(y, m - 1, d);
+        } else if (d > 999) { // YYYY-MM-DD
+          return new Date(d, m - 1, y);
+        }
+      }
+    }
+
+    return new Date();
+  };
+
   const handleImportSales = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -2451,10 +2785,11 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           const totalHarga = parseNum(
             getVal(item, "Total Penjualan", "Total Harga"),
           );
+          const tanggalRaw = String(getVal(item, "Tgl. Order", "Tgl Order", "Tanggal Order", "Tanggal") || "");
 
           try {
-            const baseDate = new Date();
-            const offsetDate = new Date(baseDate.getTime() + (data.length - index) * 1000);
+            const baseDate = parseIndonesianDate(tanggalRaw);
+            const offsetDate = new Date(baseDate.getTime() + index * 1000);
             await addSaleRecord(kodeBarang, namaBarang, qty, totalHarga, {
               tanggalOrder: String(
                 getVal(item, "Tgl. Order", "Tanggal Order") || "",
@@ -2555,9 +2890,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           const product = productMap.get(namaOrKode.toLowerCase());
 
           if (product) {
-            const parsedDate = (tanggal && !isNaN(Date.parse(tanggal))) ? new Date(tanggal) : new Date();
-            // Offset each record's date such that lower index (earlier in CSV) has higher seconds value
-            const offsetDate = new Date(parsedDate.getTime() + (data.length - index) * 1000);
+            const parsedDate = parseIndonesianDate(tanggal);
+            const offsetDate = new Date(parsedDate.getTime() + index * 1000);
             preparedItems.push({
                 id: Math.random().toString(36).substring(2, 15),
                 productId: product.id!,
@@ -3028,25 +3362,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
                         let stokSaatIni = 0;
                         if (product) {
-                          const ps = sales.filter(
-                            (s_f) =>
-                              s_f.productId === product.id ||
-                              (s_f.kodeBarang &&
-                                product.kodeBarang &&
-                                s_f.kodeBarang.trim().toLowerCase() ===
-                                  product.kodeBarang.trim().toLowerCase()),
-                          );
-                          const tt = ps.reduce((sum, s_f) => sum + s_f.qty, 0);
-                          const pi = incomingGoods.filter(
-                            (ig) =>
-                              ig.productId === product.id ||
-                              (ig.kodeBarang &&
-                                product.kodeBarang &&
-                                ig.kodeBarang.trim().toLowerCase() ===
-                                  product.kodeBarang.trim().toLowerCase()),
-                          );
-                          const tm = pi.reduce((sum, ig) => sum + ig.qty, 0);
-                          stokSaatIni = product.stokAwal + tm - tt;
+                          stokSaatIni = productStockMap[product.id || ""] ?? (product.kodeBarang ? productStockMap[product.kodeBarang.trim().toLowerCase()] : undefined) ?? product.stokAwal;
                         }
 
                         const totalHpp = hpp * (Number(draft.qty) || 1);
@@ -3813,10 +4129,21 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                       <input
                         type="text"
                         placeholder="CARI KODE / NAMA..."
-                        value={searchInventory}
-                        onChange={(e) => setSearchInventory(e.target.value)}
-                        className="pl-10 pr-4 py-2 bg-white border-2 border-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-xs font-bold uppercase tracking-widest w-64 shadow-[2px_2px_0px_0px_#0f172a]"
+                        value={localSearchInventory}
+                        onChange={(e) => setLocalSearchInventory(e.target.value)}
+                        className="pl-10 pr-8 py-2 bg-white border-2 border-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-xs font-bold uppercase tracking-widest w-64 shadow-[2px_2px_0px_0px_#0f172a]"
                       />
+                      {localSearchInventory && (
+                        <button
+                          onClick={() => {
+                            setLocalSearchInventory("");
+                            setSearchInventory("");
+                          }}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-900"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
                     </div>
                     <button
                       onClick={() => {
@@ -4049,8 +4376,85 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                     </button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-x-auto overflow-y-auto min-w-0">
-                  {databaseSubTab === "regular" ? (
+
+                {/* Filter and Search Bar */}
+                <div className="p-4 bg-slate-50 border-b-2 border-slate-900 flex flex-col sm:flex-row gap-3 items-center justify-between shrink-0">
+                  <div className="relative w-full sm:max-w-md">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                      <Search className="w-4 h-4" />
+                    </span>
+                    <input
+                      type="text"
+                      value={databaseSubTab === "regular" ? localSalesSearch : localSalesDSSearch}
+                      onChange={(e) => {
+                        if (databaseSubTab === "regular") {
+                          setLocalSalesSearch(e.target.value);
+                        } else {
+                          setLocalSalesDSSearch(e.target.value);
+                        }
+                      }}
+                      placeholder={
+                        databaseSubTab === "regular"
+                          ? "Cari No. Pesanan, Kode, Nama Barang, Resi, Kurir..."
+                          : "Cari No. Pesanan, Produk, Resi, Pelanggan, Supplier..."
+                      }
+                      className="w-full pl-9 pr-4 py-2 bg-white border-2 border-slate-900 font-bold text-xs placeholder-slate-400 focus:outline-none focus:bg-slate-50 transition-colors"
+                    />
+                    {(databaseSubTab === "regular" ? localSalesSearch : localSalesDSSearch) && (
+                      <button
+                        onClick={() => {
+                          if (databaseSubTab === "regular") {
+                            setLocalSalesSearch("");
+                            setSalesSearch("");
+                          } else {
+                            setLocalSalesDSSearch("");
+                            setSalesDSSearch("");
+                          }
+                        }}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-900"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-black uppercase text-slate-700 tracking-wider">Tampilkan:</span>
+                    <div className="flex border-2 border-slate-900 divide-x-2 divide-slate-900 bg-white shadow-[2px_2px_0px_0px_#0f172a] text-xs font-black">
+                      {([50, 100, 500, "all"] as const).map((limit) => {
+                        const isSelected =
+                          databaseSubTab === "regular"
+                            ? salesLimit === limit
+                            : salesDSLimit === limit;
+                        return (
+                          <button
+                            key={limit}
+                            onClick={() => {
+                              if (databaseSubTab === "regular") {
+                                setSalesLimit(limit);
+                              } else {
+                                setSalesDSLimit(limit);
+                              }
+                            }}
+                            className={`px-3 py-1.5 uppercase transition-colors ${
+                              isSelected
+                                ? "bg-slate-900 text-white"
+                                : "text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            {limit === "all" ? "Semua" : limit}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {databaseSubTab === "regular" ? (
+                  <div 
+                    className="flex-1 overflow-x-auto overflow-y-auto min-w-0 max-h-[600px] relative scrollbar-thin"
+                    onScroll={handleSalesScroll}
+                  >
                     <table className="w-full text-left whitespace-nowrap min-w-[1600px] border-collapse table-auto">
                       <thead className="bg-slate-900 text-white sticky top-0 z-10 text-[9px] uppercase tracking-widest font-black">
                         <tr>
@@ -4097,139 +4501,130 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                         </tr>
                       </thead>
                       <tbody className="bg-white">
-                        {sales.length === 0 ? (
+                        {filteredSales.length === 0 ? (
                           <tr>
                             <td
                               className="px-6 py-4 pt-10 text-sm text-center text-slate-500"
                               colSpan={14}
                             >
-                              Belum ada transaksi penjualan.
+                              {sales.length === 0
+                                ? "Belum ada transaksi penjualan."
+                                : "Tidak ada transaksi penjualan yang cocok dengan pencarian."}
                             </td>
                           </tr>
                         ) : (
-                          sales.map((s, idx) => {
-                            const bgColor =
-                              idx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
-                            const product = products.find(
-                              (p) =>
-                                p.kodeBarang === s.kodeBarang ||
-                                p.id === s.productId,
-                            );
-                            return (
-                              <tr
-                                key={s.id || idx}
-                                className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}
-                              >
-                                <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
-                                  {s.tanggalOrder ||
-                                    (s.tanggal
-                                      ? new Date(
-                                          s.tanggal.seconds * 1000,
-                                        ).toLocaleDateString("id-ID")
-                                      : "-")}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
-                                  {s.channel || "-"}
-                                </td>
-                                <td
-                                  className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200 truncate max-w-[150px]"
-                                  title={s.noPesanan}
-                                >
-                                  {s.noPesanan || "-"}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] font-mono text-slate-500 border-r border-slate-200">
-                                  {s.noResi || "-"}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
-                                  {s.namaEkspedisi || "-"}
-                                </td>
-                                <td
-                                  className="px-3 py-4 text-[11px] font-bold text-slate-900 border-r border-slate-200 truncate max-w-[200px]"
-                                  title={s.namaBarang}
-                                >
-                                  {s.namaBarang}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] text-center font-bold text-slate-900 border-r border-slate-200">
-                                  {s.qty}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] font-bold text-slate-900 text-right border-r border-slate-200">
-                                  {(s.totalHarga || 0).toLocaleString("id-ID")}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] font-mono text-slate-500 border-r border-slate-200">
-                                  {s.kodeBarang || "-"}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">
-                                  {(s.hpp || 0).toLocaleString("id-ID")}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] text-center font-black border-r border-slate-200 text-slate-600">
-                                  {(() => {
-                                    if (!product) return "-";
-                                    const ps = sales.filter(
-                                      (s_f) =>
-                                        s_f.productId === product.id ||
-                                        (s_f.kodeBarang &&
-                                          product.kodeBarang &&
-                                          s_f.kodeBarang.trim().toLowerCase() ===
-                                            product.kodeBarang
-                                              .trim()
-                                              .toLowerCase()),
-                                    );
-                                    const tt = ps.reduce(
-                                      (sum, s_f) => sum + s_f.qty,
-                                      0,
-                                    );
-                                    const pi = incomingGoods.filter(
-                                      (ig) =>
-                                        ig.productId === product.id ||
-                                        (ig.kodeBarang &&
-                                          product.kodeBarang &&
-                                          ig.kodeBarang.trim().toLowerCase() ===
-                                            product.kodeBarang
-                                              .trim()
-                                              .toLowerCase()),
-                                    );
-                                    const tm = pi.reduce(
-                                      (sum, ig) => sum + ig.qty,
-                                      0,
-                                    );
-                                    return product.stokAwal + tm - tt;
-                                  })()}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">
-                                  {(s.totalHpp || 0).toLocaleString("id-ID")}
-                                </td>
-                                <td
-                                  className={`px-3 py-4 text-[11px] font-black text-right border-r border-slate-200 ${s.laba && s.laba > 0 ? "text-green-700" : "text-slate-900"}`}
-                                >
-                                  {(s.laba || 0).toLocaleString("id-ID")}
-                                </td>
-                                <td className="px-3 py-4 text-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <button
-                                      onClick={() => handleEditSale(s)}
-                                      className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white border border-transparent hover:border-slate-900 shadow-none transition-all"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={() => {
-                                        console.log("Setting sale to delete:", s);
-                                        setSaleToDelete(s);
-                                      }}
-                                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white border border-transparent hover:border-slate-900 shadow-none transition-all pointer-events-auto"
-                                      title="Hapus Transaksi"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
+                          <>
+                            {virtualizedSales.topSpacerHeight > 0 && (
+                              <tr style={{ height: `${virtualizedSales.topSpacerHeight}px` }}>
+                                <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSales.topSpacerHeight}px` }} />
                               </tr>
-                            );
-                          })
+                            )}
+                            {virtualizedSales.slice.map((s, idx) => {
+                              const absoluteIdx = salesStartIndex + idx;
+                              const bgColor =
+                                absoluteIdx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
+                              const product = products.find(
+                                (p) =>
+                                  p.kodeBarang === s.kodeBarang ||
+                                  p.id === s.productId,
+                              );
+                              return (
+                                <tr
+                                  key={s.id || idx}
+                                  className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}
+                                >
+                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
+                                    {s.tanggalOrder ||
+                                      (s.tanggal
+                                        ? new Date(
+                                            s.tanggal.seconds ? s.tanggal.seconds * 1000 : s.tanggal,
+                                          ).toLocaleDateString("id-ID")
+                                        : "-")}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
+                                    {s.channel || "-"}
+                                  </td>
+                                  <td
+                                    className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200 truncate max-w-[150px]"
+                                    title={s.noPesanan}
+                                  >
+                                    {s.noPesanan || "-"}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] font-mono text-slate-500 border-r border-slate-200">
+                                    {s.noResi || "-"}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
+                                    {s.namaEkspedisi || "-"}
+                                  </td>
+                                  <td
+                                    className="px-3 py-4 text-[11px] font-bold text-slate-900 border-r border-slate-200 truncate max-w-[200px]"
+                                    title={s.namaBarang}
+                                  >
+                                    {s.namaBarang}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] text-center font-bold text-slate-900 border-r border-slate-200">
+                                    {s.qty}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] font-bold text-slate-900 text-right border-r border-slate-200">
+                                    {(s.totalHarga || 0).toLocaleString("id-ID")}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] font-mono text-slate-500 border-r border-slate-200">
+                                    {s.kodeBarang || "-"}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">
+                                    {(s.hpp || 0).toLocaleString("id-ID")}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] text-center font-black border-r border-slate-200 text-slate-600">
+                                    {product 
+                                      ? (productStockMap[product.id || ""] ?? (product.kodeBarang ? productStockMap[product.kodeBarang.trim().toLowerCase()] : undefined) ?? product.stokAwal)
+                                      : "-"}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">
+                                    {(s.totalHpp || 0).toLocaleString("id-ID")}
+                                  </td>
+                                  <td
+                                    className={`px-3 py-4 text-[11px] font-black text-right border-r border-slate-200 ${s.laba && s.laba > 0 ? "text-green-700" : "text-slate-900"}`}
+                                  >
+                                    {(s.laba || 0).toLocaleString("id-ID")}
+                                  </td>
+                                  <td className="px-3 py-4 text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <button
+                                        onClick={() => handleEditSale(s)}
+                                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white border border-transparent hover:border-slate-900 shadow-none transition-all"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          console.log("Setting sale to delete:", s);
+                                          setSaleToDelete(s);
+                                        }}
+                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white border border-transparent hover:border-slate-900 shadow-none transition-all pointer-events-auto"
+                                        title="Hapus Transaksi"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {virtualizedSales.bottomSpacerHeight > 0 && (
+                              <tr style={{ height: `${virtualizedSales.bottomSpacerHeight}px` }}>
+                                <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSales.bottomSpacerHeight}px` }} />
+                              </tr>
+                            )}
+                          </>
                         )}
                       </tbody>
                     </table>
-                  ) : (
+                  </div>
+                ) : (
+                  <div 
+                    className="flex-1 overflow-x-auto overflow-y-auto min-w-0 max-h-[600px] relative scrollbar-thin"
+                    onScroll={handleSalesDSScroll}
+                  >
                     <table className="w-full text-left whitespace-nowrap min-w-[1600px] border-collapse table-auto">
                       <thead className="bg-[#0f172a] text-white sticky top-0 z-10 text-[9px] uppercase tracking-widest font-black">
                         <tr>
@@ -4250,97 +4645,170 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                         </tr>
                       </thead>
                       <tbody className="bg-white">
-                        {salesDS.length === 0 ? (
+                        {filteredSalesDS.length === 0 ? (
                           <tr>
                             <td
                               className="px-6 py-12 text-sm text-center text-slate-500"
                               colSpan={14}
                             >
-                              Belum ada transaksi penjualan dropship (DS) tersimpan.
+                              {salesDS.length === 0
+                                ? "Belum ada transaksi penjualan dropship (DS) tersimpan."
+                                : "Tidak ada transaksi dropship yang cocok dengan pencarian."}
                             </td>
                           </tr>
                         ) : (
-                          salesDS.map((s, idx) => {
-                            const bgColor =
-                              idx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
-                            return (
-                              <tr
-                                key={s.id || idx}
-                                className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}
-                              >
-                                <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
-                                  {s.tanggalOrder ||
-                                    (s.tanggal
-                                      ? new Date(
-                                          s.tanggal.seconds * 1000,
-                                        ).toLocaleDateString("id-ID")
-                                      : "-")}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] font-mono font-medium text-indigo-700 border-r border-slate-200">
-                                  {s.kodeSupplier || "-"}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
-                                  {s.channel || "-"}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] font-mono text-slate-700 border-r border-slate-200 truncate max-w-[150px]" title={s.noPesanan}>
-                                  {s.noPesanan || "-"}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] font-mono text-slate-500 border-r border-slate-200 truncate max-w-[150px]" title={s.noResi}>
-                                  {s.noResi || "-"}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
-                                  {s.namaPelanggan || "-"}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] font-medium text-slate-500 border-r border-slate-200 truncate max-w-[200px]" title={s.alamatPelanggan}>
-                                  {s.alamatPelanggan || "-"}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] font-bold text-slate-900 border-r border-slate-200 truncate max-w-[220px]" title={s.namaProduk}>
-                                  {s.namaProduk}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] text-center font-bold text-slate-900 border-r border-slate-200">
-                                  {s.qty}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">
-                                  {(s.hpp || 0).toLocaleString("id-ID")}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] text-right font-bold text-indigo-600 border-r border-slate-200">
-                                  {(s.totalPenjualan || 0).toLocaleString("id-ID")}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">
-                                  {(s.ongkosKirim || 0).toLocaleString("id-ID")}
-                                </td>
-                                <td className="px-3 py-4 text-[11px] text-right font-bold font-mono text-emerald-600 border-r border-slate-200 bg-emerald-50/25">
-                                  {(s.laba || 0).toLocaleString("id-ID")}
-                                </td>
-                                <td className="px-3 py-4 text-center">
-                                  <button
-                                    onClick={async (e) => {
-                                      e.stopPropagation();
-                                      if (!s.id) {
-                                        alert("ID penjualan tidak ditemukan!");
-                                        return;
-                                      }
-                                      if (confirm("Hapus transaksi dropship ini?")) {
-                                        try {
-                                          await deleteSaleDS(s);
-                                        } catch (err) {
-                                          console.error("Delete error:", err);
-                                          alert("Gagal menghapus.");
-                                        }
-                                      }
-                                    }}
-                                    className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-50 border border-transparent hover:border-slate-300 transition-all pointer-events-auto"
-                                    title="Hapus DS"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                </td>
+                          <>
+                            {virtualizedSalesDS.topSpacerHeight > 0 && (
+                              <tr style={{ height: `${virtualizedSalesDS.topSpacerHeight}px` }}>
+                                <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSalesDS.topSpacerHeight}px` }} />
                               </tr>
-                            );
-                          })
+                            )}
+                            {virtualizedSalesDS.slice.map((s, idx) => {
+                              const absoluteIdx = salesDSStartIndex + idx;
+                              const bgColor =
+                                absoluteIdx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
+                              return (
+                                <tr
+                                  key={s.id || idx}
+                                  className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}
+                                >
+                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
+                                    {s.tanggalOrder ||
+                                      (s.tanggal
+                                        ? new Date(
+                                            s.tanggal.seconds ? s.tanggal.seconds * 1000 : s.tanggal,
+                                          ).toLocaleDateString("id-ID")
+                                        : "-")}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] font-mono font-medium text-indigo-700 border-r border-slate-200">
+                                    {s.kodeSupplier || "-"}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
+                                    {s.channel || "-"}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] font-mono text-slate-700 border-r border-slate-200 truncate max-w-[150px]" title={s.noPesanan}>
+                                    {s.noPesanan || "-"}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] font-mono text-slate-500 border-r border-slate-200 truncate max-w-[150px]" title={s.noResi}>
+                                    {s.noResi || "-"}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
+                                    {s.namaPelanggan || "-"}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-500 border-r border-slate-200 truncate max-w-[200px]" title={s.alamatPelanggan}>
+                                    {s.alamatPelanggan || "-"}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] font-bold text-slate-900 border-r border-slate-200 truncate max-w-[220px]" title={s.namaProduk}>
+                                    {s.namaProduk}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] text-center font-bold text-slate-900 border-r border-slate-200">
+                                    {s.qty}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">
+                                    {(s.hpp || 0).toLocaleString("id-ID")}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] text-right font-bold text-indigo-600 border-r border-slate-200">
+                                    {(s.totalPenjualan || 0).toLocaleString("id-ID")}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">
+                                    {(s.ongkosKirim || 0).toLocaleString("id-ID")}
+                                  </td>
+                                  <td className="px-3 py-4 text-[11px] text-right font-bold font-mono text-emerald-600 border-r border-slate-200 bg-emerald-50/25">
+                                    {(s.laba || 0).toLocaleString("id-ID")}
+                                  </td>
+                                  <td className="px-3 py-4 text-center">
+                                    <button
+                                      onClick={async (e) => {
+                                        e.stopPropagation();
+                                        if (!s.id) {
+                                          alert("ID penjualan tidak ditemukan!");
+                                          return;
+                                        }
+                                        if (confirm("Hapus transaksi dropship ini?")) {
+                                          try {
+                                            await deleteSaleDS(s);
+                                          } catch (err) {
+                                            console.error("Delete error:", err);
+                                            alert("Gagal menghapus.");
+                                          }
+                                        }
+                                      }}
+                                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-50 border border-transparent hover:border-slate-300 transition-all pointer-events-auto"
+                                      title="Hapus DS"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {virtualizedSalesDS.bottomSpacerHeight > 0 && (
+                              <tr style={{ height: `${virtualizedSalesDS.bottomSpacerHeight}px` }}>
+                                <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSalesDS.bottomSpacerHeight}px` }} />
+                              </tr>
+                            )}
+                          </>
                         )}
                       </tbody>
                     </table>
+                  </div>
+                )}
+
+                {/* Pagination Footer */}
+                <div className="p-4 bg-slate-50 border-t-2 border-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-black uppercase shrink-0">
+                  <span className="text-slate-700 tracking-wider">
+                    {(() => {
+                      const limit = databaseSubTab === "regular" ? salesLimit : salesDSLimit;
+                      const page = databaseSubTab === "regular" ? salesPage : salesDSPage;
+                      const total = databaseSubTab === "regular" ? filteredSales.length : filteredSalesDS.length;
+                      
+                      if (total === 0) return "Tidak ada data tampil";
+                      if (limit === "all") return `Menampilkan semua ${total.toLocaleString("id-ID")} data`;
+                      
+                      const start = (page - 1) * limit + 1;
+                      const end = Math.min(page * limit, total);
+                      return `Menampilkan ${start}-${end} dari ${total.toLocaleString("id-ID")} data`;
+                    })()}
+                  </span>
+                  
+                  {((databaseSubTab === "regular" ? salesLimit : salesDSLimit) !== "all") && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          if (databaseSubTab === "regular") {
+                            setSalesPage(prev => Math.max(1, prev - 1));
+                          } else {
+                            setSalesDSPage(prev => Math.max(1, prev - 1));
+                          }
+                        }}
+                        disabled={
+                          databaseSubTab === "regular" ? salesPage === 1 : salesDSPage === 1
+                        }
+                        className="px-3 py-1.5 border-2 border-slate-900 bg-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed shadow-[2px_2px_0px_0px_#0f172a] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none transition-all"
+                      >
+                        Sebelumnya
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          if (databaseSubTab === "regular") {
+                            const maxPage = Math.ceil(filteredSales.length / (salesLimit as number));
+                            setSalesPage(prev => Math.min(maxPage, prev + 1));
+                          } else {
+                            const maxPage = Math.ceil(filteredSalesDS.length / (salesDSLimit as number));
+                            setSalesDSPage(prev => Math.min(maxPage, prev + 1));
+                          }
+                        }}
+                        disabled={
+                          databaseSubTab === "regular"
+                            ? salesPage >= Math.ceil(filteredSales.length / (salesLimit as number)) || filteredSales.length === 0
+                            : salesDSPage >= Math.ceil(filteredSalesDS.length / (salesDSLimit as number)) || filteredSalesDS.length === 0
+                        }
+                        className="px-3 py-1.5 border-2 border-slate-900 bg-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed shadow-[2px_2px_0px_0px_#0f172a] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none transition-all"
+                      >
+                        Berikutnya
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -4370,7 +4838,60 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                     </button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-x-auto overflow-y-auto min-w-0">
+
+                {/* Filter and Search Bar for Incoming Goods */}
+                <div className="p-4 bg-slate-50 border-b-2 border-slate-900 flex flex-col sm:flex-row gap-3 items-center justify-between shrink-0">
+                  <div className="relative w-full sm:max-w-md">
+                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                      <Search className="w-4 h-4" />
+                    </span>
+                    <input
+                      type="text"
+                      value={localIncomingSearch}
+                      onChange={(e) => setLocalIncomingSearch(e.target.value)}
+                      placeholder="Cari Kode Barang, Nama Barang, Supplier..."
+                      className="w-full pl-9 pr-4 py-2 bg-white border-2 border-slate-900 font-bold text-xs placeholder-slate-400 focus:outline-none focus:bg-slate-50 transition-colors"
+                    />
+                    {localIncomingSearch && (
+                      <button
+                        onClick={() => {
+                          setLocalIncomingSearch("");
+                          setIncomingSearch("");
+                        }}
+                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-900"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                  
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-black uppercase text-slate-700 tracking-wider">Tampilkan:</span>
+                    <div className="flex border-2 border-slate-900 divide-x-2 divide-slate-900 bg-white shadow-[2px_2px_0px_0px_#0f172a] text-xs font-black">
+                      {([50, 100, 500, "all"] as const).map((limit) => {
+                        const isSelected = incomingLimit === limit;
+                        return (
+                          <button
+                            key={limit}
+                            onClick={() => setIncomingLimit(limit)}
+                            className={`px-3 py-1.5 uppercase transition-colors ${
+                              isSelected
+                                ? "bg-slate-900 text-white"
+                                : "text-slate-700 hover:bg-slate-100"
+                            }`}
+                          >
+                            {limit === "all" ? "Semua" : limit}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                <div 
+                  className="flex-1 overflow-x-auto overflow-y-auto min-w-0 max-h-[600px] relative scrollbar-thin"
+                  onScroll={handleIncomingScroll}
+                >
                   <table className="w-full text-left whitespace-nowrap min-w-[1000px] border-collapse table-auto">
                     <thead className="bg-slate-900 text-white sticky top-0 z-10 text-[10px] uppercase tracking-widest font-black">
                       <tr>
@@ -4393,67 +4914,121 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                       </tr>
                     </thead>
                     <tbody className="bg-white">
-                      {incomingGoods.length === 0 ? (
+                      {filteredIncomingGoods.length === 0 ? (
                         <tr>
                           <td
                             className="px-6 py-4 pt-10 text-sm text-center text-slate-500"
                             colSpan={6}
                           >
-                            Belum ada data barang masuk.
+                            {incomingGoods.length === 0
+                              ? "Belum ada data barang masuk."
+                              : "Tidak ada data barang masuk yang cocok dengan pencarian."}
                           </td>
                         </tr>
                       ) : (
-                        [...incomingGoods].sort((a,b) => {
-                           const d1 = new Date(a.tanggal?.seconds ? a.tanggal.seconds * 1000 : a.tanggal).getTime();
-                           const d2 = new Date(b.tanggal?.seconds ? b.tanggal.seconds * 1000 : b.tanggal).getTime();
-                           return d2 - d1;
-                        }).map((g, idx) => {
-                          const bgColor =
-                            idx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
-                          return (
-                            <tr
-                              key={g.id || idx}
-                              className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}
-                            >
-                              <td className="px-6 py-4 text-xs font-medium text-slate-800 border-r border-slate-200">
-                                {g.tanggal
-                                  ? new Date(
-                                      g.tanggal.seconds ? g.tanggal.seconds * 1000 : g.tanggal,
-                                    ).toLocaleDateString("id-ID", {
-                                      day: "2-digit",
-                                      month: "2-digit",
-                                      year: "numeric",
-                                      hour: "2-digit",
-                                      minute: "2-digit",
-                                    })
-                                  : "-"}
-                              </td>
-                              <td className="px-6 py-4 text-xs font-mono text-slate-500 border-r border-slate-200">
-                                {g.kodeBarang}
-                              </td>
-                              <td className="px-6 py-4 text-sm font-bold text-slate-900 border-r border-slate-200">
-                                {g.namaBarang}
-                              </td>
-                              <td className="px-6 py-4 text-xs font-medium text-slate-500 border-r border-slate-200">
-                                {g.supplier || "-"}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-center font-black text-indigo-700 border-r border-slate-200">
-                                {g.qty}
-                              </td>
-                              <td className="px-6 py-4 text-center">
-                                <button
-                                  onClick={() => setIncomingToDelete(g)}
-                                  className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white border-2 border-transparent hover:border-slate-900 shadow-none transition-all group-hover:opacity-100"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </td>
+                        <>
+                          {virtualizedIncomingGoods.topSpacerHeight > 0 && (
+                            <tr style={{ height: `${virtualizedIncomingGoods.topSpacerHeight}px` }}>
+                              <td colSpan={6} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedIncomingGoods.topSpacerHeight}px` }} />
                             </tr>
-                          );
-                        })
+                          )}
+                          {virtualizedIncomingGoods.slice.map((g, idx) => {
+                            const absoluteIdx = incomingStartIndex + idx;
+                            const bgColor =
+                              absoluteIdx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
+                            return (
+                              <tr
+                                key={g.id || idx}
+                                className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}
+                              >
+                                <td className="px-6 py-4 text-xs font-medium text-slate-800 border-r border-slate-200">
+                                  {g.tanggal
+                                    ? new Date(
+                                        g.tanggal.seconds ? g.tanggal.seconds * 1000 : g.tanggal,
+                                      ).toLocaleDateString("id-ID", {
+                                        day: "2-digit",
+                                        month: "2-digit",
+                                        year: "numeric",
+                                        hour: "2-digit",
+                                        minute: "2-digit",
+                                      })
+                                    : "-"}
+                                </td>
+                                <td className="px-6 py-4 text-xs font-mono text-slate-500 border-r border-slate-200">
+                                  {g.kodeBarang}
+                                </td>
+                                <td className="px-6 py-4 text-sm font-bold text-slate-900 border-r border-slate-200">
+                                  {g.namaBarang}
+                                </td>
+                                <td className="px-6 py-4 text-xs font-medium text-slate-500 border-r border-slate-200">
+                                  {g.supplier || "-"}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-center font-black text-indigo-700 border-r border-slate-200">
+                                  {g.qty}
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                  <button
+                                    onClick={() => setIncomingToDelete(g)}
+                                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white border-2 border-transparent hover:border-slate-900 shadow-none transition-all group-hover:opacity-100"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {virtualizedIncomingGoods.bottomSpacerHeight > 0 && (
+                            <tr style={{ height: `${virtualizedIncomingGoods.bottomSpacerHeight}px` }}>
+                              <td colSpan={6} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedIncomingGoods.bottomSpacerHeight}px` }} />
+                            </tr>
+                          )}
+                        </>
                       )}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Pagination Footer */}
+                <div className="p-4 bg-slate-50 border-t-2 border-slate-900 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs font-black uppercase shrink-0">
+                  <span className="text-slate-700 tracking-wider">
+                    {(() => {
+                      const limit = incomingLimit;
+                      const page = incomingPage;
+                      const total = filteredIncomingGoods.length;
+                      
+                      if (total === 0) return "Tidak ada data tampil";
+                      if (limit === "all") return `Menampilkan semua ${total.toLocaleString("id-ID")} data`;
+                      
+                      const start = (page - 1) * limit + 1;
+                      const end = Math.min(page * limit, total);
+                      return `Menampilkan ${start}-${end} dari ${total.toLocaleString("id-ID")} data`;
+                    })()}
+                  </span>
+                  
+                  {(incomingLimit !== "all") && (
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setIncomingPage(prev => Math.max(1, prev - 1))}
+                        disabled={incomingPage === 1}
+                        className="px-3 py-1.5 border-2 border-slate-900 bg-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed shadow-[2px_2px_0px_0px_#0f172a] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none transition-all"
+                      >
+                        Sebelumnya
+                      </button>
+                      
+                      <button
+                        onClick={() => {
+                          const maxPage = Math.ceil(filteredIncomingGoods.length / (incomingLimit as number));
+                          setIncomingPage(prev => Math.min(maxPage, prev + 1));
+                        }}
+                        disabled={
+                          incomingPage >= Math.ceil(filteredIncomingGoods.length / (incomingLimit as number)) || filteredIncomingGoods.length === 0
+                        }
+                        className="px-3 py-1.5 border-2 border-slate-900 bg-white hover:bg-slate-100 disabled:opacity-50 disabled:cursor-not-allowed shadow-[2px_2px_0px_0px_#0f172a] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none transition-all"
+                      >
+                        Berikutnya
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </section>
