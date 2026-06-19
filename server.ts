@@ -93,6 +93,44 @@ async function startServer() {
   loadFallbackData();
 
   let isDbOnline = false;
+  let dbCircuitTrippedAt = 0;
+  const CIRCUIT_COOLDOWN_MS = 60000; // Keep DB offline for 1 minute after failing
+  let isCheckingHealth = false;
+
+  function tripDbCircuit(reason: string) {
+    if (isDbOnline) {
+      console.error(`TRIPPING DATABASE CIRCUIT BREAKER. Reason: ${reason}. Bypassing database for the next ${CIRCUIT_COOLDOWN_MS / 1000}s.`);
+      isDbOnline = false;
+      dbCircuitTrippedAt = Date.now();
+    }
+  }
+
+  async function checkDbHealthInBackground() {
+    if (isCheckingHealth) return;
+    isCheckingHealth = true;
+    console.log('Checking database health in the background...');
+    try {
+      await Promise.race([
+        db.execute(sql`SELECT 1`),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 2000))
+      ]);
+      console.log('Database health check succeeded. Restoring database connection.');
+      isDbOnline = true;
+    } catch (err: any) {
+      console.warn('Database health check failed, keeping offline:', err?.message || err);
+      dbCircuitTrippedAt = Date.now(); // Reset cooldown to give it another minute
+    } finally {
+      isCheckingHealth = false;
+    }
+  }
+
+  setInterval(() => {
+    if (!isDbOnline && Date.now() - dbCircuitTrippedAt > CIRCUIT_COOLDOWN_MS) {
+      if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('dummy_user')) {
+        checkDbHealthInBackground();
+      }
+    }
+  }, 10000); // Check every 10 seconds if we need to heal
 
   // Run cPanel MySQL passive schema upgrades safely in the background (non-blocking)
   (async () => {
@@ -231,6 +269,7 @@ async function startServer() {
       return fresh;
     } catch (err: any) {
       console.error(`Database read error or timeout in getCached for key "${key}":`, err?.message || err);
+      tripDbCircuit(`Read error or timeout on key "${key}": ${err?.message || err}`);
       if (cached) {
         console.warn(`Serving stale database backup cache for key "${key}"`);
         return cached.data;
