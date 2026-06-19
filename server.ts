@@ -4,7 +4,7 @@ import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { createServer as createViteServer } from 'vite';
 import { db } from './src/db';
-import { products, incomingGoods, sales, salesDs, iklan, weeklySales, storefrontBanners, settings } from './src/db/schema';
+import { products, incomingGoods, sales, salesDs, iklan, weeklySales, storefrontBanners, settings, reviews } from './src/db/schema';
 import { eq, desc, sql } from 'drizzle-orm';
 
 // Global process listeners to prevent unhandled rejection crashes (essential for low max_user_connections database issues)
@@ -1030,6 +1030,56 @@ async function startServer() {
       fallbackData.storefrontBanners = fallbackData.storefrontBanners.filter((b: any) => b.id !== id);
       saveFallbackData();
       res.json({ success: true });
+    }
+  });
+
+  // REVIEWS
+  app.get('/api/reviews', async (req, res) => {
+    try {
+      if (!isDbOnline) return res.json([]);
+      const result = await db.select().from(reviews).orderBy(desc(reviews.createdAt));
+      res.json(result);
+    } catch (error) {
+      console.error('Error fetching reviews:', error);
+      res.json([]);
+    }
+  });
+
+  app.post('/api/reviews', async (req, res) => {
+    const data = req.body;
+    const id = data.id || Math.random().toString(36).substring(2, 15);
+    try {
+      if (!isDbOnline) return res.status(503).send('Database offline');
+      await db.insert(reviews).values({...data, id, createdAt: new Date()});
+      res.json({ id, ...data });
+    } catch (error) {
+      console.error('Error creating review:', error);
+      res.status(500).send('Error creating review');
+    }
+  });
+
+  app.delete('/api/reviews/:id', async (req, res) => {
+    const { id } = req.params;
+    try {
+      if (!isDbOnline) return res.status(503).send('Database offline');
+      await db.delete(reviews).where(eq(reviews.id, id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting review:', error);
+      res.status(500).send('Error deleting review');
+    }
+  });
+
+  app.put('/api/reviews/:id', async (req, res) => {
+    const { id } = req.params;
+    const data = req.body;
+    try {
+      if (!isDbOnline) return res.status(503).send('Database offline');
+      await db.update(reviews).set(data).where(eq(reviews.id, id));
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error updating review:', error);
+      res.status(500).send('Error updating review');
     }
   });
 

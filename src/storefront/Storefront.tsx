@@ -1035,6 +1035,36 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
             )}
           </section>
 
+          {/* BEST REVIEW */}
+          <section className="p-2 mt-4">
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest pl-2 mb-3">BEST REVIEW</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {[1, 2, 3, 4].map((item) => (
+                <div key={item} className="bg-white rounded-md overflow-hidden border border-neutral-100 flex flex-col">
+                  <div className="aspect-square bg-neutral-200 relative">
+                     <div className="absolute inset-0 flex items-center justify-center text-neutral-400 text-xs font-bold">Image</div>
+                  </div>
+                  <div className="p-2 flex-grow">
+                    <div className="flex items-center gap-1">
+                      <div className="w-5 h-5 bg-neutral-300 rounded-full"></div>
+                      <span className="text-[9px] font-bold">User Name</span>
+                    </div>
+                    <p className="text-[10px] text-neutral-600 mt-2 line-clamp-3">Review comment sample text...</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button
+               onClick={() => {
+                window.history.pushState({}, "", "/customer/reviews");
+                window.dispatchEvent(new PopStateEvent("popstate"));
+               }}
+               className="w-full mt-4 py-3 border-2 border-neutral-200 text-xs font-black uppercase tracking-widest text-slate-900 flex items-center justify-center gap-2 hover:bg-neutral-50 transition-all"
+            >
+              Lihat Review Lainnya <ChevronRight className="w-4 h-4" />
+            </button>
+          </section>
+
           {/* Persistent Footer */}
           <footer className="bg-white border-t border-neutral-100 py-10 px-6 mt-8">
             <div className="max-w-md mx-auto space-y-10 text-center">

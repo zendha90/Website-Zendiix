@@ -78,6 +78,8 @@ import {
 } from "./services";
 import Papa from "papaparse";
 import { Storefront } from "./storefront/Storefront";
+import { CustomerReviews } from "./storefront/CustomerReviews";
+import { AdminReviews } from "./components/AdminReviews"; // ADD THIS
 import { KatalogTab } from "./components/KatalogTab";
 import { BrandingTab } from "./components/BrandingTab";
 
@@ -2758,6 +2760,16 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
             </button>
 
             <button
+              onClick={() => { setActiveTab("reviews"); setIsMobileSidebarOpen(false); }}
+              className={`w-full flex items-center gap-3 px-4 py-2.5 border-2 transition-all ${activeTab === "reviews" ? "bg-indigo-600 text-white border-slate-900 shadow-[3px_3px_0px_0px_#0f172a] -translate-x-[1px] -translate-y-[1px]" : "text-slate-600 hover:bg-slate-50 border-transparent hover:border-slate-200"}`}
+            >
+              <FileText className="w-4 h-4" />
+              <span className="text-xs font-extrabold uppercase tracking-wide text-left">
+                Kelola Review
+              </span>
+            </button>
+
+            <button
               onClick={() => { setActiveTab("barang_masuk"); setIsMobileSidebarOpen(false); }}
               className={`w-full flex items-center gap-3 px-4 py-2.5 border-2 transition-all ${activeTab === "barang_masuk" ? "bg-indigo-600 text-white border-slate-900 shadow-[3px_3px_0px_0px_#0f172a] -translate-x-[1px] -translate-y-[1px]" : "text-slate-600 hover:bg-slate-50 border-transparent hover:border-slate-200"}`}
             >
@@ -4385,7 +4397,11 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                           </td>
                         </tr>
                       ) : (
-                        incomingGoods.map((g, idx) => {
+                        [...incomingGoods].sort((a,b) => {
+                           const d1 = new Date(a.tanggal?.seconds ? a.tanggal.seconds * 1000 : a.tanggal).getTime();
+                           const d2 = new Date(b.tanggal?.seconds ? b.tanggal.seconds * 1000 : b.tanggal).getTime();
+                           return d2 - d1;
+                        }).map((g, idx) => {
                           const bgColor =
                             idx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
                           return (
@@ -4396,7 +4412,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                               <td className="px-6 py-4 text-xs font-medium text-slate-800 border-r border-slate-200">
                                 {g.tanggal
                                   ? new Date(
-                                      g.tanggal.seconds * 1000,
+                                      g.tanggal.seconds ? g.tanggal.seconds * 1000 : g.tanggal,
                                     ).toLocaleDateString("id-ID", {
                                       day: "2-digit",
                                       month: "2-digit",
@@ -4545,6 +4561,13 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                   </table>
                 </div>
               </div>
+            </section>
+          )}
+
+          {/* REVIEWS TAB */}
+          {activeTab === "reviews" && (
+            <section className="col-span-12 flex flex-col pt-8">
+              <AdminReviews />
             </section>
           )}
 
@@ -6199,6 +6222,7 @@ export default function App() {
       <div className="flex-1 flex flex-col">
         <Routes>
           <Route path="/" element={<Storefront products={products} banners={banners} branding={branding} isLoading={loadingProducts} />} />
+          <Route path="/customer/reviews" element={<CustomerReviews />} />
           <Route path="/admin/*" element={<AppContent sharedProducts={products} sharedBanners={banners} sharedBranding={branding} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

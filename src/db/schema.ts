@@ -117,3 +117,13 @@ export const settings = mysqlTable('settings', {
   faviconUrl: text('favicon_url'),
   updatedAt: timestamp('updated_at').defaultNow().onUpdateNow(),
 });
+
+export const reviews = mysqlTable('reviews', {
+  id: varchar('id', { length: 255 }).primaryKey(),
+  productId: varchar('product_id', { length: 255 }).notNull(),
+  reviewerName: varchar('reviewer_name', { length: 255 }).notNull(),
+  rating: int('rating').notNull(),
+  comment: text('comment'),
+  photoUrl: text('photo_url'),
+  createdAt: timestamp('created_at').defaultNow(),
+});

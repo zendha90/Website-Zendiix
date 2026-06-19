@@ -105,6 +105,16 @@ export interface StorefrontBanner {
   createdAt?: any;
 }
 
+export interface Review {
+  id?: string;
+  productId: string;
+  reviewerName: string;
+  rating: number;
+  comment?: string;
+  photoUrl?: string;
+  createdAt?: any;
+}
+
 export interface BrandingSettings {
   announcementTexts: string[];
   logoText: string;
@@ -362,4 +372,26 @@ export async function addBanner(banner: any) {
 
 export async function deleteBanner(id: string) {
   await fetchApi(`/api/banners/${id}`, { method: 'DELETE' });
+}
+
+export function subscribeToReviews(callback: (reviews: Review[]) => void) {
+  return createSmartSubscriber<Review[]>('/api/reviews', callback, 60000);
+}
+
+export async function addReview(review: Omit<Review, 'id' | 'createdAt'>) {
+  await fetchApi('/api/reviews', {
+    method: 'POST',
+    body: JSON.stringify(review),
+  });
+}
+
+export async function deleteReview(id: string) {
+  await fetchApi(`/api/reviews/${id}`, { method: 'DELETE' });
+}
+
+export async function updateReview(review: Review) {
+  await fetchApi(`/api/reviews/${review.id}`, {
+    method: 'PUT',
+    body: JSON.stringify(review),
+  });
 }
