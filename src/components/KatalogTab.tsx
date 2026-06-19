@@ -573,7 +573,7 @@ export function KatalogTab({ products }: KatalogTabProps) {
                          <div className="flex flex-wrap gap-2 p-2 bg-slate-50 border-2 border-dashed border-slate-300 rounded-lg">
                            {splitImageUrls(imageUrl).map((imgUrl, idx) => (
                              <div key={idx} className="relative w-16 h-16 border-2 border-slate-950 rounded-lg overflow-hidden group">
-                               <img src={imgUrl} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" />
+                               <img src={imgUrl} alt={`Preview ${idx + 1}`} className="w-full h-full object-cover" loading="lazy" />
                                <button
                                  type="button"
                                  onClick={() => handleRemoveImageAtIndex(imageUrl, idx, setImageUrl)}
@@ -666,7 +666,7 @@ export function KatalogTab({ products }: KatalogTabProps) {
                                  {specImgArray.length > 0 ? (
                                    specImgArray.map((imgSrc, sIdx) => (
                                      <div key={sIdx} className="relative w-10 h-10 border border-slate-700 rounded overflow-hidden group">
-                                       <img src={imgSrc} alt={`${color} ${sIdx}`} className="w-full h-full object-cover" />
+                                       <img src={imgSrc} alt={`${color} ${sIdx}`} className="w-full h-full object-cover" loading="lazy" />
                                        <button
                                          type="button"
                                          onClick={() => handleRemoveImageAtIndex(specificImg, sIdx, (newVal) => {

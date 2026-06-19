@@ -116,7 +116,7 @@ export interface BrandingSettings {
 }
 
 // Utility for fetching
-async function fetchApi(path: string, options?: RequestInit) {
+export async function fetchApi(path: string, options?: RequestInit) {
   const res = await fetch(path, {
     ...options,
     headers: {
