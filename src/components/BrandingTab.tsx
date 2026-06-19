@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { BrandingSettings, StorefrontBanner, updateBranding, addBanner, deleteBanner } from "../services";
-import { Type, Info, Megaphone, Save, CheckCircle2, RotateCcw, Image as ImageIcon, UploadCloud, Link as LinkIcon, Trash2, Sparkles, X, Layout } from "lucide-react";
+import { Type, Info, Megaphone, Save, CheckCircle2, RotateCcw, Image as ImageIcon, UploadCloud, Link as LinkIcon, Trash2, Sparkles, X, Layout, Globe } from "lucide-react";
 
 interface BrandingTabProps {
   branding: BrandingSettings;
@@ -13,6 +13,7 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({ branding, banners }) =
   const [saveStatus, setSaveStatus] = useState<"idle" | "success" | "error">("idle");
   const [message, setMessage] = useState("");
   const logoFileInputRef = useRef<HTMLInputElement>(null);
+  const faviconFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setFormData(branding);
@@ -53,6 +54,21 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({ branding, banners }) =
       const reader = new FileReader();
       reader.onloadend = () => {
         setFormData({ ...formData, logoUrl: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleFaviconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 150 * 1024) {
+        alert("Ukuran favicon terlalu besar! Gunakan gambar di bawah 150 KB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData({ ...formData, faviconUrl: reader.result as string });
       };
       reader.readAsDataURL(file);
     }
@@ -161,6 +177,86 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({ branding, banners }) =
                       placeholder="e.g. ZENDIIX"
                     />
                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Teks ini muncul jika gambar logo tidak diatur.</p>
+                 </div>
+               </div>
+            </div>
+
+            <div className="space-y-6 pt-10 border-t-2 border-slate-100">
+               <div className="flex items-center gap-2 text-indigo-600">
+                 <Globe className="w-6 h-6" />
+                 <h3 className="text-xl font-black uppercase tracking-tight">Judul Browser & Favicon (SEO)</h3>
+               </div>
+
+               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  {/* Favicon Upload */}
+                  <div className="space-y-4">
+                     <label className="block text-xs font-black uppercase tracking-widest text-slate-500">Favicon Website (.ico / .png / .jpg)</label>
+                     <div 
+                       className="w-16 h-16 border-4 border-dashed border-slate-300 bg-slate-50 relative flex flex-col items-center justify-center overflow-hidden cursor-pointer hover:border-indigo-600 transition-all group shadow-[4px_4px_0px_0px_#0f172a]"
+                       onClick={() => faviconFileInputRef.current?.click()}
+                     >
+                       {formData.faviconUrl ? (
+                         <>
+                           <img src={formData.faviconUrl} alt="Favicon Preview" className="w-8 h-8 object-contain" />
+                           <div className="absolute inset-0 bg-slate-900/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-all">
+                             <UploadCloud className="text-white w-4 h-4" />
+                           </div>
+                         </>
+                       ) : (
+                         <>
+                           <UploadCloud className="text-slate-300 w-6 h-6" />
+                         </>
+                       )}
+                     </div>
+                     <input 
+                       type="file" 
+                       ref={faviconFileInputRef} 
+                       onChange={handleFaviconUpload} 
+                       className="hidden" 
+                       accept="image/*" 
+                     />
+                     <div className="flex flex-col gap-1.5">
+                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Ikon tab browser (Disarankan gambar persegi format PNG/ICO).</span>
+                       {formData.faviconUrl && (
+                         <button 
+                           onClick={() => setFormData({ ...formData, faviconUrl: "" })}
+                           className="text-[10px] font-black uppercase text-rose-600 hover:underline flex items-center gap-1 self-start"
+                         >
+                           <Trash2 className="w-3 h-3" /> Hapus Favicon
+                         </button>
+                       )}
+                     </div>
+                  </div>
+
+                  {/* Browser Title */}
+                  <div className="space-y-4">
+                     <label className="block text-xs font-black uppercase tracking-widest text-slate-500">Judul Browser (Meta Title)</label>
+                     <input 
+                       type="text"
+                       value={formData.browserTitle || ""}
+                       onChange={(e) => setFormData({ ...formData, browserTitle: e.target.value })}
+                       className="w-full px-5 py-3 border-4 border-slate-900 bg-white font-black text-sm uppercase tracking-tight shadow-[6px_6px_0px_0px_#0f172a] focus:outline-none focus:translate-x-[2px] focus:translate-y-[2px] focus:shadow-[4px_4px_0px_0px_#0f172a] transition-all"
+                       placeholder="e.g. ZENDIIX SOFTLENS - PREMIUM QUALITY"
+                     />
+                     <p className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Judul tab browser & nama utama yang terindeks pencarian.</p>
+                  </div>
+               </div>
+
+               {/* Browser Tab Preview */}
+               <div className="border-4 border-slate-900 bg-slate-100 p-3 shadow-[6px_6px_0px_0px_#0f172a] rounded">
+                 <p className="text-[9px] font-black uppercase tracking-widest text-slate-400 mb-2">Simulasi Tampilan Tab Browser:</p>
+                 <div className="flex items-center bg-white border-2 border-slate-900 rounded px-3 py-1.5 max-w-xs gap-2 shadow-[2px_2px_0px_0px_#0f172a]">
+                   <div className="w-4 h-4 rounded-sm bg-slate-100 overflow-hidden flex items-center justify-center shrink-0">
+                     {formData.faviconUrl ? (
+                       <img src={formData.faviconUrl} alt="Favicon preview" className="w-3.5 h-3.5 object-contain" />
+                     ) : (
+                       <span className="text-[9px] font-black text-indigo-600 font-mono">Z</span>
+                     )}
+                   </div>
+                   <span className="text-xs font-bold text-slate-800 truncate max-w-[180px]">
+                     {formData.browserTitle || formData.logoText || "ZENDIIX"}
+                   </span>
+                   <span className="text-[9px] text-slate-400 font-bold ml-auto shrink-0 select-none">✕</span>
                  </div>
                </div>
             </div>

@@ -6042,6 +6042,26 @@ export default function App() {
     return () => unsubBr();
   }, []);
 
+  useEffect(() => {
+    if (branding) {
+      if (branding.browserTitle) {
+        document.title = branding.browserTitle;
+      } else if (branding.logoText) {
+        document.title = branding.logoText;
+      }
+
+      if (branding.faviconUrl) {
+        let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
+        if (!link) {
+          link = document.createElement('link');
+          link.rel = 'icon';
+          document.getElementsByTagName('head')[0].appendChild(link);
+        }
+        link.href = branding.faviconUrl;
+      }
+    }
+  }, [branding]);
+
   return (
     <div className="min-h-screen flex flex-col relative">
       {/* Troubleshooting Banner for Remote cPanel MySQL */}

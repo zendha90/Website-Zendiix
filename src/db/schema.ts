@@ -113,5 +113,7 @@ export const settings = mysqlTable('settings', {
   logoText: varchar('logo_text', { length: 255 }).notNull(),
   logoUrl: varchar('logo_url', { length: 500 }),
   footerAboutText: varchar('footer_about_text', { length: 1000 }).notNull(),
+  browserTitle: varchar('browser_title', { length: 255 }),
+  faviconUrl: varchar('favicon_url', { length: 500 }),
   updatedAt: timestamp('updated_at').defaultNow().onUpdateNow(),
 });

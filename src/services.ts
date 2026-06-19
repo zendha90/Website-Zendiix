@@ -110,6 +110,8 @@ export interface BrandingSettings {
   logoText: string;
   logoUrl?: string;
   footerAboutText: string;
+  browserTitle?: string;
+  faviconUrl?: string;
   updatedAt?: any;
 }
 
@@ -142,11 +144,19 @@ export function subscribeToSales(callback: (sales: Sale[]) => void) {
 }
 
 export async function upsertProduct(product: Omit<Product, 'createdAt' | 'updatedAt'>): Promise<string> {
-  const res = await fetchApi('/api/products', {
-    method: 'POST',
-    body: JSON.stringify(product),
-  });
-  return res.id;
+  if (product.id) {
+    await fetchApi(`/api/products/${product.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(product),
+    });
+    return product.id;
+  } else {
+    const res = await fetchApi('/api/products', {
+      method: 'POST',
+      body: JSON.stringify(product),
+    });
+    return res.id;
+  }
 }
 
 export async function processSale(product: Product, qty: number, additionalFields: Partial<Sale> = {}) {

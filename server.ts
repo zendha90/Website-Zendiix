@@ -9,7 +9,20 @@ async function startServer() {
   const app = express();
   const PORT = process.env.PORT || 3000;
 
-  app.use(express.json());
+  app.use(express.json({ limit: '50mb' }));
+  app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+  // Bootstrap passive schema updates for cPanel MySQL
+  try {
+    await db.execute(sql`ALTER TABLE settings ADD COLUMN browser_title VARCHAR(255) NULL`);
+  } catch (error) {
+    // Column already exists or table doesn't exist yet
+  }
+  try {
+    await db.execute(sql`ALTER TABLE settings ADD COLUMN favicon_url VARCHAR(500) NULL`);
+  } catch (error) {
+    // Column already exists or table doesn't exist yet
+  }
 
   // Health Check / DB Test
   app.get('/api/health-check', async (req, res) => {
@@ -60,6 +73,23 @@ async function startServer() {
     }
   });
 
+  const sanitizeProduct = (data: any) => {
+    const allowed = [
+      'kodeBarang', 'namaBarang', 'supplier', 'hargaBeli', 'hargaJual',
+      'stokAwal', 'stokBarang', 'terjual', 'color', 'bc', 'kadarAir',
+      'imageUrl', 'durasi', 'gDia', 'diameter', 'rating', 'reviewsCount',
+      'allowDualPower', 'groupName', 'customCategory', 'hideSpecs',
+      'notSoftlens', 'description', 'isFlashSale'
+    ];
+    const cleaned: any = {};
+    for (const key of allowed) {
+      if (data[key] !== undefined) {
+        cleaned[key] = data[key];
+      }
+    }
+    return cleaned;
+  };
+
   // API Routes
   
   // Products
@@ -77,7 +107,14 @@ async function startServer() {
     try {
       const data = req.body;
       const id = data.id || Math.random().toString(36).substring(2, 15);
-      await db.insert(products).values({ ...data, id });
+      const cleaned = sanitizeProduct(data);
+      
+      const existing = data.id ? await db.select().from(products).where(eq(products.id, data.id)).limit(1) : [];
+      if (existing.length > 0) {
+        await db.update(products).set({ ...cleaned, updatedAt: new Date() }).where(eq(products.id, id));
+      } else {
+        await db.insert(products).values({ ...cleaned, id });
+      }
       res.json({ id, ...data });
     } catch (error) {
       console.error('Error creating product:', error);
@@ -233,9 +270,11 @@ async function startServer() {
     try {
       const { id } = req.params;
       const data = req.body;
-      const result = await db.update(products).set({ ...data, updatedAt: new Date() }).where(eq(products.id, id));
+      const cleaned = sanitizeProduct(data);
+      const result = await db.update(products).set({ ...cleaned, updatedAt: new Date() }).where(eq(products.id, id));
       res.json({ success: true });
     } catch (error) {
+      console.error('Error updating product:', error);
       res.status(500).json({ error: 'Failed' });
     }
   });
