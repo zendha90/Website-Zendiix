@@ -1,6 +1,7 @@
 import express from 'express';
 import path from 'path';
 import fs from 'fs';
+import { v4 as uuidv4 } from 'uuid';
 import { createServer as createViteServer } from 'vite';
 import { db } from './src/db';
 import { products, incomingGoods, sales, salesDs, iklan, weeklySales, storefrontBanners, settings } from './src/db/schema';
@@ -471,9 +472,13 @@ async function startServer() {
     const items = req.body;
     if (!Array.isArray(items)) return res.status(400).send('Invalid batch');
     try {
+      const itemsWithId = items.map(item => ({
+        ...item,
+        id: item.id || uuidv4()
+      }));
       if (isDbOnline) {
         await runDbWrite(async () => {
-          await db.insert(incomingGoods).values(items);
+          await db.insert(incomingGoods).values(itemsWithId);
         });
         clearCache('incoming-goods');
       } else {

@@ -2566,8 +2566,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           }
         }
 
-        // Send in batches of 100
-        const batchSize = 100;
+        // Send in batches of 50
+        const batchSize = 50;
         const promises = [];
         for (let i = 0; i < preparedItems.length; i += batchSize) {
             const batch = preparedItems.slice(i, i + batchSize);
