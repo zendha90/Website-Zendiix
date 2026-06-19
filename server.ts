@@ -141,15 +141,18 @@ async function startServer() {
   // Health Check / DB Test
   app.get('/api/health-check', async (req, res) => {
     try {
-      // Simple query to test connection
-      await db.execute(sql`SELECT 1`);
+      // Simple query to test connection with timeout protection
+      await Promise.race([
+        db.execute(sql`SELECT 1`),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection check timed out after 1.5 seconds')), 1500))
+      ]);
       res.json({ 
         status: 'ok', 
         message: 'Database connection successful!',
         database: 'MySQL (cPanel)'
       });
     } catch (error: any) {
-      console.error('Database connection failed:', error);
+      console.error('Database connection failed or timed out:', error);
       let suggestedIp = '';
       if (error && error.message) {
         const match = error.message.match(/@'([^']+)'/);
@@ -159,8 +162,8 @@ async function startServer() {
       }
       res.json({ 
         status: 'error', 
-        message: 'Database connection failed', 
-        details: error.message,
+        message: 'Database connection failed or timed out', 
+        details: error.message || 'Timeout',
         suggestedIp: suggestedIp || '34.96.48.15'
       });
     }
@@ -219,10 +222,10 @@ async function startServer() {
     }
     
     try {
-      // Timeout database read after 2.5 seconds to protect request/response loop
+      // Timeout database read after 3.5 seconds to protect request/response loop
       const fresh = await Promise.race([
         fetchFn(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 2500))
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 3500))
       ]);
       serverCache.set(key, { data: fresh, expires: now + CACHE_STALE_MS });
       return fresh;
@@ -254,17 +257,18 @@ async function startServer() {
       );
       res.json(allProducts);
     } catch (error) {
-      console.error('Error fetching products, returning fallback empty array:', error);
-      res.json([]);
+      console.error('Error fetching products, returning local fallback products:', error);
+      const sorted = [...fallbackData.products].sort((a, b) => b.id.localeCompare(a.id));
+      res.json(sorted);
     }
   });
 
   app.post('/api/products', async (req, res) => {
+    const data = req.body;
+    const id = data.id || Math.random().toString(36).substring(2, 15);
+    const cleaned = sanitizeProduct(data);
+    
     try {
-      const data = req.body;
-      const id = data.id || Math.random().toString(36).substring(2, 15);
-      const cleaned = sanitizeProduct(data);
-      
       if (!isDbOnline) {
         const existingIdx = fallbackData.products.findIndex((p: any) => p.id === id);
         if (existingIdx !== -1) {
@@ -285,8 +289,15 @@ async function startServer() {
       clearCache('products');
       res.json({ id, ...data });
     } catch (error) {
-      console.error('Error creating product:', error);
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error creating product in DB, falling back to local storage:', error);
+      const existingIdx = fallbackData.products.findIndex((p: any) => p.id === id);
+      if (existingIdx !== -1) {
+        fallbackData.products[existingIdx] = { ...fallbackData.products[existingIdx], ...cleaned, id, updatedAt: new Date().toISOString() };
+      } else {
+        fallbackData.products.push({ ...cleaned, id, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() });
+      }
+      saveFallbackData();
+      res.json({ id, ...data });
     }
   });
 
@@ -301,8 +312,8 @@ async function startServer() {
       );
       res.json(result[0] || null);
     } catch (error) {
-      console.error('Error fetching settings, returning defaults:', error);
-      res.json({
+      console.error('Error fetching settings, returning local fallback:', error);
+      res.json(fallbackData.settings[0] || {
         announcementTexts: [
           "✨ BELI 1 GRATIS 1 - Tingkatkan pesonamu dengan Zendiix!",
           "🚚 GRATIS ONGKIR dengan belanja minimal Rp 400.000!",
@@ -316,8 +327,8 @@ async function startServer() {
   });
 
   app.post('/api/settings/branding', async (req, res) => {
+    const data = req.body;
     try {
-      const data = req.body;
       if (!isDbOnline) {
         fallbackData.settings[0] = { id: 'branding', ...data, updatedAt: new Date().toISOString() };
         saveFallbackData();
@@ -332,8 +343,10 @@ async function startServer() {
       clearCache('branding');
       res.json({ id: 'branding', ...data });
     } catch (error) {
-      console.error('Error updating settings:', error);
-      res.status(500).json({ error: 'Failed to update settings' });
+      console.error('Error updating settings in DB, falling back to local storage:', error);
+      fallbackData.settings[0] = { id: 'branding', ...data, updatedAt: new Date().toISOString() };
+      saveFallbackData();
+      res.json({ id: 'branding', ...data });
     }
   });
 
@@ -348,8 +361,8 @@ async function startServer() {
       );
       res.json(bannersList);
     } catch (error) {
-      console.error('Error fetching banners, returning empty array:', error);
-      res.json([]);
+      console.error('Error fetching banners, returning local fallback banners:', error);
+      res.json(fallbackData.storefrontBanners);
     }
   });
 
@@ -364,15 +377,15 @@ async function startServer() {
       );
       res.json(result);
     } catch (error) {
-      console.error('Error fetching incoming goods, returning empty array:', error);
-      res.json([]);
+      console.error('Error fetching incoming goods, returning local fallback goods:', error);
+      res.json(fallbackData.incomingGoods);
     }
   });
 
   app.post('/api/incoming-goods', async (req, res) => {
+    const data = req.body;
+    const id = data.id || Math.random().toString(36).substring(2, 15);
     try {
-      const data = req.body;
-      const id = data.id || Math.random().toString(36).substring(2, 15);
       if (!isDbOnline) {
         fallbackData.incomingGoods.push({ ...data, id, tanggal: new Date().toISOString() });
         saveFallbackData();
@@ -382,7 +395,10 @@ async function startServer() {
       clearCache('incoming-goods');
       res.json({ id, ...data });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error creating incoming good in DB, falling back to local storage:', error);
+      fallbackData.incomingGoods.push({ ...data, id, tanggal: new Date().toISOString() });
+      saveFallbackData();
+      res.json({ id, ...data });
     }
   });
 
@@ -397,15 +413,15 @@ async function startServer() {
       );
       res.json(result);
     } catch (error) {
-      console.error('Error fetching sales, returning empty array:', error);
-      res.json([]);
+      console.error('Error fetching sales, returning local fallback sales:', error);
+      res.json(fallbackData.sales);
     }
   });
 
   app.post('/api/sales', async (req, res) => {
+    const data = req.body;
+    const id = data.id || Math.random().toString(36).substring(2, 15);
     try {
-      const data = req.body;
-      const id = data.id || Math.random().toString(36).substring(2, 15);
       if (!isDbOnline) {
         fallbackData.sales.push({ ...data, id, tanggal: new Date().toISOString() });
         saveFallbackData();
@@ -415,7 +431,10 @@ async function startServer() {
       clearCache('sales');
       res.json({ id, ...data });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error creating sale in DB, falling back to local storage:', error);
+      fallbackData.sales.push({ ...data, id, tanggal: new Date().toISOString() });
+      saveFallbackData();
+      res.json({ id, ...data });
     }
   });
 
@@ -430,15 +449,15 @@ async function startServer() {
       );
       res.json(result);
     } catch (error) {
-      console.error('Error fetching sales DS, returning empty array:', error);
-      res.json([]);
+      console.error('Error fetching sales DS, returning local fallback sales-ds:', error);
+      res.json(fallbackData.salesDs);
     }
   });
 
   app.post('/api/sales-ds', async (req, res) => {
+    const data = req.body;
+    const id = data.id || Math.random().toString(36).substring(2, 15);
     try {
-      const data = req.body;
-      const id = data.id || Math.random().toString(36).substring(2, 15);
       if (!isDbOnline) {
         fallbackData.salesDs.push({ ...data, id, tanggal: new Date().toISOString() });
         saveFallbackData();
@@ -448,7 +467,10 @@ async function startServer() {
       clearCache('sales-ds');
       res.json({ id, ...data });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error creating sales DS in DB, falling back to local storage:', error);
+      fallbackData.salesDs.push({ ...data, id, tanggal: new Date().toISOString() });
+      saveFallbackData();
+      res.json({ id, ...data });
     }
   });
 
@@ -463,15 +485,15 @@ async function startServer() {
       );
       res.json(result);
     } catch (error) {
-      console.error('Error fetching iklan, returning empty array:', error);
-      res.json([]);
+      console.error('Error fetching iklan, returning local fallback iklan:', error);
+      res.json(fallbackData.iklan);
     }
   });
 
   app.post('/api/iklan', async (req, res) => {
+    const data = req.body;
+    const id = data.id || Math.random().toString(36).substring(2, 15);
     try {
-      const data = req.body;
-      const id = data.id || Math.random().toString(36).substring(2, 15);
       if (!isDbOnline) {
         fallbackData.iklan.push({ ...data, id, createdAt: new Date().toISOString() });
         saveFallbackData();
@@ -481,7 +503,10 @@ async function startServer() {
       clearCache('iklan');
       res.json({ id, ...data });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error creating iklan in DB, falling back to local storage:', error);
+      fallbackData.iklan.push({ ...data, id, createdAt: new Date().toISOString() });
+      saveFallbackData();
+      res.json({ id, ...data });
     }
   });
 
@@ -496,15 +521,15 @@ async function startServer() {
       );
       res.json(result);
     } catch (error) {
-      console.error('Error fetching weekly sales, returning empty array:', error);
-      res.json([]);
+      console.error('Error fetching weekly sales, returning local fallback weekly-sales:', error);
+      res.json(fallbackData.weeklySales);
     }
   });
 
   app.post('/api/weekly-sales', async (req, res) => {
+    const data = req.body;
+    const id = data.id || Math.random().toString(36).substring(2, 15);
     try {
-      const data = req.body;
-      const id = data.id || Math.random().toString(36).substring(2, 15);
       if (!isDbOnline) {
         fallbackData.weeklySales.push({ ...data, id, createdAt: new Date().toISOString() });
         saveFallbackData();
@@ -514,16 +539,19 @@ async function startServer() {
       clearCache('weekly-sales');
       res.json({ id, ...data });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error creating weekly sales in DB, falling back to local storage:', error);
+      fallbackData.weeklySales.push({ ...data, id, createdAt: new Date().toISOString() });
+      saveFallbackData();
+      res.json({ id, ...data });
     }
   });
 
   // PRODUCTS
   app.put('/api/products/:id', async (req, res) => {
+    const { id } = req.params;
+    const data = req.body;
+    const cleaned = sanitizeProduct(data);
     try {
-      const { id } = req.params;
-      const data = req.body;
-      const cleaned = sanitizeProduct(data);
       if (!isDbOnline) {
         const existingIdx = fallbackData.products.findIndex((p: any) => p.id === id);
         if (existingIdx !== -1) {
@@ -536,14 +564,19 @@ async function startServer() {
       clearCache('products');
       res.json({ success: true });
     } catch (error) {
-      console.error('Error updating product:', error);
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error updating product in DB, falling back to local storage:', error);
+      const existingIdx = fallbackData.products.findIndex((p: any) => p.id === id);
+      if (existingIdx !== -1) {
+        fallbackData.products[existingIdx] = { ...fallbackData.products[existingIdx], ...cleaned, updatedAt: new Date().toISOString() };
+      }
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
   app.delete('/api/products/:id', async (req, res) => {
+    const { id } = req.params;
     try {
-      const { id } = req.params;
       if (!isDbOnline) {
         fallbackData.products = fallbackData.products.filter((p: any) => p.id !== id);
         saveFallbackData();
@@ -553,7 +586,10 @@ async function startServer() {
       clearCache('products');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error deleting product in DB, falling back to local storage:', error);
+      fallbackData.products = fallbackData.products.filter((p: any) => p.id !== id);
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
@@ -568,15 +604,18 @@ async function startServer() {
       clearCache('products');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error clearing products in DB, falling back to local storage:', error);
+      fallbackData.products = [];
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
   // SALES
   app.put('/api/sales/:id', async (req, res) => {
+    const { id } = req.params;
+    const data = req.body;
     try {
-      const { id } = req.params;
-      const data = req.body;
       if (!isDbOnline) {
         const existingIdx = fallbackData.sales.findIndex((s: any) => s.id === id);
         if (existingIdx !== -1) {
@@ -589,13 +628,19 @@ async function startServer() {
       clearCache('sales');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error updating sale in DB, falling back to local storage:', error);
+      const existingIdx = fallbackData.sales.findIndex((s: any) => s.id === id);
+      if (existingIdx !== -1) {
+        fallbackData.sales[existingIdx] = { ...fallbackData.sales[existingIdx], ...data };
+      }
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
   app.delete('/api/sales/:id', async (req, res) => {
+    const { id } = req.params;
     try {
-      const { id } = req.params;
       if (!isDbOnline) {
         fallbackData.sales = fallbackData.sales.filter((s: any) => s.id !== id);
         saveFallbackData();
@@ -605,7 +650,10 @@ async function startServer() {
       clearCache('sales');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error deleting sale in DB, falling back to local storage:', error);
+      fallbackData.sales = fallbackData.sales.filter((s: any) => s.id !== id);
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
@@ -620,15 +668,18 @@ async function startServer() {
       clearCache('sales');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error clearing sales in DB, falling back to local storage:', error);
+      fallbackData.sales = [];
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
   // SALES DS
   app.put('/api/sales-ds/:id', async (req, res) => {
+    const { id } = req.params;
+    const data = req.body;
     try {
-      const { id } = req.params;
-      const data = req.body;
       if (!isDbOnline) {
         const existingIdx = fallbackData.salesDs.findIndex((s: any) => s.id === id);
         if (existingIdx !== -1) {
@@ -641,13 +692,19 @@ async function startServer() {
       clearCache('sales-ds');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error updating Sales DS in DB, falling back to local storage:', error);
+      const existingIdx = fallbackData.salesDs.findIndex((s: any) => s.id === id);
+      if (existingIdx !== -1) {
+        fallbackData.salesDs[existingIdx] = { ...fallbackData.salesDs[existingIdx], ...data };
+      }
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
   app.delete('/api/sales-ds/:id', async (req, res) => {
+    const { id } = req.params;
     try {
-      const { id } = req.params;
       if (!isDbOnline) {
         fallbackData.salesDs = fallbackData.salesDs.filter((s: any) => s.id !== id);
         saveFallbackData();
@@ -657,7 +714,10 @@ async function startServer() {
       clearCache('sales-ds');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error deleting Sales DS in DB, falling back to local storage:', error);
+      fallbackData.salesDs = fallbackData.salesDs.filter((s: any) => s.id !== id);
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
@@ -672,14 +732,17 @@ async function startServer() {
       clearCache('sales-ds');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error clearing Sales DS in DB, falling back to local storage:', error);
+      fallbackData.salesDs = [];
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
   // INCOMING GOODS
   app.delete('/api/incoming-goods/:id', async (req, res) => {
+    const { id } = req.params;
     try {
-      const { id } = req.params;
       if (!isDbOnline) {
         fallbackData.incomingGoods = fallbackData.incomingGoods.filter((ig: any) => ig.id !== id);
         saveFallbackData();
@@ -689,7 +752,10 @@ async function startServer() {
       clearCache('incoming-goods');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error deleting incoming good in DB, falling back to local storage:', error);
+      fallbackData.incomingGoods = fallbackData.incomingGoods.filter((ig: any) => ig.id !== id);
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
@@ -704,15 +770,18 @@ async function startServer() {
       clearCache('incoming-goods');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error clearing incoming goods in DB, falling back to local storage:', error);
+      fallbackData.incomingGoods = [];
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
   // IKLAN
   app.put('/api/iklan/:id', async (req, res) => {
+    const { id } = req.params;
+    const data = req.body;
     try {
-      const { id } = req.params;
-      const data = req.body;
       if (!isDbOnline) {
         const existingIdx = fallbackData.iklan.findIndex((i: any) => i.id === id);
         if (existingIdx !== -1) {
@@ -725,13 +794,19 @@ async function startServer() {
       clearCache('iklan');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error updating iklan in DB, falling back to local storage:', error);
+      const existingIdx = fallbackData.iklan.findIndex((i: any) => i.id === id);
+      if (existingIdx !== -1) {
+        fallbackData.iklan[existingIdx] = { ...fallbackData.iklan[existingIdx], ...data };
+      }
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
   app.delete('/api/iklan/:id', async (req, res) => {
+    const { id } = req.params;
     try {
-      const { id } = req.params;
       if (!isDbOnline) {
         fallbackData.iklan = fallbackData.iklan.filter((i: any) => i.id !== id);
         saveFallbackData();
@@ -741,7 +816,10 @@ async function startServer() {
       clearCache('iklan');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error deleting iklan in DB, falling back to local storage:', error);
+      fallbackData.iklan = fallbackData.iklan.filter((i: any) => i.id !== id);
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
@@ -756,15 +834,18 @@ async function startServer() {
       clearCache('iklan');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error clearing iklan in DB, falling back to local storage:', error);
+      fallbackData.iklan = [];
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
   // WEEKLY SALES
   app.put('/api/weekly-sales/:id', async (req, res) => {
+    const { id } = req.params;
+    const data = req.body;
     try {
-      const { id } = req.params;
-      const data = req.body;
       if (!isDbOnline) {
         const existingIdx = fallbackData.weeklySales.findIndex((w: any) => w.id === id);
         if (existingIdx !== -1) {
@@ -777,13 +858,19 @@ async function startServer() {
       clearCache('weekly-sales');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error updating weekly sales in DB, falling back to local storage:', error);
+      const existingIdx = fallbackData.weeklySales.findIndex((w: any) => w.id === id);
+      if (existingIdx !== -1) {
+        fallbackData.weeklySales[existingIdx] = { ...fallbackData.weeklySales[existingIdx], ...data };
+      }
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
   app.delete('/api/weekly-sales/:id', async (req, res) => {
+    const { id } = req.params;
     try {
-      const { id } = req.params;
       if (!isDbOnline) {
         fallbackData.weeklySales = fallbackData.weeklySales.filter((w: any) => w.id !== id);
         saveFallbackData();
@@ -793,7 +880,10 @@ async function startServer() {
       clearCache('weekly-sales');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error deleting weekly sales in DB, falling back to local storage:', error);
+      fallbackData.weeklySales = fallbackData.weeklySales.filter((w: any) => w.id !== id);
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
@@ -808,15 +898,18 @@ async function startServer() {
       clearCache('weekly-sales');
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error clearing weekly sales in DB, falling back to local storage:', error);
+      fallbackData.weeklySales = [];
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
   // BANNERS
   app.post('/api/banners', async (req, res) => {
+    const data = req.body;
+    const id = data.id || Math.random().toString(36).substring(2, 15);
     try {
-      const data = req.body;
-      const id = data.id || Math.random().toString(36).substring(2, 15);
       if (!isDbOnline) {
         fallbackData.storefrontBanners.push({ ...data, id, createdAt: new Date().toISOString() });
         saveFallbackData();
@@ -825,13 +918,16 @@ async function startServer() {
       await db.insert(storefrontBanners).values({ ...data, id, createdAt: new Date() });
       res.json({ id, ...data });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error creating banners in DB, falling back to local storage:', error);
+      fallbackData.storefrontBanners.push({ ...data, id, createdAt: new Date().toISOString() });
+      saveFallbackData();
+      res.json({ id, ...data });
     }
   });
 
   app.delete('/api/banners/:id', async (req, res) => {
+    const { id } = req.params;
     try {
-      const { id } = req.params;
       if (!isDbOnline) {
         fallbackData.storefrontBanners = fallbackData.storefrontBanners.filter((b: any) => b.id !== id);
         saveFallbackData();
@@ -840,7 +936,10 @@ async function startServer() {
       await db.delete(storefrontBanners).where(eq(storefrontBanners.id, id));
       res.json({ success: true });
     } catch (error) {
-      res.status(500).json({ error: 'Failed' });
+      console.error('Error deleting banners in DB, falling back to local storage:', error);
+      fallbackData.storefrontBanners = fallbackData.storefrontBanners.filter((b: any) => b.id !== id);
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
