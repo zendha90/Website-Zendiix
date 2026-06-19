@@ -23,6 +23,26 @@ async function startServer() {
   } catch (error) {
     // Column already exists or table doesn't exist yet
   }
+  try {
+    await db.execute(sql`ALTER TABLE products MODIFY COLUMN image_url MEDIUMTEXT NULL`);
+  } catch (error) {
+    // Table/Column might not be initialized yet
+  }
+  try {
+    await db.execute(sql`ALTER TABLE settings MODIFY COLUMN logo_url MEDIUMTEXT NULL`);
+  } catch (error) {
+    // Table/Column might not be initialized yet
+  }
+  try {
+    await db.execute(sql`ALTER TABLE settings MODIFY COLUMN favicon_url MEDIUMTEXT NULL`);
+  } catch (error) {
+    // Table/Column might not be initialized yet
+  }
+  try {
+    await db.execute(sql`ALTER TABLE storefront_banners MODIFY COLUMN image_url MEDIUMTEXT NOT NULL`);
+  } catch (error) {
+    // Table/Column might not be initialized yet
+  }
 
   // Health Check / DB Test
   app.get('/api/health-check', async (req, res) => {

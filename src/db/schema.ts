@@ -1,4 +1,4 @@
-import { mysqlTable, varchar, int, double, timestamp, boolean, json } from 'drizzle-orm/mysql-core';
+import { mysqlTable, varchar, int, double, timestamp, boolean, json, text } from 'drizzle-orm/mysql-core';
 
 export const products = mysqlTable('products', {
   id: varchar('id', { length: 255 }).primaryKey(),
@@ -13,7 +13,7 @@ export const products = mysqlTable('products', {
   color: varchar('color', { length: 255 }).notNull(),
   bc: varchar('bc', { length: 255 }).notNull(),
   kadarAir: varchar('kadar_air', { length: 255 }).notNull(),
-  imageUrl: varchar('image_url', { length: 500 }),
+  imageUrl: text('image_url'),
   durasi: varchar('durasi', { length: 255 }),
   gDia: varchar('g_dia', { length: 255 }),
   diameter: varchar('diameter', { length: 255 }),
@@ -102,7 +102,7 @@ export const weeklySales = mysqlTable('weekly_sales', {
 
 export const storefrontBanners = mysqlTable('storefront_banners', {
   id: varchar('id', { length: 255 }).primaryKey(),
-  imageUrl: varchar('image_url', { length: 500 }).notNull(),
+  imageUrl: text('image_url').notNull(),
   linkUrl: varchar('link_url', { length: 500 }),
   createdAt: timestamp('created_at').defaultNow(),
 });
@@ -111,9 +111,9 @@ export const settings = mysqlTable('settings', {
   id: varchar('id', { length: 255 }).primaryKey(),
   announcementTexts: json('announcement_texts').notNull(),
   logoText: varchar('logo_text', { length: 255 }).notNull(),
-  logoUrl: varchar('logo_url', { length: 500 }),
+  logoUrl: text('logo_url'),
   footerAboutText: varchar('footer_about_text', { length: 1000 }).notNull(),
   browserTitle: varchar('browser_title', { length: 255 }),
-  faviconUrl: varchar('favicon_url', { length: 500 }),
+  faviconUrl: text('favicon_url'),
   updatedAt: timestamp('updated_at').defaultNow().onUpdateNow(),
 });
