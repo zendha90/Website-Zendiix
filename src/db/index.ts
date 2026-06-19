@@ -21,15 +21,23 @@ if (process.env.DATABASE_URL) {
       else queryParams[key] = value;
     });
 
+    let safePassword = parsed.password;
+    try {
+      safePassword = decodeURIComponent(parsed.password);
+    } catch {
+      // Keep original password if decodeURIComponent fails
+    }
+
     const poolConfig: mysql.PoolOptions = {
       host: parsed.hostname,
       port: parsed.port ? parseInt(parsed.port) : 3306,
       user: parsed.username,
-      password: decodeURIComponent(parsed.password),
+      password: safePassword,
       database: parsed.pathname.substring(1).split('?')[0], // remove leading / and query string if present
       connectionLimit: 2, // Strict limit to prevent exceeding max user connections (5)
       maxIdle: 2,
       idleTimeout: 30000, // 30 seconds
+      connectTimeout: 2000, // 2 seconds fast connection timeout
       waitForConnections: true,
       queueLimit: 0,
       enableKeepAlive: true,
@@ -40,7 +48,17 @@ if (process.env.DATABASE_URL) {
     connection = mysql.createPool(poolConfig);
   } catch (err) {
     console.error('Error parsing DATABASE_URL, falling back to basic connection pool:', err);
-    connection = mysql.createPool(process.env.DATABASE_URL);
+    try {
+      connection = mysql.createPool({ uri: process.env.DATABASE_URL } as any);
+    } catch (fallbackErr) {
+      console.error('Fatal database connection fallback error, using dummy options to prevent crash:', fallbackErr);
+      connection = mysql.createPool({
+        host: 'localhost',
+        user: 'dummy_user',
+        password: 'dummy_password',
+        database: 'dummy_db',
+      });
+    }
   }
 } else {
   console.warn('DATABASE_URL is not defined near server boot. Using dummy connection options to prevent boot crashes.');
