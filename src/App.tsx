@@ -2528,19 +2528,16 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           }
           return undefined;
         };
-
+        
+        const preparedItems: any[] = [];
         for (const [index, item] of data.entries()) {
-          console.log(`Debug [${index}]: Item:`, item, "Keys:", Object.keys(item));
           const namaOrKode = String(
             getVal(item, "Jenis Barang", "Nama Barang", "namaBarang", "Kode Barang", "ID Barang") || "",
           ).trim();
           const qty = parseNum(getVal(item, "Qty", "Jumlah", "qty"));
           const tanggal = String(getVal(item, "Tgl. Order", "Tgl Order", "Tanggal") || "");
 
-          console.log(`Parsed [${index}]:`, { namaOrKode, qty, tanggal });
-
           if (!namaOrKode || !qty) {
-            console.log(`Skipping [${index}]: Missing name or qty`);
             setImportProgress((p) => ({ ...p, current: index + 1 }));
             continue;
           }
@@ -2550,26 +2547,32 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
               p.namaBarang.toLowerCase() === namaOrKode.toLowerCase() ||
               p.kodeBarang.toLowerCase() === namaOrKode.toLowerCase(),
           );
-          
-          console.log(`Product found [${index}]:`, !!product, product?.namaBarang);
 
           if (product) {
-            try {
-              await addIncomingGood({
+            preparedItems.push({
+                id: Math.random().toString(36).substring(2, 15),
                 productId: product.id!,
                 kodeBarang: product.kodeBarang,
                 namaBarang: product.namaBarang,
-                qty: qty,
-                tanggal: null, // services.ts handles serverTimestamp
-                supplier: product.supplier,
-              });
-              count++;
-            } catch (err) {
-              console.error("Incoming import err", err);
-            }
+                qty,
+                tanggal: tanggal ? new Date(tanggal) : new Date(),
+            });
+            count++;
           }
           setImportProgress((p) => ({ ...p, current: index + 1 }));
         }
+
+        // Send in batches of 500
+        const batchSize = 500;
+        for (let i = 0; i < preparedItems.length; i += batchSize) {
+            const batch = preparedItems.slice(i, i + batchSize);
+            await fetch('/api/incoming-goods/batch', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(batch),
+            });
+        }
+        
         setImportProgress(null);
         alert(`Berhasil import ${count} data barang masuk!`);
         if (incomingFileInput.current) incomingFileInput.current.value = "";

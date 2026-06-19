@@ -467,6 +467,26 @@ async function startServer() {
     }
   });
 
+  app.post('/api/incoming-goods/batch', async (req, res) => {
+    const items = req.body;
+    if (!Array.isArray(items)) return res.status(400).send('Invalid batch');
+    try {
+      if (isDbOnline) {
+        await runDbWrite(async () => {
+          await db.insert(incomingGoods).values(items);
+        });
+        clearCache('incoming-goods');
+      } else {
+        fallbackData.incomingGoods.push(...items);
+        saveFallbackData();
+      }
+      res.json({ success: true, count: items.length });
+    } catch (error) {
+      console.error('Error in batch incoming goods insert:', error);
+      res.status(500).send('Batch import failed');
+    }
+  });
+
   // Sales
   app.get('/api/sales', async (req, res) => {
     try {
