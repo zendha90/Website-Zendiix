@@ -1283,8 +1283,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     setDurasi(product.durasi || "");
     setGDia(product.gDia || "");
     setDiameter(product.diameter || "");
-    setRating(product.rating !== undefined ? product.rating.toString() : "");
-    setReviewsCount(product.reviewsCount !== undefined ? product.reviewsCount.toString() : "");
+    setRating(product.rating !== undefined && product.rating !== null ? product.rating.toString() : "");
+    setReviewsCount(product.reviewsCount !== undefined && product.reviewsCount !== null ? product.reviewsCount.toString() : "");
     setAllowDualPower(product.allowDualPower !== undefined ? product.allowDualPower : true);
     setGroupName(product.groupName || "");
     setIsProductModalOpen(true);
@@ -2556,6 +2556,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 kodeBarang: product.kodeBarang,
                 namaBarang: product.namaBarang,
                 qty,
+                supplier: product.supplier || null,
                 tanggal: tanggal ? new Date(tanggal) : new Date(),
             });
             count++;
@@ -2565,8 +2566,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           }
         }
 
-        // Send in batches of 2000
-        const batchSize = 2000;
+        // Send in batches of 100
+        const batchSize = 100;
         const promises = [];
         for (let i = 0; i < preparedItems.length; i += batchSize) {
             const batch = preparedItems.slice(i, i + batchSize);

@@ -483,7 +483,7 @@ async function startServer() {
       res.json({ success: true, count: items.length });
     } catch (error) {
       console.error('Error in batch incoming goods insert:', error);
-      res.status(500).send('Batch import failed');
+      res.status(500).json({ error: String(error), stack: error instanceof Error ? error.stack : undefined });
     }
   });
 
