@@ -2528,7 +2528,12 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           }
           return undefined;
         };
-        
+        const productMap = new Map();
+        for (const p of products) {
+            if (p.namaBarang) productMap.set(p.namaBarang.toLowerCase(), p);
+            if (p.kodeBarang) productMap.set(p.kodeBarang.toLowerCase(), p);
+        }
+
         const preparedItems: any[] = [];
         for (const [index, item] of data.entries()) {
           const namaOrKode = String(
@@ -2542,11 +2547,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
             continue;
           }
 
-          const product = products.find(
-            (p) =>
-              p.namaBarang.toLowerCase() === namaOrKode.toLowerCase() ||
-              p.kodeBarang.toLowerCase() === namaOrKode.toLowerCase(),
-          );
+          const product = productMap.get(namaOrKode.toLowerCase());
 
           if (product) {
             preparedItems.push({
@@ -2562,16 +2563,18 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           setImportProgress((p) => ({ ...p, current: index + 1 }));
         }
 
-        // Send in batches of 500
-        const batchSize = 500;
+        // Send in batches of 2000
+        const batchSize = 2000;
+        const promises = [];
         for (let i = 0; i < preparedItems.length; i += batchSize) {
             const batch = preparedItems.slice(i, i + batchSize);
-            await fetch('/api/incoming-goods/batch', {
+            promises.push(fetch('/api/incoming-goods/batch', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(batch),
-            });
+            }));
         }
+        await Promise.all(promises);
         
         setImportProgress(null);
         alert(`Berhasil import ${count} data barang masuk!`);
