@@ -2530,13 +2530,17 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
         };
 
         for (const [index, item] of data.entries()) {
+          console.log(`Debug [${index}]: Item:`, item, "Keys:", Object.keys(item));
           const namaOrKode = String(
             getVal(item, "Jenis Barang", "Nama Barang", "namaBarang", "Kode Barang", "ID Barang") || "",
           ).trim();
           const qty = parseNum(getVal(item, "Qty", "Jumlah", "qty"));
           const tanggal = String(getVal(item, "Tgl. Order", "Tgl Order", "Tanggal") || "");
 
+          console.log(`Parsed [${index}]:`, { namaOrKode, qty, tanggal });
+
           if (!namaOrKode || !qty) {
+            console.log(`Skipping [${index}]: Missing name or qty`);
             setImportProgress((p) => ({ ...p, current: index + 1 }));
             continue;
           }
@@ -2546,6 +2550,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
               p.namaBarang.toLowerCase() === namaOrKode.toLowerCase() ||
               p.kodeBarang.toLowerCase() === namaOrKode.toLowerCase(),
           );
+          
+          console.log(`Product found [${index}]:`, !!product, product?.namaBarang);
 
           if (product) {
             try {
