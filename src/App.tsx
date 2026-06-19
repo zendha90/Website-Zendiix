@@ -2357,7 +2357,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 parseNum(getVal(item, "hargaJual", "Harga Jual", "Price")) ||
                 parseNum(getVal(item, "hargaBeli", "Harga Beli", "HPP")),
               stokAwal: parseNum(
-                getVal(item, "Stok Sekarang", "Stok Awal", "stokAwal", "Stock"),
+                getVal(item, "Stok Awal", "stokAwal", "Stock"),
               ),
               color: String(getVal(item, "color", "Color", "Warna") || ""),
               bc: String(getVal(item, "bc", "BC") || ""),
@@ -2398,6 +2398,13 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       skipEmptyLines: true,
       complete: async (results) => {
         const data = results.data as any[];
+        const totalItems = data.length;
+        if (totalItems === 0) {
+          alert("Tidak ada data yang valid untuk diimport.");
+          return;
+        }
+
+        setImportProgress({ current: 0, total: totalItems });
         let count = 0;
 
         const parseNum = (val: any) => {
@@ -2431,7 +2438,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           return undefined;
         };
 
-        for (const item of data) {
+        for (const [index, item] of data.entries()) {
           const kodeBarang = String(
             getVal(item, "Kode Barang", "ID Barang") || "UNKNOWN",
           ).trim();
@@ -2462,7 +2469,9 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           } catch (err) {
             console.error("Sale import err", err);
           }
+          setImportProgress((p) => ({ ...p, current: index + 1 }));
         }
+        setImportProgress(null);
         alert(`Berhasil import ${count} riwayat penjualan!`);
         if (saleFileInput.current) saleFileInput.current.value = "";
       },
@@ -2480,6 +2489,13 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       skipEmptyLines: true,
       complete: async (results) => {
         const data = results.data as any[];
+        const totalItems = data.length;
+        if (totalItems === 0) {
+          alert("Tidak ada data yang valid untuk diimport.");
+          return;
+        }
+
+        setImportProgress({ current: 0, total: totalItems });
         let count = 0;
 
         const parseNum = (val: any) => {
@@ -2513,19 +2529,22 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           return undefined;
         };
 
-        for (const item of data) {
-          const namaBarang = String(
-            getVal(item, "Jenis Barang", "Nama Barang", "namaBarang") || "",
+        for (const [index, item] of data.entries()) {
+          const namaOrKode = String(
+            getVal(item, "Jenis Barang", "Nama Barang", "namaBarang", "Kode Barang", "ID Barang") || "",
           ).trim();
           const qty = parseNum(getVal(item, "Qty", "Jumlah", "qty"));
-          const tanggal = String(getVal(item, "Tgl. Order", "Tanggal") || "");
+          const tanggal = String(getVal(item, "Tgl. Order", "Tgl Order", "Tanggal") || "");
 
-          if (!namaBarang || !qty) continue;
+          if (!namaOrKode || !qty) {
+            setImportProgress((p) => ({ ...p, current: index + 1 }));
+            continue;
+          }
 
           const product = products.find(
             (p) =>
-              p.namaBarang.toLowerCase() === namaBarang.toLowerCase() ||
-              p.kodeBarang.toLowerCase() === namaBarang.toLowerCase(),
+              p.namaBarang.toLowerCase() === namaOrKode.toLowerCase() ||
+              p.kodeBarang.toLowerCase() === namaOrKode.toLowerCase(),
           );
 
           if (product) {
@@ -2543,7 +2562,9 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
               console.error("Incoming import err", err);
             }
           }
+          setImportProgress((p) => ({ ...p, current: index + 1 }));
         }
+        setImportProgress(null);
         alert(`Berhasil import ${count} data barang masuk!`);
         if (incomingFileInput.current) incomingFileInput.current.value = "";
       },
