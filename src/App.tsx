@@ -4948,7 +4948,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                       />
                       <label
                         htmlFor="csv-upload-sales-settings"
-                        className="cursor-pointer inline-block text-center px-8 py-4 bg-indigo-50 border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center gap-2"
+                        className="cursor-pointer inline-block text-center px-8 py-4 bg-indigo-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center gap-2"
                       >
                         <UploadCloud className="w-4 h-4" /> IMPORT PENJUALAN
                       </label>
@@ -4977,7 +4977,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                       />
                       <label
                         htmlFor="csv-upload-incoming-settings"
-                        className="cursor-pointer inline-block text-center px-8 py-4 bg-white border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center gap-2"
+                        className="cursor-pointer inline-block text-center px-8 py-4 bg-indigo-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center gap-2"
                       >
                         <UploadCloud className="w-4 h-4" /> IMPORT BARANG MASUK
                       </label>
