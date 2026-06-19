@@ -2453,6 +2453,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           );
 
           try {
+            const baseDate = new Date();
+            const offsetDate = new Date(baseDate.getTime() + (data.length - index) * 1000);
             await addSaleRecord(kodeBarang, namaBarang, qty, totalHarga, {
               tanggalOrder: String(
                 getVal(item, "Tgl. Order", "Tanggal Order") || "",
@@ -2466,6 +2468,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
               hpp: parseNum(getVal(item, "HPP")),
               totalHpp: parseNum(getVal(item, "Total HPP")),
               laba: parseNum(getVal(item, "Laba")),
+              tanggal: offsetDate.toISOString(),
             });
             count++;
           } catch (err) {
@@ -2552,6 +2555,9 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           const product = productMap.get(namaOrKode.toLowerCase());
 
           if (product) {
+            const parsedDate = (tanggal && !isNaN(Date.parse(tanggal))) ? new Date(tanggal) : new Date();
+            // Offset each record's date such that lower index (earlier in CSV) has higher seconds value
+            const offsetDate = new Date(parsedDate.getTime() + (data.length - index) * 1000);
             preparedItems.push({
                 id: Math.random().toString(36).substring(2, 15),
                 productId: product.id!,
@@ -2559,7 +2565,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 namaBarang: product.namaBarang,
                 qty,
                 supplier: product.supplier || null,
-                tanggal: tanggal ? new Date(tanggal) : new Date(),
+                tanggal: offsetDate.toISOString(),
             });
             count++;
           }

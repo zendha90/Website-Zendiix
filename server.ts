@@ -474,7 +474,8 @@ async function startServer() {
     try {
       const itemsWithId = items.map(item => ({
         ...item,
-        id: item.id || uuidv4()
+        id: item.id || uuidv4(),
+        tanggal: item.tanggal ? new Date(item.tanggal) : new Date()
       }));
       if (isDbOnline) {
         await runDbWrite(async () => {
@@ -513,16 +514,17 @@ async function startServer() {
     const id = data.id || Math.random().toString(36).substring(2, 15);
     try {
       if (!isDbOnline) {
-        fallbackData.sales.push({ ...data, id, tanggal: new Date().toISOString() });
+        fallbackData.sales.push({ ...data, id, tanggal: data.tanggal || new Date().toISOString() });
         saveFallbackData();
         return res.json({ id, ...data });
       }
-      await db.insert(sales).values({ ...data, id, tanggal: new Date() });
+      const finalTanggal = data.tanggal ? new Date(data.tanggal) : new Date();
+      await db.insert(sales).values({ ...data, id, tanggal: finalTanggal });
       clearCache('sales');
       res.json({ id, ...data });
     } catch (error) {
       console.error('Error creating sale in DB, falling back to local storage:', error);
-      fallbackData.sales.push({ ...data, id, tanggal: new Date().toISOString() });
+      fallbackData.sales.push({ ...data, id, tanggal: data.tanggal || new Date().toISOString() });
       saveFallbackData();
       res.json({ id, ...data });
     }
