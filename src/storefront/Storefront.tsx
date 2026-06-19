@@ -433,6 +433,10 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     });
   }, [groupedSeriesList, searchQuery, activeCategory, activeColorFilter, activeDiameterFilter, activeWaterFilter, activeBCFilter]);
 
+  const random8Products = useMemo(() => {
+    return [...filteredSeries].sort(() => 0.5 - Math.random()).slice(0, 8);
+  }, [filteredSeries]);
+
   const handleToggleFav = (seriesName: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setFavorites(prev => 
@@ -900,8 +904,9 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
             </div>
           )}
 
-          {/* Shopee-style 2-Column Product Grid Results */}
+          {/* TERLARIS MINGGU INI */}
           <section className="p-2">
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest pl-2 mb-3">TERLARIS MINGGU INI</h3>
             {isLoading ? (
               <div className="grid grid-cols-2 gap-2">
                 {[1, 2, 3, 4, 5, 6].map((item) => (
@@ -936,7 +941,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-2">
-                {filteredSeries.map((series, idx) => {
+                {random8Products.map((series, idx) => {
                   const stats = getSeriesStatistics(series);
                   const isAvailable = series.variants.some(v => v.stokBarang > 0);
                   const rating = series.representativeProduct.rating !== undefined ? Number(series.representativeProduct.rating) : (4.8 + ((idx % 3) * 0.1));
