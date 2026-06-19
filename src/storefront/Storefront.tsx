@@ -28,6 +28,7 @@ interface StorefrontProps {
   products: Product[];
   banners?: any[];
   branding?: BrandingSettings;
+  isLoading?: boolean;
 }
 
 export interface ProductVariant {
@@ -169,7 +170,7 @@ const splitImageUrls = (str: string | undefined | null): string[] => {
   return result;
 };
 
-export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], branding }) => {
+export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], branding, isLoading = false }) => {
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedSeries, setSelectedSeries] = useState<GroupedSeries | null>(null);
@@ -901,7 +902,27 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
 
           {/* Shopee-style 2-Column Product Grid Results */}
           <section className="p-2">
-            {filteredSeries.length === 0 ? (
+            {isLoading ? (
+              <div className="grid grid-cols-2 gap-2">
+                {[1, 2, 3, 4, 5, 6].map((item) => (
+                  <div key={item} className="bg-white rounded-md overflow-hidden border border-neutral-100 flex flex-col justify-between animate-pulse">
+                    <div className="aspect-square bg-neutral-100 relative">
+                      <div className="absolute top-1.5 left-1.5 bg-neutral-200 h-3 w-10 rounded"></div>
+                    </div>
+                    <div className="p-2 flex-grow flex flex-col justify-between h-20">
+                      <div className="space-y-1">
+                        <div className="h-3 bg-neutral-200 rounded w-5/6"></div>
+                        <div className="h-2.5 bg-neutral-200 rounded w-1/2"></div>
+                      </div>
+                      <div className="flex items-center justify-between mt-2 pt-1 border-t border-neutral-50">
+                        <div className="h-3 bg-neutral-200 rounded w-1/3"></div>
+                        <div className="h-2 bg-neutral-200 rounded w-1/4"></div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : filteredSeries.length === 0 ? (
               <div className="text-center py-12 bg-white rounded-lg border border-dashed border-neutral-200 max-w-sm mx-auto my-4">
                 <ShoppingBag className="w-10 h-10 text-neutral-300 mx-auto mb-2" />
                 <p className="text-xs text-neutral-600 font-bold mb-0.5">Produk Tidak Ditemukan</p>

@@ -7,6 +7,50 @@ interface BrandingTabProps {
   banners: StorefrontBanner[];
 }
 
+const compressImageFile = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressedDataUrl);
+        } else {
+          resolve(e.target?.result as string || "");
+        }
+      };
+      img.onerror = () => {
+        resolve(e.target?.result as string || "");
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+};
+
 export const BrandingTab: React.FC<BrandingTabProps> = ({ branding, banners }) => {
   const [formData, setFormData] = useState<BrandingSettings>(branding);
   const [isSaving, setIsSaving] = useState(false);
@@ -47,30 +91,18 @@ export const BrandingTab: React.FC<BrandingTabProps> = ({ branding, banners }) =
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 500 * 1024) {
-        alert("Ukuran gambar logo terlalu besar! Gunakan gambar di bawah 500 KB.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, logoUrl: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      compressImageFile(file).then(compressedUrl => {
+        setFormData({ ...formData, logoUrl: compressedUrl });
+      });
     }
   };
 
   const handleFaviconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 150 * 1024) {
-        alert("Ukuran favicon terlalu besar! Gunakan gambar di bawah 150 KB.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData({ ...formData, faviconUrl: reader.result as string });
-      };
-      reader.readAsDataURL(file);
+      compressImageFile(file, 128, 128, 0.8).then(compressedUrl => {
+        setFormData({ ...formData, faviconUrl: compressedUrl });
+      });
     }
   };
 
@@ -412,16 +444,10 @@ const BannerUploadSection = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 800 * 1024) {
-        alert("Gambar terlalu besar! Maksimal 800 KB.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setPreviewUrl(reader.result as string);
-        setImageUrl(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      compressImageFile(file, 1200, 600, 0.7).then(compressedUrl => {
+        setPreviewUrl(compressedUrl);
+        setImageUrl(compressedUrl);
+      });
     }
   };
 

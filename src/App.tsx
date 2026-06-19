@@ -81,6 +81,50 @@ import { Storefront } from "./storefront/Storefront";
 import { KatalogTab } from "./components/KatalogTab";
 import { BrandingTab } from "./components/BrandingTab";
 
+const compressImageFile = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressedDataUrl);
+        } else {
+          resolve(e.target?.result as string || "");
+        }
+      };
+      img.onerror = () => {
+        resolve(e.target?.result as string || "");
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+};
+
 const parseToDate = (tStr: any): Date | null => {
   if (!tStr) return null;
   if (typeof tStr === "object" && tStr.seconds) {
@@ -557,17 +601,10 @@ function BannerUploadManager({ onAddBanner }: { onAddBanner: (imageUrl: string, 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 800 * 1024) {
-        alert("Ukuran gambar terlalu besar! Harap gunakan gambar di bawah 800 KB agar performa database optimal.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setPreviewUrl(base64String);
-        setImageUrl(base64String);
-      };
-      reader.readAsDataURL(file);
+      compressImageFile(file, 1200, 600, 0.7).then(compressedUrl => {
+        setPreviewUrl(compressedUrl);
+        setImageUrl(compressedUrl);
+      });
     }
   };
 
@@ -579,17 +616,10 @@ function BannerUploadManager({ onAddBanner }: { onAddBanner: (imageUrl: string, 
     e.preventDefault();
     const file = e.dataTransfer.files?.[0];
     if (file) {
-      if (file.size > 800 * 1024) {
-        alert("Ukuran gambar too big! Silakan gunakan gambar di bawah 800 KB.");
-        return;
-      }
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64String = reader.result as string;
-        setPreviewUrl(base64String);
-        setImageUrl(base64String);
-      };
-      reader.readAsDataURL(file);
+      compressImageFile(file, 1200, 600, 0.7).then(compressedUrl => {
+        setPreviewUrl(compressedUrl);
+        setImageUrl(compressedUrl);
+      });
     }
   };
 
@@ -5983,6 +6013,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
   const [banners, setBanners] = useState<StorefrontBanner[]>([]);
+  const [loadingProducts, setLoadingProducts] = useState(true);
   const [branding, setBranding] = useState<BrandingSettings>({
     announcementTexts: ["FLASH SALE! DISKON HINGGA 50% UNTUK SEMUA PRODUK"],
     logoText: "ZENDIIX",
@@ -6028,7 +6059,10 @@ export default function App() {
   const location = useLocation();
 
   useEffect(() => {
-    const unsub = subscribeToProducts(setProducts);
+    const unsub = subscribeToProducts((loadedProducts) => {
+      setProducts(loadedProducts);
+      setLoadingProducts(false);
+    });
     return () => unsub();
   }, []);
 
@@ -6128,7 +6162,7 @@ export default function App() {
 
       <div className="flex-1 flex flex-col">
         <Routes>
-          <Route path="/" element={<Storefront products={products} banners={banners} branding={branding} />} />
+          <Route path="/" element={<Storefront products={products} banners={banners} branding={branding} isLoading={loadingProducts} />} />
           <Route path="/admin/*" element={<AppContent sharedProducts={products} sharedBanners={banners} sharedBranding={branding} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

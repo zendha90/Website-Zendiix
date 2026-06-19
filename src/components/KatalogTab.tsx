@@ -91,6 +91,50 @@ const splitImageUrls = (str: string | undefined | null): string[] => {
   return result;
 };
 
+const compressImageFile = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > maxWidth) {
+            height = Math.round((height * maxWidth) / width);
+            width = maxWidth;
+          }
+        } else {
+          if (height > maxHeight) {
+            width = Math.round((width * maxHeight) / height);
+            height = maxHeight;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', quality);
+          resolve(compressedDataUrl);
+        } else {
+          resolve(e.target?.result as string || "");
+        }
+      };
+      img.onerror = () => {
+        resolve(e.target?.result as string || "");
+      };
+      img.src = e.target?.result as string;
+    };
+    reader.onerror = () => resolve("");
+    reader.readAsDataURL(file);
+  });
+};
+
 interface GroupedSeries {
   seriesName: string;
   representativeProduct: Product;
@@ -220,13 +264,9 @@ export function KatalogTab({ products }: KatalogTabProps) {
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, onResult: (url: string) => void) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      if (typeof reader.result === "string") {
-        onResult(reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    compressImageFile(file).then(compressedUrl => {
+      onResult(compressedUrl);
+    });
   };
 
   const handleMultipleFilesUpload = (e: React.ChangeEvent<HTMLInputElement>, currentUrls: string, onUpdate: (newUrls: string) => void) => {
@@ -235,17 +275,7 @@ export function KatalogTab({ products }: KatalogTabProps) {
     
     const existing = splitImageUrls(currentUrls);
     const readPromises = Array.from(files).map((file: any) => {
-      return new Promise<string>((resolve) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          if (typeof reader.result === "string") {
-            resolve(reader.result);
-          } else {
-            resolve("");
-          }
-        };
-        reader.readAsDataURL(file);
-      });
+      return compressImageFile(file);
     });
 
     Promise.all(readPromises).then(newDatas => {

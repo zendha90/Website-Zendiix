@@ -110,12 +110,33 @@ async function startServer() {
     return cleaned;
   };
 
+  // Simple, short-duration server-side cache to protect cPanel MySQL from max_user_connections (5 client limit)
+  const serverCache = new Map<string, { data: any; expires: number }>();
+  const CACHE_STALE_MS = 5000; // Cache for 5 seconds
+
+  async function getCached<T>(key: string, fetchFn: () => Promise<T>): Promise<T> {
+    const cached = serverCache.get(key);
+    const now = Date.now();
+    if (cached && cached.expires > now) {
+      return cached.data;
+    }
+    const fresh = await fetchFn();
+    serverCache.set(key, { data: fresh, expires: now + CACHE_STALE_MS });
+    return fresh;
+  }
+
+  function clearCache(key: string) {
+    serverCache.delete(key);
+  }
+
   // API Routes
   
   // Products
   app.get('/api/products', async (req, res) => {
     try {
-      const allProducts = await db.select().from(products).orderBy(desc(products.createdAt));
+      const allProducts = await getCached('products', () => 
+        db.select().from(products).orderBy(desc(products.createdAt))
+      );
       res.json(allProducts);
     } catch (error) {
       console.error('Error fetching products:', error);
@@ -135,6 +156,7 @@ async function startServer() {
       } else {
         await db.insert(products).values({ ...cleaned, id });
       }
+      clearCache('products');
       res.json({ id, ...data });
     } catch (error) {
       console.error('Error creating product:', error);
@@ -145,7 +167,9 @@ async function startServer() {
   // Settings
   app.get('/api/settings/branding', async (req, res) => {
     try {
-      const result = await db.select().from(settings).where(eq(settings.id, 'branding')).limit(1);
+      const result = await getCached('branding', () =>
+        db.select().from(settings).where(eq(settings.id, 'branding')).limit(1)
+      );
       res.json(result[0] || null);
     } catch (error) {
       console.error('Error fetching settings:', error);
@@ -161,6 +185,7 @@ async function startServer() {
         .onDuplicateKeyUpdate({
           set: { ...data, updatedAt: new Date() }
         });
+      clearCache('branding');
       res.json({ id: 'branding', ...data });
     } catch (error) {
       console.error('Error updating settings:', error);
@@ -171,8 +196,10 @@ async function startServer() {
   // Banners
   app.get('/api/banners', async (req, res) => {
     try {
-      const banners = await db.select().from(storefrontBanners).orderBy(desc(storefrontBanners.createdAt));
-      res.json(banners);
+      const bannersList = await getCached('banners', () =>
+        db.select().from(storefrontBanners).orderBy(desc(storefrontBanners.createdAt))
+      );
+      res.json(bannersList);
     } catch (error) {
       console.error('Error fetching banners:', error);
       res.status(500).json({ error: 'Failed to fetch banners' });
@@ -182,7 +209,9 @@ async function startServer() {
   // Incoming Goods
   app.get('/api/incoming-goods', async (req, res) => {
     try {
-      const result = await db.select().from(incomingGoods).orderBy(desc(incomingGoods.tanggal));
+      const result = await getCached('incoming-goods', () =>
+        db.select().from(incomingGoods).orderBy(desc(incomingGoods.tanggal))
+      );
       res.json(result);
     } catch (error) {
       console.error('Error fetching incoming goods:', error);
@@ -195,6 +224,7 @@ async function startServer() {
       const data = req.body;
       const id = data.id || Math.random().toString(36).substring(2, 15);
       await db.insert(incomingGoods).values({ ...data, id, tanggal: new Date() });
+      clearCache('incoming-goods');
       res.json({ id, ...data });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -204,7 +234,9 @@ async function startServer() {
   // Sales
   app.get('/api/sales', async (req, res) => {
     try {
-      const result = await db.select().from(sales).orderBy(desc(sales.tanggal));
+      const result = await getCached('sales', () =>
+        db.select().from(sales).orderBy(desc(sales.tanggal))
+      );
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -216,6 +248,7 @@ async function startServer() {
       const data = req.body;
       const id = data.id || Math.random().toString(36).substring(2, 15);
       await db.insert(sales).values({ ...data, id, tanggal: new Date() });
+      clearCache('sales');
       res.json({ id, ...data });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -225,7 +258,9 @@ async function startServer() {
   // Sales DS
   app.get('/api/sales-ds', async (req, res) => {
     try {
-      const result = await db.select().from(salesDs).orderBy(desc(salesDs.tanggal));
+      const result = await getCached('sales-ds', () =>
+        db.select().from(salesDs).orderBy(desc(salesDs.tanggal))
+      );
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -237,6 +272,7 @@ async function startServer() {
       const data = req.body;
       const id = data.id || Math.random().toString(36).substring(2, 15);
       await db.insert(salesDs).values({ ...data, id, tanggal: new Date() });
+      clearCache('sales-ds');
       res.json({ id, ...data });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -246,7 +282,9 @@ async function startServer() {
   // Iklan
   app.get('/api/iklan', async (req, res) => {
     try {
-      const result = await db.select().from(iklan).orderBy(desc(iklan.createdAt));
+      const result = await getCached('iklan', () =>
+        db.select().from(iklan).orderBy(desc(iklan.createdAt))
+      );
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -258,6 +296,7 @@ async function startServer() {
       const data = req.body;
       const id = data.id || Math.random().toString(36).substring(2, 15);
       await db.insert(iklan).values({ ...data, id, createdAt: new Date() });
+      clearCache('iklan');
       res.json({ id, ...data });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -267,7 +306,9 @@ async function startServer() {
   // Weekly Sales
   app.get('/api/weekly-sales', async (req, res) => {
     try {
-      const result = await db.select().from(weeklySales).orderBy(desc(weeklySales.createdAt));
+      const result = await getCached('weekly-sales', () =>
+        db.select().from(weeklySales).orderBy(desc(weeklySales.createdAt))
+      );
       res.json(result);
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -279,6 +320,7 @@ async function startServer() {
       const data = req.body;
       const id = data.id || Math.random().toString(36).substring(2, 15);
       await db.insert(weeklySales).values({ ...data, id, createdAt: new Date() });
+      clearCache('weekly-sales');
       res.json({ id, ...data });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -292,6 +334,7 @@ async function startServer() {
       const data = req.body;
       const cleaned = sanitizeProduct(data);
       const result = await db.update(products).set({ ...cleaned, updatedAt: new Date() }).where(eq(products.id, id));
+      clearCache('products');
       res.json({ success: true });
     } catch (error) {
       console.error('Error updating product:', error);
@@ -303,6 +346,7 @@ async function startServer() {
     try {
       const { id } = req.params;
       await db.delete(products).where(eq(products.id, id));
+      clearCache('products');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -312,6 +356,7 @@ async function startServer() {
   app.delete('/api/products', async (req, res) => {
     try {
       await db.delete(products);
+      clearCache('products');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -324,6 +369,7 @@ async function startServer() {
       const { id } = req.params;
       const data = req.body;
       await db.update(sales).set(data).where(eq(sales.id, id));
+      clearCache('sales');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -334,6 +380,7 @@ async function startServer() {
     try {
       const { id } = req.params;
       await db.delete(sales).where(eq(sales.id, id));
+      clearCache('sales');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -343,6 +390,7 @@ async function startServer() {
   app.delete('/api/sales', async (req, res) => {
     try {
       await db.delete(sales);
+      clearCache('sales');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -355,6 +403,7 @@ async function startServer() {
       const { id } = req.params;
       const data = req.body;
       await db.update(salesDs).set(data).where(eq(salesDs.id, id));
+      clearCache('sales-ds');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -365,6 +414,7 @@ async function startServer() {
     try {
       const { id } = req.params;
       await db.delete(salesDs).where(eq(salesDs.id, id));
+      clearCache('sales-ds');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -374,6 +424,7 @@ async function startServer() {
   app.delete('/api/sales-ds', async (req, res) => {
     try {
       await db.delete(salesDs);
+      clearCache('sales-ds');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -385,6 +436,7 @@ async function startServer() {
     try {
       const { id } = req.params;
       await db.delete(incomingGoods).where(eq(incomingGoods.id, id));
+      clearCache('incoming-goods');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -394,6 +446,7 @@ async function startServer() {
   app.delete('/api/incoming-goods', async (req, res) => {
     try {
       await db.delete(incomingGoods);
+      clearCache('incoming-goods');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -406,6 +459,7 @@ async function startServer() {
       const { id } = req.params;
       const data = req.body;
       await db.update(iklan).set(data).where(eq(iklan.id, id));
+      clearCache('iklan');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -416,6 +470,7 @@ async function startServer() {
     try {
       const { id } = req.params;
       await db.delete(iklan).where(eq(iklan.id, id));
+      clearCache('iklan');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -425,6 +480,7 @@ async function startServer() {
   app.delete('/api/iklan', async (req, res) => {
     try {
       await db.delete(iklan);
+      clearCache('iklan');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -437,6 +493,7 @@ async function startServer() {
       const { id } = req.params;
       const data = req.body;
       await db.update(weeklySales).set(data).where(eq(weeklySales.id, id));
+      clearCache('weekly-sales');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -447,6 +504,7 @@ async function startServer() {
     try {
       const { id } = req.params;
       await db.delete(weeklySales).where(eq(weeklySales.id, id));
+      clearCache('weekly-sales');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });
@@ -456,6 +514,7 @@ async function startServer() {
   app.delete('/api/weekly-sales', async (req, res) => {
     try {
       await db.delete(weeklySales);
+      clearCache('weekly-sales');
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: 'Failed' });

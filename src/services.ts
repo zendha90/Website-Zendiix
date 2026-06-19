@@ -128,19 +128,51 @@ async function fetchApi(path: string, options?: RequestInit) {
   return res.json();
 }
 
-// Subscriptions replaced by simple fetch + interval for now
+// Smart subscription creator to save background API requests, optimize memory queries, and respect tab visibility states
+function createSmartSubscriber<T>(path: string, callback: (data: T) => void, intervalMs = 60000, defaultValue?: T) {
+  let active = true;
+  const runFetch = () => {
+    if (!active || document.visibilityState !== 'visible') return;
+    fetchApi(path)
+      .then(data => {
+        if (active) {
+          if (data !== undefined && data !== null) callback(data);
+          else if (defaultValue !== undefined) callback(defaultValue);
+        }
+      })
+      .catch(console.error);
+  };
+
+  // Initial fetch immediate
+  fetchApi(path).then(data => {
+    if (active) {
+      if (data !== undefined && data !== null) callback(data);
+      else if (defaultValue !== undefined) callback(defaultValue);
+    }
+  }).catch(console.error);
+
+  const interval = setInterval(runFetch, intervalMs);
+
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'visible') {
+      runFetch();
+    }
+  };
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+
+  return () => {
+    active = false;
+    clearInterval(interval);
+    document.removeEventListener('visibilitychange', handleVisibilityChange);
+  };
+}
+
 export function subscribeToProducts(callback: (products: Product[]) => void) {
-  const fetchProducts = () => fetchApi('/api/products').then(callback).catch(console.error);
-  fetchProducts();
-  const interval = setInterval(fetchProducts, 30000);
-  return () => clearInterval(interval);
+  return createSmartSubscriber<Product[]>('/api/products', callback, 60000);
 }
 
 export function subscribeToSales(callback: (sales: Sale[]) => void) {
-  const fetchSales = () => fetchApi('/api/sales').then(callback).catch(console.error);
-  fetchSales();
-  const interval = setInterval(fetchSales, 30000);
-  return () => clearInterval(interval);
+  return createSmartSubscriber<Sale[]>('/api/sales', callback, 60000);
 }
 
 export async function upsertProduct(product: Omit<Product, 'createdAt' | 'updatedAt'>): Promise<string> {
@@ -174,10 +206,7 @@ export async function processSale(product: Product, qty: number, additionalField
 }
 
 export function subscribeToIncomingGoods(callback: (goods: IncomingGood[]) => void) {
-  const fetchGoods = () => fetchApi('/api/incoming-goods').then(callback).catch(console.error);
-  fetchGoods();
-  const interval = setInterval(fetchGoods, 30000);
-  return () => clearInterval(interval);
+  return createSmartSubscriber<IncomingGood[]>('/api/incoming-goods', callback, 60000);
 }
 
 export async function addIncomingGood(good: Omit<IncomingGood, 'id'>) {
@@ -188,10 +217,7 @@ export async function addIncomingGood(good: Omit<IncomingGood, 'id'>) {
 }
 
 export function subscribeToSalesDS(callback: (salesDS: SaleDS[]) => void) {
-  const fetchSalesDS = () => fetchApi('/api/sales-ds').then(callback).catch(console.error);
-  fetchSalesDS();
-  const interval = setInterval(fetchSalesDS, 30000);
-  return () => clearInterval(interval);
+  return createSmartSubscriber<SaleDS[]>('/api/sales-ds', callback, 60000);
 }
 
 export async function addSaleDSRecord(sale: Omit<SaleDS, 'id' | 'tanggal'>) {
@@ -202,10 +228,7 @@ export async function addSaleDSRecord(sale: Omit<SaleDS, 'id' | 'tanggal'>) {
 }
 
 export function subscribeToIklan(callback: (iklanList: Iklan[]) => void) {
-  const fetchIklan = () => fetchApi('/api/iklan').then(callback).catch(console.error);
-  fetchIklan();
-  const interval = setInterval(fetchIklan, 30000);
-  return () => clearInterval(interval);
+  return createSmartSubscriber<Iklan[]>('/api/iklan', callback, 60000);
 }
 
 export async function addIklanRecord(iklan: Omit<Iklan, 'id' | 'createdAt'>) {
@@ -216,10 +239,7 @@ export async function addIklanRecord(iklan: Omit<Iklan, 'id' | 'createdAt'>) {
 }
 
 export function subscribeToWeeklySales(callback: (weeklySales: WeeklySale[]) => void) {
-  const fetchWeekly = () => fetchApi('/api/weekly-sales').then(callback).catch(console.error);
-  fetchWeekly();
-  const interval = setInterval(fetchWeekly, 30000);
-  return () => clearInterval(interval);
+  return createSmartSubscriber<WeeklySale[]>('/api/weekly-sales', callback, 60000);
 }
 
 export async function addWeeklySaleRecord(weeklySale: Omit<WeeklySale, 'id' | 'createdAt'>) {
@@ -230,29 +250,21 @@ export async function addWeeklySaleRecord(weeklySale: Omit<WeeklySale, 'id' | 'c
 }
 
 export function subscribeToBanners(callback: (banners: StorefrontBanner[]) => void) {
-  const fetchBanners = () => fetchApi('/api/banners').then(callback).catch(console.error);
-  fetchBanners();
-  const interval = setInterval(fetchBanners, 30000);
-  return () => clearInterval(interval);
+  return createSmartSubscriber<StorefrontBanner[]>('/api/banners', callback, 60000);
 }
 
 export function subscribeToBranding(callback: (settings: BrandingSettings) => void) {
-  const fetchBranding = () => fetchApi('/api/settings/branding').then(data => {
-    if (data) callback(data);
-    else callback({
-      announcementTexts: [
-        "✨ BELI 1 GRATIS 1 - Tingkatkan pesonamu dengan Zendiix!",
-        "🚚 GRATIS ONGKIR dengan belanja minimal Rp 400.000!",
-        "🎁 BONUS Case Cermin Premium setiap pembelian 2+ box!"
-      ],
-      logoText: "ZENDIIX",
-      logoUrl: "",
-      footerAboutText: "Zendiix hadir memberikan solusi produk softlens premium untuk menunjang keindahan dan kesehatan mata dengan standarisasi kualitas tinggi bagi para pecinta fashion optik."
-    });
-  }).catch(console.error);
-  fetchBranding();
-  const interval = setInterval(fetchBranding, 30000);
-  return () => clearInterval(interval);
+  const defaultBranding: BrandingSettings = {
+    announcementTexts: [
+      "✨ BELI 1 GRATIS 1 - Tingkatkan pesonamu dengan Zendiix!",
+      "🚚 GRATIS ONGKIR dengan belanja minimal Rp 400.000!",
+      "🎁 BONUS Case Cermin Premium setiap pembelian 2+ box!"
+    ],
+    logoText: "ZENDIIX",
+    logoUrl: "",
+    footerAboutText: "Zendiix hadir memberikan solusi produk softlens premium untuk menunjang keindahan dan kesehatan mata dengan standarisasi kualitas tinggi bagi para pecinta fashion optik."
+  };
+  return createSmartSubscriber<BrandingSettings>('/api/settings/branding', callback, 60000, defaultBranding);
 }
 
 export async function updateBranding(settings: BrandingSettings) {
