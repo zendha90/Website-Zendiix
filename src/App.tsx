@@ -2560,7 +2560,9 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
             });
             count++;
           }
-          setImportProgress((p) => ({ ...p, current: index + 1 }));
+          if (index % 500 === 0) {
+            setImportProgress((p) => ({ ...p, current: index + 1 }));
+          }
         }
 
         // Send in batches of 2000
