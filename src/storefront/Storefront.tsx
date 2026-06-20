@@ -554,6 +554,27 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     return list;
   }, []);
 
+  // Helper to get true series thumbnail (handles legacy data missing seriesImageUrl)
+  const getSeriesThumbnail = (series: GroupedSeries) => {
+    if (series.representativeProduct.seriesImageUrl) {
+      return splitImageUrls(series.representativeProduct.seriesImageUrl)[0];
+    }
+    
+    // Legacy data fallback: find intersection of all variant images
+    const allProdImages = series.variants.map(v => splitImageUrls(v.product.imageUrl || ""));
+    const productsWithImages = allProdImages.filter(arr => arr.length > 0);
+    
+    if (productsWithImages.length > 0) {
+      let commonImages = productsWithImages[0];
+      for (let i = 1; i < productsWithImages.length; i++) {
+        commonImages = commonImages.filter(img => productsWithImages[i].includes(img));
+      }
+      if (commonImages.length > 0) return commonImages[0];
+    }
+    
+    return splitImageUrls(series.representativeProduct.imageUrl)[0];
+  };
+
   // Compute stats of representative items
   const getSeriesStatistics = (series: GroupedSeries) => {
     const p = series.representativeProduct;
@@ -771,7 +792,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
 
                 <div className="flex items-center gap-3 overflow-x-auto pb-1.5 scrollbar-none">
                   {filteredSeries.filter(s => s.representativeProduct.isFlashSale).slice(0, 4).map((series, index) => {
-                    const imageSrc = splitImageUrls(series.representativeProduct.imageUrl)[0] || `https://picsum.photos/seed/${series.seriesName}/600/600`;
+                    const imageSrc = getSeriesThumbnail(series) || `https://picsum.photos/seed/${series.seriesName}/600/600`;
                     return (
                       <div 
                         key={index} 
@@ -946,7 +967,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                   const isAvailable = series.variants.some(v => v.stokBarang > 0);
                   const rating = series.representativeProduct.rating !== undefined ? Number(series.representativeProduct.rating) : (4.8 + ((idx % 3) * 0.1));
                   const reviews = series.representativeProduct.reviewsCount !== undefined ? Number(series.representativeProduct.reviewsCount) : (72 + (idx * 14));
-                  const imageSrc = splitImageUrls(series.representativeProduct.imageUrl)[0] || `https://picsum.photos/seed/${series.seriesName}/600/600`;
+                  const imageSrc = getSeriesThumbnail(series) || `https://picsum.photos/seed/${series.seriesName}/600/600`;
 
                   return (
                     <div 

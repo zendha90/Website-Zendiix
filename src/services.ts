@@ -14,6 +14,7 @@ export interface Product {
   bc: string;
   kadarAir: string;
   imageUrl?: string;
+  seriesImageUrl?: string;
   durasi?: string;
   gDia?: string;
   diameter?: string;

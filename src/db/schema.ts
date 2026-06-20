@@ -14,6 +14,7 @@ export const products = mysqlTable('products', {
   bc: varchar('bc', { length: 255 }).notNull(),
   kadarAir: varchar('kadar_air', { length: 255 }).notNull(),
   imageUrl: text('image_url'),
+  seriesImageUrl: text('series_image_url'),
   durasi: varchar('durasi', { length: 255 }),
   gDia: varchar('g_dia', { length: 255 }),
   diameter: varchar('diameter', { length: 255 }),

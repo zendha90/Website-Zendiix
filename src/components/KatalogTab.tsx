@@ -236,7 +236,6 @@ export function KatalogTab({ products }: KatalogTabProps) {
   const handleEditClick = (series: GroupedSeries) => {
     const rp = series.representativeProduct;
     setEditingSeries(series);
-    setImageUrl(rp.imageUrl || "");
     setDurasi(rp.durasi || "");
     setDiameter(rp.diameter || "");
     setGDia(rp.gDia || "");
@@ -249,11 +248,35 @@ export function KatalogTab({ products }: KatalogTabProps) {
     setDescription(rp.description || "");
     setIsFlashSale(rp.isFlashSale || false);
 
-    // Map each color to its variant product's existing imageUrl
+    // Derive common main series images and color-specific images
+    let commonImages: string[] = [];
+    if (rp.seriesImageUrl) {
+      commonImages = splitImageUrls(rp.seriesImageUrl);
+    } else {
+      const allProdImages = series.allProducts.map(p => splitImageUrls(p.imageUrl || ""));
+      const productsWithImages = allProdImages.filter(arr => arr.length > 0);
+      
+      if (productsWithImages.length > 0) {
+        // Find intersection of all image arrays to get the main series images
+        commonImages = productsWithImages[0];
+        for (let i = 1; i < productsWithImages.length; i++) {
+          commonImages = commonImages.filter(img => productsWithImages[i].includes(img));
+        }
+      }
+    }
+
+    setImageUrl(commonImages.join(", "));
+
+    // Map each color to its variant product's existing imageUrl, excluding the common ones
     const initialColorImages: Record<string, string> = {};
     series.colors.forEach(col => {
       const prodForColor = series.allProducts.find(p => p.color === col && p.imageUrl);
-      initialColorImages[col] = prodForColor ? (prodForColor.imageUrl || "") : "";
+      if (prodForColor && prodForColor.imageUrl) {
+        const colorParts = splitImageUrls(prodForColor.imageUrl).filter(img => !commonImages.includes(img));
+        initialColorImages[col] = colorParts.join(", ");
+      } else {
+        initialColorImages[col] = "";
+      }
     });
     setColorImages(initialColorImages);
 
@@ -315,10 +338,13 @@ export function KatalogTab({ products }: KatalogTabProps) {
         // Filter out any overlap to prevent duplicates, then combine (color-specific photos first)
         const uniqueColorParts = colorParts.filter(p => !seriesParts.includes(p));
         const finalImg = [...uniqueColorParts, ...seriesParts].filter(Boolean).join(", ");
+        
+        const seriesMainImg = seriesParts.filter(Boolean).join(", ");
 
         return upsertProduct({
           ...prod,
           imageUrl: finalImg || undefined,
+          seriesImageUrl: seriesMainImg || undefined,
           durasi: durasi || undefined,
           diameter: diameter || undefined,
           gDia: gDia || undefined,
@@ -429,18 +455,36 @@ export function KatalogTab({ products }: KatalogTabProps) {
                           </div>
                           
                           {/* Image preview */}
-                          {rp.imageUrl ? (
-                            <img 
-                              src={splitImageUrls(rp.imageUrl)[0]} 
-                              alt={s.seriesName} 
-                              className="w-12 h-12 rounded-lg border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_#0f172a] shrink-0" 
-                              referrerPolicy="no-referrer"
-                            />
-                          ) : (
-                            <div className="w-12 h-12 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 bg-slate-50 shrink-0">
-                              <BookOpen className="w-5 h-5" />
-                            </div>
-                          )}
+                          {(() => {
+                            let thumb = "";
+                            if (rp.seriesImageUrl) {
+                              thumb = splitImageUrls(rp.seriesImageUrl)[0];
+                            } else if (rp.imageUrl) {
+                               const allProdImages = s.allProducts.map(p => splitImageUrls(p.imageUrl || ""));
+                               const productsWithImages = allProdImages.filter(arr => arr.length > 0);
+                               if (productsWithImages.length > 0) {
+                                 let commonImages = productsWithImages[0];
+                                 for (let i = 1; i < productsWithImages.length; i++) {
+                                   commonImages = commonImages.filter(img => productsWithImages[i].includes(img));
+                                 }
+                                 if (commonImages.length > 0) thumb = commonImages[0];
+                               }
+                               if (!thumb) thumb = splitImageUrls(rp.imageUrl)[0];
+                            }
+                            
+                            return thumb ? (
+                              <img 
+                                src={thumb} 
+                                alt={s.seriesName} 
+                                className="w-12 h-12 rounded-lg border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_#0f172a] shrink-0" 
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="w-12 h-12 rounded-lg border-2 border-dashed border-slate-300 flex items-center justify-center text-slate-400 bg-slate-50 shrink-0">
+                                <BookOpen className="w-5 h-5" />
+                              </div>
+                            );
+                          })()}
                         </div>
 
                         {/* Specs overview */}

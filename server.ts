@@ -243,7 +243,7 @@ async function startServer() {
     const allowed = [
       'kodeBarang', 'namaBarang', 'supplier', 'hargaBeli', 'hargaJual',
       'stokAwal', 'stokBarang', 'terjual', 'color', 'bc', 'kadarAir',
-      'imageUrl', 'durasi', 'gDia', 'diameter', 'rating', 'reviewsCount',
+      'imageUrl', 'seriesImageUrl', 'durasi', 'gDia', 'diameter', 'rating', 'reviewsCount',
       'allowDualPower', 'groupName', 'customCategory', 'hideSpecs',
       'notSoftlens', 'description', 'isFlashSale'
     ];
