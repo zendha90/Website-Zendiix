@@ -89,6 +89,8 @@ import { AdminReviews } from "./components/AdminReviews"; // ADD THIS
 import { KatalogTab } from "./components/KatalogTab";
 import { BrandingTab } from "./components/BrandingTab";
 
+const DROPSHIP_SUPPLIERS = ["S-KIM", "S-akumaucantik", "S-LINA"];
+
 const compressImageFile = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -1861,12 +1863,28 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     e.preventDefault();
     if (!editSaleId) return;
     try {
-      // Calculate laba again if totalHarga or qty changed?
-      // For now let's just use what's in the form or recalculate.
-      const updatedLaba = (saleForm.totalHarga || 0) - (saleForm.totalHpp || 0);
+      let hppValue = saleForm.hpp || 0;
+      let totalHppValue = saleForm.totalHpp || 0;
+
+      // Try to recover HPP if missing and we have a product match
+      if (hppValue === 0) {
+        const product = products.find(
+          (p) => p.id === saleForm.productId || p.kodeBarang === saleForm.kodeBarang
+        );
+        if (product) {
+          hppValue = product.hargaBeli;
+          totalHppValue = hppValue * (saleForm.qty || 1);
+        }
+      } else if (totalHppValue === 0 && hppValue > 0) {
+        totalHppValue = hppValue * (saleForm.qty || 1);
+      }
+
+      const updatedLaba = (saleForm.totalHarga || 0) - totalHppValue;
       await updateSale({
         ...saleForm,
         id: editSaleId,
+        hpp: hppValue,
+        totalHpp: totalHppValue,
         laba: updatedLaba,
       } as Sale);
       setIsSaleModalOpen(false);
@@ -2319,7 +2337,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   }
 
   const [draftSalesDS, setDraftSalesDS] = useState<DraftSaleDS[]>(() => {
-    return Array.from({ length: 100 }, (_, i) => ({
+    return Array.from({ length: 1 }, (_, i) => ({
       id: Date.now() + "-ds-" + i,
       kodeSupplier: "",
       tanggalOrder: "",
@@ -2390,11 +2408,12 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     }
 
     rowsToProcess.forEach((cols, idx) => {
-      if (cols.length >= 3) {
-        const qtyVal = parseIndoNumber(cols[8]) || 1;
-        const hppVal = parseIndoNumber(cols[9]) || 0;
-        const totalPenjualanVal = parseIndoNumber(cols[10]) || 0;
-        let labaVal = parseIndoNumber(cols[12]) || 0;
+      if (cols.length >= 2) {
+        // Shifted indices: cols[0] is Tgl Order, cols[1] is Channel, etc.
+        const qtyVal = parseIndoNumber(cols[7]) || 1;
+        const hppVal = parseIndoNumber(cols[8]) || 0;
+        const totalPenjualanVal = parseIndoNumber(cols[9]) || 0;
+        let labaVal = parseIndoNumber(cols[11]) || 0;
         
         if (labaVal === 0 && totalPenjualanVal > 0) {
           labaVal = totalPenjualanVal - (hppVal * qtyVal);
@@ -2402,18 +2421,18 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
         newDrafts.push({
           id: Date.now() + "-ds-paste-" + idx + "-" + Math.random().toString(36).substring(2, 7),
-          kodeSupplier: cols[0]?.trim() || "",
-          tanggalOrder: cols[1]?.trim() || "",
-          channel: cols[2]?.trim() || "",
-          noPesanan: cols[3]?.trim() || "",
-          noResi: cols[4]?.trim() || "",
-          namaPelanggan: cols[5]?.trim() || "",
-          alamatPelanggan: (cols[6] || "").replace(/\n/g, " ").trim(), // Clean newlines in address if any
-          namaProduk: (cols[7] || "").replace(/\n/g, " ").trim(), // Clean newlines in products if any
+          kodeSupplier: "", // Selected manually from dropdown
+          tanggalOrder: cols[0]?.trim() || "",
+          channel: cols[1]?.trim() || "",
+          noPesanan: cols[2]?.trim() || "",
+          noResi: cols[3]?.trim() || "",
+          namaPelanggan: cols[4]?.trim() || "",
+          alamatPelanggan: (cols[5] || ""), // Keep newlines for address
+          namaProduk: (cols[6] || ""), // Keep newlines for products
           qty: qtyVal,
           hpp: hppVal,
           totalPenjualan: totalPenjualanVal,
-          ongkosKirim: parseIndoNumber(cols[11]) || 0,
+          ongkosKirim: parseIndoNumber(cols[10]) || 0,
           laba: labaVal,
         });
       }
@@ -2428,12 +2447,17 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
         for (let i = 0; i < res.length && pasteIdx < newDrafts.length; i++) {
           const isEmpty =
-            !res[i].kodeSupplier &&
             !res[i].tanggalOrder &&
             !res[i].noPesanan &&
             !res[i].namaProduk;
           if (isEmpty) {
-            res[i] = { ...newDrafts[pasteIdx], id: res[i].id };
+            // Keep the pre-selected supplier if it exists
+            const existingSupplier = res[i].kodeSupplier;
+            res[i] = { 
+              ...newDrafts[pasteIdx], 
+              id: res[i].id, 
+              kodeSupplier: existingSupplier || newDrafts[pasteIdx].kodeSupplier 
+            };
             pasteIdx++;
           }
         }
@@ -2466,6 +2490,54 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
         return updated;
       }),
     );
+  };
+
+  const handleAddRowDS = () => {
+    pushToHistoryDS(draftSalesDS);
+    setDraftSalesDS((prev) => [
+      ...prev,
+      {
+        id: Date.now() + "-ds-manual-" + Math.random().toString(36).substring(2, 7),
+        kodeSupplier: "",
+        tanggalOrder: "",
+        channel: "",
+        noPesanan: "",
+        noResi: "",
+        namaPelanggan: "",
+        alamatPelanggan: "",
+        namaProduk: "",
+        qty: "",
+        hpp: 0,
+        totalPenjualan: 0,
+        ongkosKirim: 0,
+        laba: 0,
+      },
+    ]);
+  };
+
+  const handleResetDSTable = () => {
+    if (confirm("Kosongkan semua rincian input DS?")) {
+      pushToHistoryDS(draftSalesDS);
+      const newId = Date.now() + "-ds-reset";
+      setDraftSalesDS([
+        {
+          id: newId,
+          kodeSupplier: "",
+          tanggalOrder: "",
+          channel: "",
+          noPesanan: "",
+          noResi: "",
+          namaPelanggan: "",
+          alamatPelanggan: "",
+          namaProduk: "",
+          qty: "",
+          hpp: 0,
+          totalPenjualan: 0,
+          ongkosKirim: 0,
+          laba: 0,
+        },
+      ]);
+    }
   };
 
   const handleRemoveDraftRowDS = (id: string) => {
@@ -3974,8 +4046,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                   {/* Mobile Card View */}
                   <div className="block md:hidden p-4 space-y-4 bg-slate-50">
                     {draftSales.length === 0 && (
-                      <div className="p-12 text-center border-2 border-dashed border-slate-300 rounded-xl bg-white">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Pelajaran Kosong. Paste teks di sini.</p>
+                      <div className="p-12 text-center border-4 border-dashed border-slate-300 rounded-xl bg-white flex flex-col items-center justify-center gap-3">
+                        <Plus className="w-8 h-8 text-slate-300" />
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Antrian Kosong</p>
+                        <p className="text-[10px] text-slate-400 font-medium">Paste teks pesanan untuk mendeteksi otomatis</p>
                       </div>
                     )}
                     {draftSales.map((draft, idx) => {
@@ -3989,64 +4063,76 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                        const laba = product ? draft.totalPenjualan - totalHpp : 0;
 
                        return (
-                         <div key={draft.id} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a]">
-                            <div className="bg-slate-900 text-white p-3 flex justify-between items-center">
-                              <span className="text-[10px] font-black uppercase tracking-widest">Paket #{idx + 1}</span>
-                              <button onClick={() => handleRemoveDraftRow(draft.id)} className="p-1 hover:bg-rose-600 rounded transition-colors">
-                                <Trash2 className="w-3 h-3" />
+                         <div key={draft.id} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[-2px] transition-transform">
+                            <div className="bg-slate-900 p-3 flex justify-between items-center">
+                              <div className="flex items-center gap-2">
+                                <div className="bg-indigo-500 text-white w-5 h-5 flex items-center justify-center text-[10px] font-black rounded-sm">
+                                  {idx + 1}
+                                </div>
+                                <span className="text-[10px] font-black text-white uppercase tracking-widest">Draft Paket</span>
+                              </div>
+                              <button onClick={() => handleRemoveDraftRow(draft.id)} className="p-1.5 bg-rose-500 text-white border border-rose-600 rounded active:translate-y-[1px] transition-all">
+                                <Trash2 className="w-3.5 h-3.5" />
                               </button>
                             </div>
                             <div className="p-4 space-y-4">
-                              {/* Primary Inputs */}
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Tgl Order</label>
-                                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold focus:border-indigo-500 outline-none" value={draft.tanggalOrder} onChange={(e) => handleUpdateDraft(draft.id, "tanggalOrder", e.target.value)} />
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight flex items-center gap-1">
+                                    <Calendar className="w-2.5 h-2.5" /> Tanggal
+                                  </label>
+                                  <input type="text" className="w-full bg-slate-50 border border-slate-300 p-2.5 text-xs font-black text-slate-900 rounded focus:border-indigo-500 transition-colors outline-none" value={draft.tanggalOrder} onChange={(e) => handleUpdateDraft(draft.id, "tanggalOrder", e.target.value)} />
                                 </div>
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Channel</label>
-                                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold focus:border-indigo-500 outline-none" value={draft.channel} onChange={(e) => handleUpdateDraft(draft.id, "channel", e.target.value)} />
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight flex items-center gap-1">
+                                    <Type className="w-2.5 h-2.5" /> Channel
+                                  </label>
+                                  <input type="text" className="w-full bg-slate-50 border border-slate-300 p-2.5 text-xs font-black text-slate-900 rounded focus:border-indigo-500 transition-colors outline-none" value={draft.channel} onChange={(e) => handleUpdateDraft(draft.id, "channel", e.target.value)} />
                                 </div>
                               </div>
                               
                               <div className="space-y-1">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">No Resi / Kurir</label>
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight flex items-center gap-1">
+                                  <FileText className="w-2.5 h-2.5" /> No Resi / Ekspedisi
+                                </label>
                                 <div className="flex gap-2">
-                                  <input type="text" placeholder="Resi" className="flex-1 bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold focus:border-indigo-500 outline-none" value={draft.noResi} onChange={(e) => handleUpdateDraft(draft.id, "noResi", e.target.value)} />
-                                  <input type="text" placeholder="Kurir" className="w-24 bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold focus:border-indigo-500 outline-none" value={draft.namaEkspedisi} onChange={(e) => handleUpdateDraft(draft.id, "namaEkspedisi", e.target.value)} />
+                                  <input type="text" placeholder="Resi" className="flex-1 bg-slate-50 border border-slate-300 p-2.5 text-xs font-black text-slate-900 rounded focus:border-indigo-500 transition-colors outline-none" value={draft.noResi} onChange={(e) => handleUpdateDraft(draft.id, "noResi", e.target.value)} />
+                                  <input type="text" placeholder="Kurir" className="w-24 bg-slate-50 border border-slate-300 p-2.5 text-xs font-black text-slate-900 rounded focus:border-indigo-500 transition-colors outline-none" value={draft.namaEkspedisi} onChange={(e) => handleUpdateDraft(draft.id, "namaEkspedisi", e.target.value)} />
                                 </div>
                               </div>
 
                               <div className="space-y-1">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Nama Barang (Text Matching)</label>
-                                <textarea className="w-full bg-indigo-50/30 border-2 border-indigo-100 p-2 text-xs font-black text-slate-900 focus:border-indigo-500 outline-none resize-none" rows={2} value={draft.jenisBarang} onChange={(e) => handleUpdateDraft(draft.id, "jenisBarang", e.target.value)} />
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight flex items-center gap-1">
+                                  <Package className="w-2.5 h-2.5" /> Rincian Barang
+                                </label>
+                                <textarea className="w-full bg-indigo-50/50 border border-indigo-200 p-3 text-xs font-black text-indigo-900 rounded focus:border-indigo-500 transition-colors outline-none resize-none" rows={2} value={draft.jenisBarang} onChange={(e) => handleUpdateDraft(draft.id, "jenisBarang", e.target.value)} />
                               </div>
 
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Qty</label>
-                                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold text-center" value={draft.qty} onChange={(e) => handleUpdateDraft(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} />
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Quantity</label>
+                                  <input type="number" className="w-full bg-slate-100 border border-slate-300 p-2.5 text-xs font-black text-center text-slate-900 rounded outline-none" value={draft.qty} onChange={(e) => handleUpdateDraft(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} />
                                 </div>
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Total Jual (Rp)</label>
-                                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-black text-right text-indigo-700" value={draft.totalPenjualan} onChange={(e) => handleUpdateDraft(draft.id, "totalPenjualan", Number(e.target.value))} />
+                                  <label className="text-[10px] font-black text-indigo-500 uppercase tracking-tight">Harga Jual (Total)</label>
+                                  <input type="number" className="w-full bg-indigo-50 border-2 border-indigo-200 p-2.5 text-xs font-black text-right text-indigo-700 rounded outline-none" value={draft.totalPenjualan} onChange={(e) => handleUpdateDraft(draft.id, "totalPenjualan", Number(e.target.value))} />
                                 </div>
                               </div>
 
-                              {/* Status Badges */}
-                              <div className="pt-2 flex flex-wrap gap-2 border-t border-slate-100">
-                                <div className={`px-2 py-1 border font-mono text-[9px] font-bold uppercase ${product ? "bg-slate-900 text-white border-slate-900" : "bg-rose-100 text-rose-600 border-rose-300 animate-pulse"}`}>
-                                  {product ? `SKU: ${product.kodeBarang}` : "Product NOT FOUND"}
+                              <div className="pt-3 flex flex-wrap gap-2 border-t-2 border-slate-100">
+                                <div className={`flex-1 flex items-center gap-1.5 px-3 py-2 border-2 font-mono text-[10px] font-black uppercase rounded ${product ? "bg-slate-900 text-white border-slate-900" : "bg-rose-50 text-rose-600 border-rose-300 animate-pulse"}`}>
+                                  <Sparkles className={`w-3 h-3 ${!product && "text-rose-500"}`} />
+                                  {product ? `Matched: ${product.kodeBarang}` : "Produk Tidak Dikenali"}
                                 </div>
                                 {product && (
-                                  <>
-                                    <div className="px-2 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 font-mono text-[9px] font-bold">
-                                      STOK: {stokSaatIni}
+                                  <div className="flex gap-2 w-full">
+                                    <div className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded text-slate-600 font-mono text-[10px] font-bold flex justify-between">
+                                      <span>STOK:</span> <span className="text-slate-900 font-black">{stokSaatIni}</span>
                                     </div>
-                                    <div className={`px-2 py-1 border font-mono text-[9px] font-bold ml-auto ${laba >= 0 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-rose-50 border-rose-200 text-rose-700"}`}>
-                                      LABA: Rp {laba.toLocaleString("id-ID")}
+                                    <div className={`flex-1 px-3 py-2 border font-mono text-[10px] font-black rounded flex justify-between ${laba >= 0 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-rose-50 border-rose-200 text-rose-700"}`}>
+                                      <span>LABA:</span> <span>Rp {laba.toLocaleString("id-ID")}</span>
                                     </div>
-                                  </>
+                                  </div>
                                 )}
                               </div>
                             </div>
@@ -4084,6 +4170,18 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                         className={`px-3 md:px-4 py-2 md:py-3 font-bold uppercase tracking-wider text-[10px] md:text-sm transition-colors flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] ${historyDS.length === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border-slate-300" : "bg-white hover:bg-slate-50 text-slate-900 active:translate-y-[1px] active:translate-x-[1px]"}`}
                       >
                          Undo
+                      </button>
+                      <button
+                        onClick={handleAddRowDS}
+                        className="px-3 md:px-4 py-2 md:py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold uppercase tracking-wider text-[10px] md:text-sm transition-colors flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none"
+                      >
+                         <Plus className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden sm:inline">Tambah Baris</span>
+                      </button>
+                      <button
+                        onClick={handleResetDSTable}
+                        className="px-3 md:px-4 py-2 md:py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold uppercase tracking-wider text-[10px] md:text-sm transition-colors flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none"
+                      >
+                         <RefreshCcw className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden sm:inline">Reset</span>
                       </button>
                     </div>
                   </div>
@@ -4155,7 +4253,19 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                           return (
                             <tr key={draft.id} className="border-b border-slate-200 group">
                               <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.kodeSupplier} onChange={(e) => handleUpdateDraftDS(draft.id, "kodeSupplier", e.target.value)} />
+                                <div className="relative group/select h-full w-full">
+                                  <select 
+                                    className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-[11px] font-black text-indigo-700 appearance-none cursor-pointer pr-8 uppercase tracking-widest leading-none"
+                                    value={draft.kodeSupplier}
+                                    onChange={(e) => handleUpdateDraftDS(draft.id, "kodeSupplier", e.target.value)}
+                                  >
+                                    <option value="" className="text-slate-400">Pilih...</option>
+                                    {DROPSHIP_SUPPLIERS.map(s => (
+                                      <option key={s} value={s}>{s}</option>
+                                    ))}
+                                  </select>
+                                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-indigo-400 pointer-events-none group-hover/select:text-indigo-600 transition-colors" />
+                                </div>
                               </td>
                               <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
                                 <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.tanggalOrder} onChange={(e) => handleUpdateDraftDS(draft.id, "tanggalOrder", e.target.value)} />
@@ -4173,10 +4283,20 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                                 <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.namaPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "namaPelanggan", e.target.value)} />
                               </td>
                               <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.alamatPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "alamatPelanggan", e.target.value)} />
+                                <textarea 
+                                  className="w-full h-full min-h-[60px] px-4 py-2 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-[11px] font-medium text-slate-700 leading-relaxed resize-none" 
+                                  value={draft.alamatPelanggan} 
+                                  rows={2}
+                                  onChange={(e) => handleUpdateDraftDS(draft.id, "alamatPelanggan", e.target.value)} 
+                                />
                               </td>
                               <td className={`${bgColor} border-r border-slate-200 p-0 relative min-w-[250px]`}>
-                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900" value={draft.namaProduk} onChange={(e) => handleUpdateDraftDS(draft.id, "namaProduk", e.target.value)} />
+                                <textarea 
+                                  className="w-full h-full min-h-[60px] px-4 py-2 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-[11px] font-bold text-slate-800 whitespace-pre-wrap leading-relaxed resize-none" 
+                                  value={draft.namaProduk} 
+                                  rows={2}
+                                  onChange={(e) => handleUpdateDraftDS(draft.id, "namaProduk", e.target.value)} 
+                                />
                               </td>
                               <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
                                 <input type="number" min="1" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-center font-bold text-slate-700" value={draft.qty} onChange={(e) => handleUpdateDraftDS(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} />
@@ -4208,8 +4328,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                   {/* Mobile Card View */}
                   <div className="block xl:hidden p-4 space-y-4 bg-slate-50">
                     {draftSalesDS.length === 0 && (
-                      <div className="p-12 text-center border-2 border-dashed border-slate-300 rounded-xl bg-white">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">DS Pelson Kosong. Paste teks di sini.</p>
+                      <div className="p-12 text-center border-4 border-dashed border-slate-300 rounded-xl bg-white flex flex-col items-center justify-center gap-3">
+                        <Plus className="w-8 h-8 text-slate-300" />
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Antrian DS Kosong</p>
+                        <p className="text-[10px] text-slate-400 font-medium text-center">Paste teks Dropship untuk deteksi otomatis</p>
                       </div>
                     )}
                     {draftSalesDS.map((draft, idx) => {
@@ -4220,76 +4342,95 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                        const autoLaba = totalPenjualanNum - (hppNum * qtyNum) - okNum;
 
                        return (
-                         <div key={draft.id} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a]">
-                            <div className="bg-slate-900 text-white p-3 flex justify-between items-center">
-                              <span className="text-[10px] font-black uppercase tracking-widest">DS #{idx + 1} - Supplier: {draft.kodeSupplier || "?"}</span>
-                              <button onClick={() => handleRemoveDraftRowDS(draft.id)} className="p-1 hover:bg-rose-600 rounded transition-colors">
-                                <Trash2 className="w-3 h-3" />
-                              </button>
+                         <div key={draft.id} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[-2px] transition-transform">
+                            <div className="bg-slate-900 p-3 flex justify-between items-center">
+                               <div className="flex items-center gap-2">
+                                 <div className="bg-indigo-500 text-white w-5 h-5 flex items-center justify-center text-[10px] font-black rounded-sm">
+                                   {idx + 1}
+                                 </div>
+                                 <span className="text-[10px] font-black text-white uppercase tracking-widest">Draft Dropship</span>
+                               </div>
+                               <button onClick={() => handleRemoveDraftRowDS(draft.id)} className="p-1.5 bg-rose-500 text-white border border-rose-600 rounded active:translate-y-[1px] transition-all">
+                                 <Trash2 className="w-3.5 h-3.5" />
+                               </button>
                             </div>
                             <div className="p-4 space-y-4">
-                              {/* Primary Inputs */}
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Supplier</label>
-                                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold focus:border-indigo-500 outline-none" value={draft.kodeSupplier} onChange={(e) => handleUpdateDraftDS(draft.id, "kodeSupplier", e.target.value)} />
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Supplier</label>
+                                  <div className="relative group/select">
+                                    <select 
+                                      className="w-full bg-slate-50 border-2 border-slate-300 p-3 text-[11px] font-black text-indigo-700 rounded-lg focus:border-indigo-500 focus:ring-4 focus:ring-indigo-100 outline-none appearance-none cursor-pointer transition-all shadow-sm pr-10 uppercase tracking-widest"
+                                      value={draft.kodeSupplier}
+                                      onChange={(e) => handleUpdateDraftDS(draft.id, "kodeSupplier", e.target.value)}
+                                    >
+                                      <option value="" className="text-slate-400">Pilih Supplier...</option>
+                                      {DROPSHIP_SUPPLIERS.map(s => (
+                                        <option key={s} value={s}>{s}</option>
+                                      ))}
+                                    </select>
+                                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-500 pointer-events-none" />
+                                  </div>
                                 </div>
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Tgl Order</label>
-                                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold focus:border-indigo-500 outline-none" value={draft.tanggalOrder} onChange={(e) => handleUpdateDraftDS(draft.id, "tanggalOrder", e.target.value)} />
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Tgl Order</label>
+                                  <input type="text" className="w-full bg-slate-50 border border-slate-300 p-2.5 text-xs font-black text-slate-900 rounded focus:border-indigo-500 outline-none" value={draft.tanggalOrder} onChange={(e) => handleUpdateDraftDS(draft.id, "tanggalOrder", e.target.value)} />
                                 </div>
                               </div>
                               
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">No Pesanan</label>
-                                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold outline-none" value={draft.noPesanan} onChange={(e) => handleUpdateDraftDS(draft.id, "noPesanan", e.target.value)} />
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">No Pesanan</label>
+                                  <input type="text" className="w-full bg-slate-50 border border-slate-300 p-2.5 text-xs font-black text-slate-900 rounded outline-none" value={draft.noPesanan} onChange={(e) => handleUpdateDraftDS(draft.id, "noPesanan", e.target.value)} />
                                 </div>
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Resi</label>
-                                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold outline-none" value={draft.noResi} onChange={(e) => handleUpdateDraftDS(draft.id, "noResi", e.target.value)} />
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">No Resi</label>
+                                  <input type="text" className="w-full bg-slate-50 border border-slate-300 p-2.5 text-xs font-black text-slate-900 rounded outline-none" value={draft.noResi} onChange={(e) => handleUpdateDraftDS(draft.id, "noResi", e.target.value)} />
                                 </div>
                               </div>
 
                               <div className="space-y-1">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Nama & Alamat Pelanggan</label>
-                                <div className="flex flex-col gap-2">
-                                  <input type="text" placeholder="Nama" className="bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold outline-none" value={draft.namaPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "namaPelanggan", e.target.value)} />
-                                  <textarea placeholder="Alamat" className="bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold outline-none resize-none" rows={2} value={draft.alamatPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "alamatPelanggan", e.target.value)} />
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight flex items-center gap-1">
+                                  <FileText className="w-2.5 h-2.5" /> Data Pelanggan
+                                </label>
+                                <div className="space-y-2">
+                                  <input type="text" placeholder="Nama Pelanggan" className="w-full bg-slate-50 border border-slate-300 p-2.5 text-xs font-black text-slate-900 rounded outline-none" value={draft.namaPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "namaPelanggan", e.target.value)} />
+                                  <textarea placeholder="Alamat Lengkap" className="w-full bg-slate-50 border border-slate-300 p-2.5 text-xs font-black text-slate-900 rounded outline-none resize-none" rows={2} value={draft.alamatPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "alamatPelanggan", e.target.value)} />
                                 </div>
                               </div>
 
                               <div className="space-y-1">
-                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Nama Produk (Dropship)</label>
-                                <textarea className="w-full bg-indigo-50/30 border-2 border-indigo-100 p-2 text-xs font-black text-slate-900 outline-none resize-none" rows={2} value={draft.namaProduk} onChange={(e) => handleUpdateDraftDS(draft.id, "namaProduk", e.target.value)} />
+                                <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight flex items-center gap-1">
+                                  <Package className="w-2.5 h-2.5" /> Nama Produk DS
+                                </label>
+                                <textarea className="w-full bg-indigo-50/50 border border-indigo-200 p-3 text-xs font-black text-indigo-900 rounded outline-none resize-none whitespace-pre-wrap" rows={3} value={draft.namaProduk} onChange={(e) => handleUpdateDraftDS(draft.id, "namaProduk", e.target.value)} />
                               </div>
 
-                              <div className="grid grid-cols-2 gap-4">
+                              <div className="grid grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Qty</label>
-                                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold text-center" value={draft.qty} onChange={(e) => handleUpdateDraftDS(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} />
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Quantity</label>
+                                  <input type="number" className="w-full bg-slate-100 border border-slate-300 p-2.5 text-xs font-black text-center text-slate-900 rounded" value={draft.qty} onChange={(e) => handleUpdateDraftDS(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} />
                                 </div>
                                 <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">HPP (Modal)</label>
-                                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-black text-right" value={draft.hpp} onChange={(e) => handleUpdateDraftDS(draft.id, "hpp", Number(e.target.value))} />
-                                </div>
-                              </div>
-
-                              <div className="grid grid-cols-2 gap-4">
-                                <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Ongkir Customer</label>
-                                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold text-right" value={draft.ongkosKirim} onChange={(e) => handleUpdateDraftDS(draft.id, "ongkosKirim", Number(e.target.value))} />
-                                </div>
-                                <div className="space-y-1">
-                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Total Jual (Bersih)</label>
-                                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-black text-right text-indigo-700" value={draft.totalPenjualan} onChange={(e) => handleUpdateDraftDS(draft.id, "totalPenjualan", Number(e.target.value))} />
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">HPP / Modal (Rp)</label>
+                                  <input type="number" className="w-full bg-slate-50 border border-slate-300 p-2.5 text-xs font-black text-right text-slate-900 rounded" value={draft.hpp} onChange={(e) => handleUpdateDraftDS(draft.id, "hpp", Number(e.target.value))} />
                                 </div>
                               </div>
 
-                              {/* Profit Display */}
-                              <div className="pt-2 flex justify-between items-center border-t border-slate-100">
-                                <span className="text-[10px] font-black text-slate-400 uppercase">Estimasi Laba</span>
-                                <div className={`px-4 py-1 border-2 font-mono text-sm font-black ${autoLaba >= 0 ? "bg-emerald-50 border-emerald-900 text-emerald-900 shadow-[2px_2px_0px_0px_#065f46]" : "bg-rose-50 border-rose-900 text-rose-900 shadow-[2px_2px_0px_0px_#9f1239]"}`}>
+                              <div className="grid grid-cols-2 gap-3">
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Ongkir Cust (Rp)</label>
+                                  <input type="number" className="w-full bg-slate-50 border border-slate-300 p-2.5 text-xs font-black text-right text-slate-900 rounded" value={draft.ongkosKirim} onChange={(e) => handleUpdateDraftDS(draft.id, "ongkosKirim", Number(e.target.value))} />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[10px] font-black text-indigo-500 uppercase tracking-tight">Total Jual (Bersih)</label>
+                                  <input type="number" className="w-full bg-indigo-50 border-2 border-indigo-200 p-2.5 text-xs font-black text-right text-indigo-700 rounded outline-none" value={draft.totalPenjualan} onChange={(e) => handleUpdateDraftDS(draft.id, "totalPenjualan", Number(e.target.value))} />
+                                </div>
+                              </div>
+
+                              <div className="pt-3 flex justify-between items-center border-t-2 border-slate-100">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estimasi Laba DS</span>
+                                <div className={`px-4 py-2 border-2 font-mono text-xs font-black rounded shadow-[2px_2px_0px_0px_#0f172a] ${autoLaba >= 0 ? "bg-emerald-50 border-emerald-900 text-emerald-900" : "bg-rose-50 border-rose-900 text-rose-900"}`}>
                                   Rp {autoLaba.toLocaleString("id-ID")}
                                 </div>
                               </div>
@@ -5069,38 +5210,50 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                     {/* Mobile Card View (Regular) */}
                     <div className="block md:hidden p-4 space-y-4 bg-slate-50">
                        {filteredSales.length === 0 && (
-                         <div className="text-center p-8 bg-white border-2 border-slate-200 rounded-lg">
-                           <p className="text-xs font-bold text-slate-400 uppercase">Data tidak ditemukan</p>
+                         <div className="text-center p-12 bg-white border-2 border-slate-200 rounded-xl flex flex-col items-center justify-center gap-3">
+                           <Database className="w-8 h-8 text-slate-200" />
+                           <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Data Tidak Ditemukan</p>
                          </div>
                        )}
                        {virtualizedSales.slice.map((s, idx) => (
-                         <div key={s.id || idx} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a]" onClick={() => handleEditSale(s)}>
+                         <div key={s.id || idx} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a] active:translate-y-[-1px] transition-all" onClick={() => handleEditSale(s)}>
                             <div className="bg-slate-50 p-3 border-b-2 border-slate-900 flex justify-between items-center">
-                               <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{s.tanggalOrder}</span>
+                               <div className="flex flex-col">
+                                 <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{s.tanggalOrder || (s.tanggal ? new Date(s.tanggal.seconds ? s.tanggal.seconds * 1000 : s.tanggal).toLocaleDateString("id-ID") : "-")}</span>
+                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{s.channel || "NO CHANNEL"}</span>
+                               </div>
                                <div className="flex gap-2">
-                                  <button onClick={(e) => { e.stopPropagation(); handleEditSale(s); }} className="p-1.5 bg-white border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000]"><Pencil className="w-3 h-3" /></button>
-                                  <button onClick={(e) => { e.stopPropagation(); setSaleToDelete(s); }} className="p-1.5 bg-rose-50 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] leading-none mb-1"><Trash2 className="w-3 h-3 text-rose-600" /></button>
+                                  <button onClick={(e) => { e.stopPropagation(); handleEditSale(s); }} className="p-2 bg-white border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:shadow-none hover:bg-slate-50 transition-all"><Pencil className="w-3.5 h-3.5 text-slate-700" /></button>
+                                  <button onClick={(e) => { e.stopPropagation(); setSaleToDelete(s); }} className="p-2 bg-rose-50 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:shadow-none hover:bg-rose-100 transition-all"><Trash2 className="w-3.5 h-3.5 text-rose-600" /></button>
                                </div>
                             </div>
-                            <div className="p-3 space-y-2">
+                            <div className="p-4 space-y-4">
                                <div className="flex justify-between items-start gap-4">
-                                  <div className="flex-1">
-                                     <h3 className="text-xs font-black text-slate-900 uppercase leading-snug">{s.jenisBarang}</h3>
-                                     <p className="text-[10px] font-mono text-slate-500 mt-1 uppercase tracking-tighter">SKU: {s.kodeBarang || "-"}</p>
+                                  <div className="flex-1 space-y-1">
+                                     <h3 className="text-sm font-black text-slate-900 uppercase leading-snug">{s.namaBarang}</h3>
+                                     <div className="flex items-center gap-2">
+                                       <span className="text-[10px] font-mono text-slate-500 uppercase tracking-tighter bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">SKU: {s.kodeBarang || "-"}</span>
+                                       <span className="text-[10px] font-black text-slate-700 uppercase bg-slate-200 px-1.5 py-0.5 rounded">Qty: {s.qty}</span>
+                                     </div>
                                   </div>
                                   <div className="text-right">
-                                     <div className="text-[10px] font-black text-slate-700 uppercase leading-none">Qty: {s.qty}</div>
-                                     <div className="text-sm font-black text-indigo-700 mt-1">Rp {(s.totalPenjualan || 0).toLocaleString("id-ID")}</div>
+                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Jual</div>
+                                     <div className="text-lg font-black text-indigo-600 leading-none">Rp {(s.totalHarga || 0).toLocaleString("id-ID")}</div>
                                   </div>
                                </div>
-                               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
-                                  <div>
-                                     <p className="text-[9px] font-black text-slate-400 uppercase">Channel / Resi</p>
-                                     <p className="text-[10px] font-bold text-slate-800">{s.channel} • {s.noResi || "-"}</p>
+
+                               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                                  <div className="space-y-1">
+                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">No. Resi / Paket</p>
+                                     <p className="text-[11px] font-black text-slate-800 font-mono truncate">{s.noResi || "-"}</p>
+                                     <p className="text-[10px] font-bold text-slate-500 uppercase">{s.namaEkspedisi || "-"}</p>
                                   </div>
-                                  <div className="text-right">
-                                     <p className="text-[9px] font-black text-slate-400 uppercase">Estimasi Laba</p>
-                                     <p className={`text-[11px] font-black ${s.laba && s.laba > 0 ? "text-emerald-600" : "text-slate-900"}`}>Rp {(s.laba || 0).toLocaleString("id-ID")}</p>
+                                  <div className="text-right space-y-1">
+                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Profit (Laba)</p>
+                                     <p className={`text-sm font-black font-mono ${(s.laba || 0) > 0 ? "text-emerald-600" : (s.laba || 0) < 0 ? "text-rose-600" : "text-slate-900"}`}>
+                                       Rp {(s.laba || 0).toLocaleString("id-ID")}
+                                     </p>
+                                     <p className="text-[9px] font-bold text-slate-400 uppercase">HPP: Rp {(s.hpp || 0).toLocaleString("id-ID")}</p>
                                   </div>
                                </div>
                             </div>
@@ -5159,8 +5312,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                                     <td className="px-3 py-4 text-[11px] font-mono text-slate-700 border-r border-slate-200 truncate max-w-[150px]">{s.noPesanan || "-"}</td>
                                     <td className="px-3 py-4 text-[11px] font-mono text-slate-500 border-r border-slate-200 truncate max-w-[150px]">{s.noResi || "-"}</td>
                                     <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">{s.namaPelanggan || "-"}</td>
-                                    <td className="px-3 py-4 text-[11px] font-medium text-slate-500 border-r border-slate-200 truncate max-w-[200px]">{s.alamatPelanggan || "-"}</td>
-                                    <td className="px-3 py-4 text-[11px] font-bold text-slate-900 border-r border-slate-200 truncate max-w-[220px]">{s.namaProduk}</td>
+                                    <td className="px-3 py-4 text-[11px] font-medium text-slate-500 border-r border-slate-200 whitespace-pre-wrap max-w-[200px] leading-relaxed">{s.alamatPelanggan || "-"}</td>
+                                    <td className="px-3 py-4 text-[11px] font-bold text-slate-900 border-r border-slate-200 whitespace-pre-wrap max-w-[220px] leading-relaxed">{s.namaProduk}</td>
                                     <td className="px-3 py-4 text-[11px] text-center font-bold text-slate-900 border-r border-slate-200">{s.qty}</td>
                                     <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">{(s.hpp || 0).toLocaleString("id-ID")}</td>
                                     <td className="px-3 py-4 text-[11px] text-right font-bold text-indigo-600 border-r border-slate-200">{(s.totalPenjualan || 0).toLocaleString("id-ID")}</td>
@@ -5186,40 +5339,54 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                     {/* Mobile View Dropship */}
                     <div className="block xl:hidden p-4 space-y-4 bg-slate-50">
                        {filteredSalesDS.length === 0 && (
-                         <div className="text-center p-8 bg-white border-2 border-slate-200 rounded-lg">
-                           <p className="text-xs font-bold text-slate-400 uppercase">Dropship tidak ditemukan</p>
+                         <div className="text-center p-12 bg-white border-2 border-slate-200 rounded-xl flex flex-col items-center justify-center gap-3">
+                           <ShoppingBag className="w-8 h-8 text-slate-200" />
+                           <p className="text-xs font-black text-slate-400 uppercase tracking-widest">DS Tidak Ditemukan</p>
                          </div>
                        )}
                        {virtualizedSalesDS.slice.map((s, idx) => (
-                         <div key={s.id || idx} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a]">
+                         <div key={s.id || idx} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[-1px] transition-all">
                             <div className="bg-slate-50 p-3 border-b-2 border-slate-900 flex justify-between items-center">
-                               <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{s.tanggalOrder} • DS</span>
-                               <button onClick={() => setSaleDSToDelete(s)} className="p-1.5 bg-rose-50 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] leading-none mb-1"><Trash2 className="w-3 h-3 text-rose-600" /></button>
+                               <div className="flex flex-col">
+                                 <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{s.tanggalOrder} • DS</span>
+                                 <span className="text-[9px] font-bold text-indigo-700 font-mono uppercase">Supplier: {s.kodeSupplier || "-"}</span>
+                               </div>
+                               <button onClick={() => setSaleDSToDelete(s)} className="p-2 bg-rose-50 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:shadow-none hover:bg-rose-100 transition-all"><Trash2 className="w-3.5 h-3.5 text-rose-600" /></button>
                             </div>
-                            <div className="p-3 space-y-3">
-                               <div className="flex justify-between items-start gap-4">
-                                  <div className="flex-1">
-                                     <h3 className="text-xs font-black text-slate-900 uppercase leading-snug">{s.namaProduk}</h3>
-                                     <p className="text-[10px] font-mono text-slate-500 mt-1 uppercase tracking-tighter">Supplier: {s.kodeSupplier || "-"}</p>
-                                  </div>
-                                  <div className="text-right">
-                                     <div className="text-[10px] font-black text-slate-700 uppercase leading-none">Qty: {s.qty}</div>
-                                     <div className="text-sm font-black text-indigo-700 mt-1">Rp {(s.totalPenjualan || 0).toLocaleString("id-ID")}</div>
+                            <div className="p-4 space-y-4">
+                               <div className="space-y-1">
+                                  <h3 className="text-sm font-black text-slate-900 uppercase leading-snug whitespace-pre-wrap">{s.namaProduk}</h3>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight bg-slate-100 px-2 py-0.5 rounded border border-slate-200">No. Pesanan: {s.noPesanan || "-"}</span>
+                                    <span className="text-[10px] font-black text-slate-700 bg-slate-200 px-2 py-0.5 rounded">Qty: {s.qty}</span>
                                   </div>
                                </div>
-                               <div className="space-y-1.5 py-2 border-y border-slate-100">
-                                  <p className="text-[9px] font-black text-slate-400 uppercase">Pelanggan</p>
-                                  <p className="text-[10px] font-bold text-slate-800 leading-tight">{s.namaPelanggan}</p>
-                                  <p className="text-[10px] text-slate-500 leading-tight italic truncate">{s.alamatPelanggan}</p>
+
+                               <div className="grid grid-cols-2 gap-4">
+                                 <div className="space-y-1">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Pelanggan</p>
+                                    <p className="text-[11px] font-black text-slate-800 leading-tight">{s.namaPelanggan || "-"}</p>
+                                    <p className="text-[10px] text-slate-500 font-medium line-clamp-1 italic">{s.alamatPelanggan || "-"}</p>
+                                 </div>
+                                 <div className="text-right space-y-1">
+                                    <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">No. Resi</p>
+                                    <p className="text-[11px] font-black text-slate-800 font-mono">{s.noResi || "-"}</p>
+                                    <p className="text-[10px] font-bold text-slate-500 uppercase">{s.channel || "Direct"}</p>
+                                 </div>
                                </div>
-                               <div className="grid grid-cols-2 gap-2 pt-1">
-                                  <div>
-                                     <p className="text-[9px] font-black text-slate-400 uppercase">No Resi</p>
-                                     <p className="text-[10px] font-mono text-slate-600">{s.noResi || "-"}</p>
+
+                               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100 mt-2">
+                                  <div className="space-y-1">
+                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Keuangan</p>
+                                     <div className="flex flex-col gap-0.5">
+                                       <span className="text-[10px] font-bold text-slate-600">HPP: Rp {(s.hpp || 0).toLocaleString("id-ID")}</span>
+                                       <span className="text-[10px] font-bold text-slate-600">Ongkir: Rp {(s.ongkosKirim || 0).toLocaleString("id-ID")}</span>
+                                     </div>
                                   </div>
-                                  <div className="text-right">
-                                     <p className="text-[9px] font-black text-slate-400 uppercase">Laba Dropship</p>
-                                     <p className="text-[11px] font-black text-emerald-600">Rp {(s.laba || 0).toLocaleString("id-ID")}</p>
+                                  <div className="text-right self-end">
+                                     <div className="text-[10px] font-black text-emerald-600 uppercase tracking-widest leading-none mb-1">Profit DS</div>
+                                     <div className="text-lg font-black text-emerald-600 leading-none">Rp {(s.laba || 0).toLocaleString("id-ID")}</div>
+                                     <div className="text-[10px] font-bold text-slate-400 mt-1 uppercase">Bruto: Rp {(s.totalPenjualan || 0).toLocaleString("id-ID")}</div>
                                   </div>
                                </div>
                             </div>

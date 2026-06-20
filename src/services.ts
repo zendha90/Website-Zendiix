@@ -230,6 +230,11 @@ export async function upsertProduct(product: Omit<Product, 'createdAt' | 'update
 }
 
 export async function processSale(product: Product, qty: number, additionalFields: Partial<Sale> = {}) {
+  const hpp = product.hargaBeli || 0;
+  const totalHpp = hpp * qty;
+  const totalHarga = additionalFields.totalHarga || (product.hargaJual * qty);
+  const laba = totalHarga - totalHpp;
+
   await fetchApi('/api/sales', {
     method: 'POST',
     body: JSON.stringify({
@@ -237,7 +242,10 @@ export async function processSale(product: Product, qty: number, additionalField
       kodeBarang: product.kodeBarang,
       namaBarang: product.namaBarang,
       qty,
-      totalHarga: additionalFields.totalHarga || (product.hargaJual * qty),
+      totalHarga,
+      hpp,
+      totalHpp,
+      laba,
       ...additionalFields,
     }),
   });
@@ -365,9 +373,22 @@ export async function updateSale(sale: Sale) {
 }
 
 export async function addSaleRecord(kodeBarang: string, namaBarang: string, qty: number, totalHarga: number, additionalFields: any) {
+  const hpp = additionalFields.hpp || 0;
+  const totalHpp = additionalFields.totalHpp || (hpp * qty);
+  const laba = totalHarga - totalHpp;
+
   await fetchApi('/api/sales', {
     method: 'POST',
-    body: JSON.stringify({ kodeBarang, namaBarang, qty, totalHarga, ...additionalFields }),
+    body: JSON.stringify({ 
+      kodeBarang, 
+      namaBarang, 
+      qty, 
+      totalHarga, 
+      hpp,
+      totalHpp,
+      laba,
+      ...additionalFields 
+    }),
   });
   queryClient.invalidateQueries({ queryKey: ["sales"] });
   triggerFetch('/api/sales');
