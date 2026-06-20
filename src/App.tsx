@@ -3818,33 +3818,34 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 onPaste={handlePasteSales}
               >
                 {/* Header Action Bar */}
-                <div className="p-5 border-b-2 border-slate-900 flex flex-col lg:flex-row lg:items-center justify-between bg-slate-50 gap-4">
-                  <h2 className="text-lg font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest">
-                    <LayoutDashboard className="w-5 h-5" /> Input Transaksi Baru
-                  </h2>
-                  <div className="flex gap-4 items-center">
-                    <button
-                      onClick={handleSaveDraftSales}
-                      className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase tracking-wider text-sm transition-colors flex items-center gap-2 border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none"
-                    >
-                      Simpan Data
-                    </button>
-                    <button
-                      onClick={handleUndo}
-                      disabled={history.length === 0}
-                      className={`px-4 py-3 font-bold uppercase tracking-wider text-sm transition-colors flex items-center gap-2 border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] ${history.length === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border-slate-300" : "bg-white hover:bg-slate-50 text-slate-900 active:translate-y-[2px] active:translate-x-[2px]"}`}
-                    >
-                      <Undo className="w-4 h-4" /> Undo
-                    </button>
+                <div className="p-4 md:p-5 border-b-2 border-slate-900 flex flex-col xl:flex-row xl:items-center justify-between bg-slate-50 gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <h2 className="text-base md:text-lg font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest leading-none">
+                      <LayoutDashboard className="w-5 h-5" /> <span className="hidden sm:inline">Input Transaksi Baru</span><span className="sm:hidden">Input Transaksi</span>
+                    </h2>
+                    <div className="flex gap-2 items-center">
+                      <button
+                        onClick={handleSaveDraftSales}
+                        className="flex-1 sm:flex-none px-4 md:px-8 py-2 md:py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase tracking-wider text-[10px] md:text-sm transition-colors flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none"
+                      >
+                        Simpan
+                      </button>
+                      <button
+                        onClick={handleUndo}
+                        disabled={history.length === 0}
+                        className={`px-3 md:px-4 py-2 md:py-3 font-bold uppercase tracking-wider text-[10px] md:text-sm transition-colors flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] ${history.length === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border-slate-300" : "bg-white hover:bg-slate-50 text-slate-900 active:translate-y-[1px] active:translate-x-[1px]"}`}
+                      >
+                         Undo
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-8">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                        Jumlah
-                        <br />
+                  
+                  <div className="flex flex-wrap items-center gap-4 md:gap-8 justify-between md:justify-end">
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <span className="text-[9px] md:text-xs font-bold text-slate-500 uppercase tracking-widest leading-tight">
                         Paket
                       </span>
-                      <span className="text-2xl font-black text-slate-900 border-2 border-slate-900 px-4 py-1 bg-white font-mono shadow-[2px_2px_0px_0px_#0f172a]">
+                      <span className="text-lg md:text-2xl font-black text-slate-900 border-2 border-slate-900 px-3 md:px-4 py-0.5 md:py-1 bg-white font-mono shadow-[2px_2px_0px_0px_#0f172a]">
                         {
                           new Set(
                             draftSales
@@ -3859,13 +3860,11 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                         }
                       </span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest text-right">
-                        Estimasi
-                        <br />
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <span className="text-[9px] md:text-xs font-bold text-slate-500 uppercase tracking-widest leading-tight text-right">
                         Laba
                       </span>
-                      <span className="text-2xl font-black text-green-700 border-2 border-green-700 px-4 py-1 bg-green-50 font-mono shadow-[2px_2px_0px_0px_#15803d]">
+                      <span className="text-lg md:text-2xl font-black text-green-700 border-2 border-green-700 px-3 md:px-4 py-0.5 md:py-1 bg-green-50 font-mono shadow-[2px_2px_0px_0px_#15803d]">
                         Rp{" "}
                         {draftSales
                           .reduce((acc, draft) => {
@@ -3883,270 +3882,178 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                   </div>
                 </div>
 
-                {/* Spreadsheet View */}
-                <div className="flex-1 overflow-x-auto overflow-y-auto min-h-[500px] min-w-0 scrollbar-thin scrollbar-thumb-slate-900 scrollbar-track-slate-100">
-                  <table className="w-full text-left whitespace-nowrap min-w-[1600px] border-collapse table-auto">
-                    <thead className="bg-slate-900 text-white sticky top-0 z-10 text-xs uppercase tracking-widest font-black">
-                      <tr>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold">
-                          Tgl. Order
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold">
-                          Channel
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold">
-                          No Pesanan / Alamat
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold">
-                          No Resi
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold">
-                          Nama Ekspedisi
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold">
-                          Jenis Barang
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold text-center w-16">
-                          Qty
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold text-right">
-                          Total Penjualan
-                        </th>
+                {/* Drafting Area */}
+                <div className="flex-1 overflow-y-auto min-h-[500px]">
+                  {/* Desktop Spreadsheet View */}
+                  <div className="hidden md:block overflow-x-auto">
+                    <table className="w-full text-left whitespace-nowrap min-w-[1600px] border-collapse table-auto">
+                      <thead className="bg-slate-900 text-white sticky top-0 z-10 text-xs uppercase tracking-widest font-black">
+                        <tr>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold">Tgl. Order</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold">Channel</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold">No Pesanan / Alamat</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold">No Resi</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold">Ekspedisi</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold">Jenis Barang</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold text-center w-16">Qty</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold text-right">Total Jual</th>
+                          <th className="px-4 py-4 border-r border-slate-800 bg-slate-800 font-semibold">Kode</th>
+                          <th className="px-4 py-4 border-r border-slate-800 bg-slate-800 font-semibold text-right">HPP</th>
+                          <th className="px-4 py-4 border-r border-slate-800 bg-slate-800 font-semibold text-center w-16">Stok</th>
+                          <th className="px-4 py-4 border-r border-slate-800 bg-slate-800 font-semibold text-right">Tot HPP</th>
+                          <th className="px-4 py-4 bg-slate-800 font-semibold text-right">Laba</th>
+                          <th className="px-4 py-4 font-semibold w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white">
+                        {draftSales.map((draft, idx) => {
+                          const product = findMatchedProduct(draft.jenisBarang, draft.productId);
+                          const hpp = product ? product.hargaBeli : 0;
+                          let stokSaatIni = 0;
+                          if (product) {
+                            stokSaatIni = productStockMap[product.id || ""] ?? (product.kodeBarang ? productStockMap[product.kodeBarang.trim().toLowerCase()] : undefined) ?? product.stokAwal;
+                          }
+                          const totalHpp = hpp * (Number(draft.qty) || 1);
+                          const laba = product ? draft.totalPenjualan - totalHpp : 0;
+                          const bgColor = idx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
+                          const computedBg = idx % 2 === 0 ? "bg-indigo-50/10" : "bg-indigo-50/30";
 
-                        {/* Auto Computed based on DB match */}
-                        <th className="px-4 py-4 border-r border-slate-800 bg-slate-800 font-semibold">
-                          Kode Barang
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-800 bg-slate-800 font-semibold text-right">
-                          HPP
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-800 bg-slate-800 font-semibold text-center w-16">
-                          Stok Saat ini
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-800 bg-slate-800 font-semibold text-right">
-                          Total HPP
-                        </th>
-                        <th className="px-4 py-4 bg-slate-800 font-semibold text-right">
-                          Laba
-                        </th>
-                        <th className="px-4 py-4 font-semibold w-10"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white">
-                      {draftSales.map((draft, idx) => {
-                        const product = findMatchedProduct(
-                          draft.jenisBarang,
-                          draft.productId,
-                        );
-                        const hpp = product ? product.hargaBeli : 0;
+                          return (
+                            <tr key={draft.id} className="border-b border-slate-200 group">
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.tanggalOrder} onChange={(e) => handleUpdateDraft(draft.id, "tanggalOrder", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.channel} onChange={(e) => handleUpdateDraft(draft.id, "channel", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="text" className="w-full h-full min-w-[150px] px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.noPesanan} onChange={(e) => handleUpdateDraft(draft.id, "noPesanan", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="text" className="w-full h-full min-w-[100px] px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.noResi} onChange={(e) => handleUpdateDraft(draft.id, "noResi", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.namaEkspedisi} onChange={(e) => handleUpdateDraft(draft.id, "namaEkspedisi", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative min-w-[250px]`}>
+                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900" value={draft.jenisBarang} onChange={(e) => handleUpdateDraft(draft.id, "jenisBarang", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="number" min="1" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-center font-bold text-slate-700" value={draft.qty} onChange={(e) => handleUpdateDraft(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="number" min="0" step="1000" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-right font-bold text-indigo-700" value={draft.totalPenjualan} onChange={(e) => handleUpdateDraft(draft.id, "totalPenjualan", Number(e.target.value))} />
+                              </td>
+                              <td className={`${computedBg} border-r border-slate-200 px-4 py-3 text-sm font-mono ${!product ? "text-red-500 font-bold bg-red-50" : "text-slate-600"}`}>
+                                {product ? product.kodeBarang : draft.jenisBarang ? "!! MISSING !!" : ""}
+                              </td>
+                              <td className={`${computedBg} border-r border-slate-200 px-4 py-3 text-sm text-right font-mono text-slate-600`}>
+                                {product ? hpp.toLocaleString("id-ID") : "-"}
+                              </td>
+                              <td className={`${computedBg} border-r border-slate-200 px-4 py-3 text-sm w-16 text-center font-mono font-bold ${product ? (stokSaatIni <= 0 ? "text-red-600 bg-red-50" : "text-indigo-600") : "text-slate-600"}`}>
+                                {product ? stokSaatIni : "-"}
+                              </td>
+                              <td className={`${computedBg} border-r border-slate-200 px-4 py-3 text-sm text-right font-mono text-slate-600`}>
+                                {product ? totalHpp.toLocaleString("id-ID") : "-"}
+                              </td>
+                              <td className={`${computedBg} px-4 py-3 text-sm text-right font-bold ${laba > 0 ? "text-emerald-600" : laba < 0 ? "text-rose-600" : "text-slate-500"} font-mono`}>
+                                {product ? laba.toLocaleString("id-ID") : "-"}
+                              </td>
+                              <td className={`${bgColor} px-4 py-3 text-center`}>
+                                <button onClick={() => handleRemoveDraftRow(draft.id)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded transition-colors opacity-0 group-hover:opacity-100">
+                                  &times;
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
 
-                        let stokSaatIni = 0;
-                        if (product) {
-                          stokSaatIni = productStockMap[product.id || ""] ?? (product.kodeBarang ? productStockMap[product.kodeBarang.trim().toLowerCase()] : undefined) ?? product.stokAwal;
-                        }
+                  {/* Mobile Card View */}
+                  <div className="block md:hidden p-4 space-y-4 bg-slate-50">
+                    {draftSales.length === 0 && (
+                      <div className="p-12 text-center border-2 border-dashed border-slate-300 rounded-xl bg-white">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">Pelajaran Kosong. Paste teks di sini.</p>
+                      </div>
+                    )}
+                    {draftSales.map((draft, idx) => {
+                       const product = findMatchedProduct(draft.jenisBarang, draft.productId);
+                       const hpp = product ? product.hargaBeli : 0;
+                       let stokSaatIni = 0;
+                       if (product) {
+                         stokSaatIni = productStockMap[product.id || ""] ?? (product.kodeBarang ? productStockMap[product.kodeBarang.trim().toLowerCase()] : undefined) ?? product.stokAwal;
+                       }
+                       const totalHpp = hpp * (Number(draft.qty) || 1);
+                       const laba = product ? draft.totalPenjualan - totalHpp : 0;
 
-                        const totalHpp = hpp * (Number(draft.qty) || 1);
-                        const laba = product
-                          ? draft.totalPenjualan - totalHpp
-                          : 0;
-
-                        const bgColor =
-                          idx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
-                        const computedBg =
-                          idx % 2 === 0 ? "bg-indigo-50/30" : "bg-indigo-50/60";
-
-                        return (
-                          <tr
-                            key={draft.id}
-                            className="border-b border-slate-200 group"
-                          >
-                            <td
-                              className={`${bgColor} border-r border-slate-200 p-0 relative`}
-                            >
-                              <input
-                                type="text"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"
-                                value={draft.tanggalOrder}
-                                onChange={(e) =>
-                                  handleUpdateDraft(
-                                    draft.id,
-                                    "tanggalOrder",
-                                    e.target.value,
-                                  )
-                                }
-                              />
-                            </td>
-                            <td
-                              className={`${bgColor} border-r border-slate-200 p-0 relative`}
-                            >
-                              <input
-                                type="text"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"
-                                value={draft.channel}
-                                onChange={(e) =>
-                                  handleUpdateDraft(
-                                    draft.id,
-                                    "channel",
-                                    e.target.value,
-                                  )
-                                }
-                              />
-                            </td>
-                            <td
-                              className={`${bgColor} border-r border-slate-200 p-0 relative`}
-                            >
-                              <input
-                                type="text"
-                                className="w-full h-full min-w-[150px] px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"
-                                value={draft.noPesanan}
-                                onChange={(e) =>
-                                  handleUpdateDraft(
-                                    draft.id,
-                                    "noPesanan",
-                                    e.target.value,
-                                  )
-                                }
-                              />
-                            </td>
-                            <td
-                              className={`${bgColor} border-r border-slate-200 p-0 relative`}
-                            >
-                              <input
-                                type="text"
-                                className="w-full h-full min-w-[100px] px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"
-                                value={draft.noResi}
-                                onChange={(e) =>
-                                  handleUpdateDraft(
-                                    draft.id,
-                                    "noResi",
-                                    e.target.value,
-                                  )
-                                }
-                              />
-                            </td>
-                            <td
-                              className={`${bgColor} border-r border-slate-200 p-0 relative`}
-                            >
-                              <input
-                                type="text"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"
-                                value={draft.namaEkspedisi}
-                                onChange={(e) =>
-                                  handleUpdateDraft(
-                                    draft.id,
-                                    "namaEkspedisi",
-                                    e.target.value,
-                                  )
-                                }
-                              />
-                            </td>
-                            <td
-                              className={`${bgColor} border-r border-slate-200 p-0 relative min-w-[250px]`}
-                            >
-                              <input
-                                type="text"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900"
-                                value={draft.jenisBarang}
-                                onChange={(e) =>
-                                  handleUpdateDraft(
-                                    draft.id,
-                                    "jenisBarang",
-                                    e.target.value,
-                                  )
-                                }
-                                placeholder=""
-                              />
-                            </td>
-                            <td
-                              className={`${bgColor} border-r border-slate-200 p-0 relative`}
-                            >
-                              <input
-                                type="number"
-                                min="1"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-center font-bold text-slate-700"
-                                value={draft.qty}
-                                onChange={(e) =>
-                                  handleUpdateDraft(
-                                    draft.id,
-                                    "qty",
-                                    e.target.value === "" ? "" : Number(e.target.value),
-                                  )
-                                }
-                              />
-                            </td>
-                            <td
-                              className={`${bgColor} border-r border-slate-200 p-0 relative`}
-                            >
-                              <input
-                                type="number"
-                                min="0"
-                                step="1000"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-right font-bold text-indigo-700"
-                                value={draft.totalPenjualan}
-                                onChange={(e) =>
-                                  handleUpdateDraft(
-                                    draft.id,
-                                    "totalPenjualan",
-                                    Number(e.target.value),
-                                  )
-                                }
-                              />
-                            </td>
-
-                            {/* Computed Columns */}
-                            <td
-                              className={`${computedBg} border-r border-slate-200 px-4 py-3 text-sm font-mono ${!product ? "text-red-500 font-bold bg-red-50" : "text-slate-600"}`}
-                              title={
-                                !product
-                                  ? "Barang tidak ditemukan di master data Stok"
-                                  : ""
-                              }
-                            >
-                              {product
-                                ? product.kodeBarang
-                                : draft.jenisBarang
-                                  ? "!! TIDAK ADA !!"
-                                  : ""}
-                            </td>
-                            <td
-                              className={`${computedBg} border-r border-slate-200 px-4 py-3 text-sm text-right font-mono text-slate-600`}
-                            >
-                              {product ? hpp.toLocaleString("id-ID") : "-"}
-                            </td>
-                            <td
-                              className={`${computedBg} border-r border-slate-200 px-4 py-3 text-sm w-16 text-center font-mono font-bold ${
-                                product
-                                  ? stokSaatIni <= 0
-                                    ? "text-red-600 bg-red-50"
-                                    : "text-indigo-600"
-                                  : "text-slate-600"
-                              }`}
-                            >
-                              {product ? stokSaatIni : "-"}
-                            </td>
-                            <td
-                              className={`${computedBg} border-r border-slate-200 px-4 py-3 text-sm text-right font-mono text-slate-600`}
-                            >
-                              {product ? totalHpp.toLocaleString("id-ID") : "-"}
-                            </td>
-                            <td
-                              className={`${computedBg} px-4 py-3 text-sm text-right font-bold ${laba > 0 ? "text-emerald-600" : laba < 0 ? "text-rose-600" : "text-slate-500"} font-mono`}
-                            >
-                              {product ? laba.toLocaleString("id-ID") : "-"}
-                            </td>
-                            <td className={`${bgColor} px-4 py-3 text-center`}>
-                              <button
-                                onClick={() => handleRemoveDraftRow(draft.id)}
-                                className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded transition-colors opacity-0 group-hover:opacity-100"
-                              >
-                                &times;
+                       return (
+                         <div key={draft.id} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a]">
+                            <div className="bg-slate-900 text-white p-3 flex justify-between items-center">
+                              <span className="text-[10px] font-black uppercase tracking-widest">Paket #{idx + 1}</span>
+                              <button onClick={() => handleRemoveDraftRow(draft.id)} className="p-1 hover:bg-rose-600 rounded transition-colors">
+                                <Trash2 className="w-3 h-3" />
                               </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                            </div>
+                            <div className="p-4 space-y-4">
+                              {/* Primary Inputs */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Tgl Order</label>
+                                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold focus:border-indigo-500 outline-none" value={draft.tanggalOrder} onChange={(e) => handleUpdateDraft(draft.id, "tanggalOrder", e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Channel</label>
+                                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold focus:border-indigo-500 outline-none" value={draft.channel} onChange={(e) => handleUpdateDraft(draft.id, "channel", e.target.value)} />
+                                </div>
+                              </div>
+                              
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">No Resi / Kurir</label>
+                                <div className="flex gap-2">
+                                  <input type="text" placeholder="Resi" className="flex-1 bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold focus:border-indigo-500 outline-none" value={draft.noResi} onChange={(e) => handleUpdateDraft(draft.id, "noResi", e.target.value)} />
+                                  <input type="text" placeholder="Kurir" className="w-24 bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold focus:border-indigo-500 outline-none" value={draft.namaEkspedisi} onChange={(e) => handleUpdateDraft(draft.id, "namaEkspedisi", e.target.value)} />
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Nama Barang (Text Matching)</label>
+                                <textarea className="w-full bg-indigo-50/30 border-2 border-indigo-100 p-2 text-xs font-black text-slate-900 focus:border-indigo-500 outline-none resize-none" rows={2} value={draft.jenisBarang} onChange={(e) => handleUpdateDraft(draft.id, "jenisBarang", e.target.value)} />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Qty</label>
+                                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold text-center" value={draft.qty} onChange={(e) => handleUpdateDraft(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Total Jual (Rp)</label>
+                                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-black text-right text-indigo-700" value={draft.totalPenjualan} onChange={(e) => handleUpdateDraft(draft.id, "totalPenjualan", Number(e.target.value))} />
+                                </div>
+                              </div>
+
+                              {/* Status Badges */}
+                              <div className="pt-2 flex flex-wrap gap-2 border-t border-slate-100">
+                                <div className={`px-2 py-1 border font-mono text-[9px] font-bold uppercase ${product ? "bg-slate-900 text-white border-slate-900" : "bg-rose-100 text-rose-600 border-rose-300 animate-pulse"}`}>
+                                  {product ? `SKU: ${product.kodeBarang}` : "Product NOT FOUND"}
+                                </div>
+                                {product && (
+                                  <>
+                                    <div className="px-2 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 font-mono text-[9px] font-bold">
+                                      STOK: {stokSaatIni}
+                                    </div>
+                                    <div className={`px-2 py-1 border font-mono text-[9px] font-bold ml-auto ${laba >= 0 ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-rose-50 border-rose-200 text-rose-700"}`}>
+                                      LABA: Rp {laba.toLocaleString("id-ID")}
+                                    </div>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                         </div>
+                       );
+                    })}
+                  </div>
                 </div>
               </div>
             </section>
@@ -4159,35 +4066,34 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 onPaste={handlePasteSalesDS}
               >
                 {/* Header Action Bar */}
-                <div className="p-5 border-b-2 border-slate-900 flex flex-col lg:flex-row lg:items-center justify-between bg-slate-50 gap-4">
-                  <div>
-                    <h2 className="text-lg font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest">
-                      <ShoppingBag className="w-5 h-5" /> Input Penjualan Dropship (DS)
+                <div className="p-4 md:p-5 border-b-2 border-slate-900 flex flex-col xl:flex-row xl:items-center justify-between bg-slate-50 gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <h2 className="text-base md:text-lg font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest leading-none">
+                      <ShoppingBag className="w-5 h-5" /> <span className="hidden sm:inline">Input Penjualan Dropship (DS)</span><span className="sm:hidden">Input DS</span>
                     </h2>
+                    <div className="flex gap-2 items-center">
+                      <button
+                        onClick={handleSaveDraftSalesDS}
+                        className="flex-1 sm:flex-none px-4 md:px-8 py-2 md:py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase tracking-wider text-[10px] md:text-sm transition-colors flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none"
+                      >
+                        Simpan DS
+                      </button>
+                      <button
+                        onClick={handleUndoDS}
+                        disabled={historyDS.length === 0}
+                        className={`px-3 md:px-4 py-2 md:py-3 font-bold uppercase tracking-wider text-[10px] md:text-sm transition-colors flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] ${historyDS.length === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border-slate-300" : "bg-white hover:bg-slate-50 text-slate-900 active:translate-y-[1px] active:translate-x-[1px]"}`}
+                      >
+                         Undo
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-4 items-center flex-wrap">
-                    <button
-                      onClick={handleSaveDraftSalesDS}
-                      className="px-8 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase tracking-wider text-sm transition-colors flex items-center gap-2 border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none"
-                    >
-                      Simpan Data DS
-                    </button>
-                    <button
-                      onClick={handleUndoDS}
-                      disabled={historyDS.length === 0}
-                      className={`px-4 py-3 font-bold uppercase tracking-wider text-sm transition-colors flex items-center gap-2 border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] ${historyDS.length === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border-slate-300" : "bg-white hover:bg-slate-50 text-slate-900 active:translate-y-[2px] active:translate-x-[2px]"}`}
-                    >
-                      <Undo className="w-4 h-4" /> Undo
-                    </button>
-                  </div>
-                  <div className="flex items-center gap-8">
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest">
-                        Jumlah
-                        <br />
+                  
+                  <div className="flex flex-wrap items-center gap-4 md:gap-8 justify-between md:justify-end">
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <span className="text-[9px] md:text-xs font-bold text-slate-500 uppercase tracking-widest leading-tight">
                         Pesanan
                       </span>
-                      <span className="text-2xl font-black text-slate-900 border-2 border-slate-900 px-4 py-1 bg-white font-mono shadow-[2px_2px_0px_0px_#0f172a]">
+                      <span className="text-lg md:text-2xl font-black text-slate-900 border-2 border-slate-900 px-3 md:px-4 py-0.5 md:py-1 bg-white font-mono shadow-[2px_2px_0px_0px_#0f172a]">
                         {
                           draftSalesDS.filter(
                             (d) =>
@@ -4199,13 +4105,11 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                         }
                       </span>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs font-bold text-slate-500 uppercase tracking-widest text-right">
-                        Total
-                        <br />
+                    <div className="flex items-center gap-2 md:gap-3">
+                      <span className="text-[9px] md:text-xs font-bold text-slate-500 uppercase tracking-widest leading-tight text-right">
                         Laba DS
                       </span>
-                      <span className="text-2xl font-black text-green-700 border-2 border-green-700 px-4 py-1 bg-green-50 font-mono shadow-[2px_2px_0px_0px_#15803d]">
+                      <span className="text-lg md:text-2xl font-black text-green-700 border-2 border-green-700 px-3 md:px-4 py-0.5 md:py-1 bg-green-50 font-mono shadow-[2px_2px_0px_0px_#15803d]">
                         Rp{" "}
                         {draftSalesDS
                           .reduce((acc, draft) => acc + (Number(draft.laba) || 0), 0)
@@ -4215,216 +4119,185 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                   </div>
                 </div>
 
-                {/* Spreadsheet View */}
-                <div className="flex-1 overflow-x-auto overflow-y-auto min-h-[500px] min-w-0 scrollbar-thin scrollbar-thumb-slate-900 scrollbar-track-slate-100">
-                  <table className="w-full text-left whitespace-nowrap min-w-[1800px] border-collapse table-auto">
-                    <thead className="bg-slate-900 text-white sticky top-0 z-10 text-xs uppercase tracking-widest font-black">
-                      <tr>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold w-28 animate-pulse text-indigo-300">
-                          Kode Supplier
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold w-32 animate-pulse text-indigo-300">
-                          Tgl. Order
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold w-28 animate-pulse text-indigo-300">
-                          Channel
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold w-40 animate-pulse text-indigo-300">
-                          No Pesanan
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold w-40 animate-pulse text-indigo-300">
-                          No Resi
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold w-40 animate-pulse text-indigo-300">
-                          Nama Pelanggan
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold w-64 animate-pulse text-indigo-300">
-                          Alamat Pelanggan
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold w-80 animate-pulse text-indigo-300">
-                          Nama Produk
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold text-center w-16">
-                          Qty
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold text-right w-28">
-                          HPP
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold text-right w-36">
-                          Total Penjualan
-                        </th>
-                        <th className="px-4 py-4 border-r border-slate-700 font-semibold text-right w-28">
-                          Ongkos Kirim
-                        </th>
-                        <th className="px-4 py-4 font-semibold text-right w-32 bg-slate-800">
-                          Laba
-                        </th>
-                        <th className="px-4 py-4 font-semibold w-10"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white">
-                      {draftSalesDS.map((draft, idx) => {
-                        const bgColor =
-                          idx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
-                        const computedBg =
-                          idx % 2 === 0 ? "bg-indigo-50/30" : "bg-indigo-50/60";
+                {/* Drafting Area */}
+                <div className="flex-1 overflow-y-auto min-h-[500px]">
+                  {/* Desktop Spreadsheet View */}
+                  <div className="hidden xl:block overflow-x-auto">
+                    <table className="w-full text-left whitespace-nowrap min-w-[1800px] border-collapse table-auto">
+                      <thead className="bg-slate-900 text-white sticky top-0 z-10 text-xs uppercase tracking-widest font-black">
+                        <tr>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-28">Kode Supplier</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-32">Tgl. Order</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-28">Channel</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-40">No Pesanan</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-40">No Resi</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-40">Pelanggan</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-64">Alamat</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-80">Produk</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold text-center w-16">Qty</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold text-right w-28">HPP</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold text-right w-36">Total Jual</th>
+                          <th className="px-4 py-4 border-r border-slate-700 font-semibold text-right w-28">Ongkir</th>
+                          <th className="px-4 py-4 font-semibold text-right w-32 bg-slate-800">Laba</th>
+                          <th className="px-4 py-4 font-semibold w-10"></th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white">
+                        {draftSalesDS.map((draft, idx) => {
+                          const bgColor = idx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
+                          const computedBg = idx % 2 === 0 ? "bg-indigo-50/10" : "bg-indigo-50/30";
+                          const hppNum = draft.hpp || 0;
+                          const qtyNum = Number(draft.qty) || 1;
+                          const totalPenjualanNum = draft.totalPenjualan || 0;
+                          const okNum = draft.ongkosKirim || 0;
+                          const autoLaba = totalPenjualanNum - (hppNum * qtyNum) - okNum;
 
-                        const hppNum = draft.hpp || 0;
-                        const qtyNum = Number(draft.qty) || 1;
-                        const totalPenjualanNum = draft.totalPenjualan || 0;
-                        const okNum = draft.ongkosKirim || 0;
-                        const autoLaba = totalPenjualanNum - (hppNum * qtyNum) - okNum;
+                          return (
+                            <tr key={draft.id} className="border-b border-slate-200 group">
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.kodeSupplier} onChange={(e) => handleUpdateDraftDS(draft.id, "kodeSupplier", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.tanggalOrder} onChange={(e) => handleUpdateDraftDS(draft.id, "tanggalOrder", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.channel} onChange={(e) => handleUpdateDraftDS(draft.id, "channel", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.noPesanan} onChange={(e) => handleUpdateDraftDS(draft.id, "noPesanan", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.noResi} onChange={(e) => handleUpdateDraftDS(draft.id, "noResi", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.namaPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "namaPelanggan", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.alamatPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "alamatPelanggan", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative min-w-[250px]`}>
+                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900" value={draft.namaProduk} onChange={(e) => handleUpdateDraftDS(draft.id, "namaProduk", e.target.value)} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="number" min="1" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-center font-bold text-slate-700" value={draft.qty} onChange={(e) => handleUpdateDraftDS(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="number" min="0" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-right font-medium text-slate-700" value={draft.hpp} onChange={(e) => handleUpdateDraftDS(draft.id, "hpp", Number(e.target.value))} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="number" min="0" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-right font-bold text-indigo-700" value={draft.totalPenjualan} onChange={(e) => handleUpdateDraftDS(draft.id, "totalPenjualan", Number(e.target.value))} />
+                              </td>
+                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
+                                <input type="number" min="0" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-right font-medium text-slate-700" value={draft.ongkosKirim} onChange={(e) => handleUpdateDraftDS(draft.id, "ongkosKirim", Number(e.target.value))} />
+                              </td>
+                              <td className={`${computedBg} px-4 py-3 text-sm text-right font-bold font-mono ${autoLaba > 0 ? "text-emerald-600" : autoLaba < 0 ? "text-rose-600" : "text-slate-500"}`}>
+                                {autoLaba.toLocaleString("id-ID")}
+                              </td>
+                              <td className={`${bgColor} px-4 py-3 text-center`}>
+                                <button onClick={() => handleRemoveDraftRowDS(draft.id)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded transition-colors opacity-0 group-hover:opacity-100">
+                                  &times;
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
 
-                        return (
-                          <tr
-                            key={draft.id}
-                            className="border-b border-slate-200 group"
-                          >
-                            <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                              <input
-                                type="text"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"
-                                value={draft.kodeSupplier}
-                                onChange={(e) =>
-                                  handleUpdateDraftDS(draft.id, "kodeSupplier", e.target.value)
-                                }
-                              />
-                            </td>
-                            <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                              <input
-                                type="text"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"
-                                value={draft.tanggalOrder}
-                                onChange={(e) =>
-                                  handleUpdateDraftDS(draft.id, "tanggalOrder", e.target.value)
-                                }
-                              />
-                            </td>
-                            <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                              <input
-                                type="text"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"
-                                value={draft.channel}
-                                onChange={(e) =>
-                                  handleUpdateDraftDS(draft.id, "channel", e.target.value)
-                                }
-                              />
-                            </td>
-                            <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                              <input
-                                type="text"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"
-                                value={draft.noPesanan}
-                                onChange={(e) =>
-                                  handleUpdateDraftDS(draft.id, "noPesanan", e.target.value)
-                                }
-                              />
-                            </td>
-                            <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                              <input
-                                type="text"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"
-                                value={draft.noResi}
-                                onChange={(e) =>
-                                  handleUpdateDraftDS(draft.id, "noResi", e.target.value)
-                                }
-                              />
-                            </td>
-                            <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                              <input
-                                type="text"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"
-                                value={draft.namaPelanggan}
-                                onChange={(e) =>
-                                  handleUpdateDraftDS(draft.id, "namaPelanggan", e.target.value)
-                                }
-                              />
-                            </td>
-                            <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                              <input
-                                type="text"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700"
-                                value={draft.alamatPelanggan}
-                                onChange={(e) =>
-                                  handleUpdateDraftDS(draft.id, "alamatPelanggan", e.target.value)
-                                }
-                              />
-                            </td>
-                            <td className={`${bgColor} border-r border-slate-200 p-0 relative min-w-[250px]`}>
-                              <input
-                                type="text"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-bold text-slate-900"
-                                value={draft.namaProduk}
-                                onChange={(e) =>
-                                  handleUpdateDraftDS(draft.id, "namaProduk", e.target.value)
-                                }
-                                placeholder=""
-                              />
-                            </td>
-                            <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                              <input
-                                type="number"
-                                min="1"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-center font-bold text-slate-700"
-                                value={draft.qty}
-                                onChange={(e) =>
-                                  handleUpdateDraftDS(
-                                    draft.id,
-                                    "qty",
-                                    e.target.value === "" ? "" : Number(e.target.value)
-                                  )
-                                }
-                              />
-                            </td>
-                            <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                              <input
-                                type="number"
-                                min="0"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-right font-medium text-slate-700"
-                                value={draft.hpp}
-                                onChange={(e) =>
-                                  handleUpdateDraftDS(draft.id, "hpp", Number(e.target.value))
-                                }
-                              />
-                            </td>
-                            <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                              <input
-                                type="number"
-                                min="0"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-right font-bold text-indigo-700"
-                                value={draft.totalPenjualan}
-                                onChange={(e) =>
-                                  handleUpdateDraftDS(draft.id, "totalPenjualan", Number(e.target.value))
-                                }
-                              />
-                            </td>
-                            <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                              <input
-                                type="number"
-                                min="0"
-                                className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-right font-medium text-slate-700"
-                                value={draft.ongkosKirim}
-                                onChange={(e) =>
-                                  handleUpdateDraftDS(draft.id, "ongkosKirim", Number(e.target.value))
-                                }
-                              />
-                            </td>
-                            <td className={`${computedBg} px-4 py-3 text-sm text-right font-bold font-mono ${autoLaba > 0 ? "text-emerald-600" : autoLaba < 0 ? "text-rose-600" : "text-slate-500"}`}>
-                              {autoLaba.toLocaleString("id-ID")}
-                            </td>
-                            <td className={`${bgColor} px-4 py-3 text-center`}>
-                              <button
-                                onClick={() => handleRemoveDraftRowDS(draft.id)}
-                                className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded transition-colors opacity-0 group-hover:opacity-100"
-                              >
-                                &times;
+                  {/* Mobile Card View */}
+                  <div className="block xl:hidden p-4 space-y-4 bg-slate-50">
+                    {draftSalesDS.length === 0 && (
+                      <div className="p-12 text-center border-2 border-dashed border-slate-300 rounded-xl bg-white">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">DS Pelson Kosong. Paste teks di sini.</p>
+                      </div>
+                    )}
+                    {draftSalesDS.map((draft, idx) => {
+                       const hppNum = draft.hpp || 0;
+                       const qtyNum = Number(draft.qty) || 1;
+                       const totalPenjualanNum = draft.totalPenjualan || 0;
+                       const okNum = draft.ongkosKirim || 0;
+                       const autoLaba = totalPenjualanNum - (hppNum * qtyNum) - okNum;
+
+                       return (
+                         <div key={draft.id} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a]">
+                            <div className="bg-slate-900 text-white p-3 flex justify-between items-center">
+                              <span className="text-[10px] font-black uppercase tracking-widest">DS #{idx + 1} - Supplier: {draft.kodeSupplier || "?"}</span>
+                              <button onClick={() => handleRemoveDraftRowDS(draft.id)} className="p-1 hover:bg-rose-600 rounded transition-colors">
+                                <Trash2 className="w-3 h-3" />
                               </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                            </div>
+                            <div className="p-4 space-y-4">
+                              {/* Primary Inputs */}
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Supplier</label>
+                                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold focus:border-indigo-500 outline-none" value={draft.kodeSupplier} onChange={(e) => handleUpdateDraftDS(draft.id, "kodeSupplier", e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Tgl Order</label>
+                                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold focus:border-indigo-500 outline-none" value={draft.tanggalOrder} onChange={(e) => handleUpdateDraftDS(draft.id, "tanggalOrder", e.target.value)} />
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">No Pesanan</label>
+                                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold outline-none" value={draft.noPesanan} onChange={(e) => handleUpdateDraftDS(draft.id, "noPesanan", e.target.value)} />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Resi</label>
+                                  <input type="text" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold outline-none" value={draft.noResi} onChange={(e) => handleUpdateDraftDS(draft.id, "noResi", e.target.value)} />
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Nama & Alamat Pelanggan</label>
+                                <div className="flex flex-col gap-2">
+                                  <input type="text" placeholder="Nama" className="bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold outline-none" value={draft.namaPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "namaPelanggan", e.target.value)} />
+                                  <textarea placeholder="Alamat" className="bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold outline-none resize-none" rows={2} value={draft.alamatPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "alamatPelanggan", e.target.value)} />
+                                </div>
+                              </div>
+
+                              <div className="space-y-1">
+                                <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Nama Produk (Dropship)</label>
+                                <textarea className="w-full bg-indigo-50/30 border-2 border-indigo-100 p-2 text-xs font-black text-slate-900 outline-none resize-none" rows={2} value={draft.namaProduk} onChange={(e) => handleUpdateDraftDS(draft.id, "namaProduk", e.target.value)} />
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Qty</label>
+                                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold text-center" value={draft.qty} onChange={(e) => handleUpdateDraftDS(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">HPP (Modal)</label>
+                                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-black text-right" value={draft.hpp} onChange={(e) => handleUpdateDraftDS(draft.id, "hpp", Number(e.target.value))} />
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-2 gap-4">
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Ongkir Customer</label>
+                                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-bold text-right" value={draft.ongkosKirim} onChange={(e) => handleUpdateDraftDS(draft.id, "ongkosKirim", Number(e.target.value))} />
+                                </div>
+                                <div className="space-y-1">
+                                  <label className="text-[9px] font-black text-slate-500 uppercase tracking-tighter">Total Jual (Bersih)</label>
+                                  <input type="number" className="w-full bg-slate-50 border-2 border-slate-200 p-2 text-xs font-black text-right text-indigo-700" value={draft.totalPenjualan} onChange={(e) => handleUpdateDraftDS(draft.id, "totalPenjualan", Number(e.target.value))} />
+                                </div>
+                              </div>
+
+                              {/* Profit Display */}
+                              <div className="pt-2 flex justify-between items-center border-t border-slate-100">
+                                <span className="text-[10px] font-black text-slate-400 uppercase">Estimasi Laba</span>
+                                <div className={`px-4 py-1 border-2 font-mono text-sm font-black ${autoLaba >= 0 ? "bg-emerald-50 border-emerald-900 text-emerald-900 shadow-[2px_2px_0px_0px_#065f46]" : "bg-rose-50 border-rose-900 text-rose-900 shadow-[2px_2px_0px_0px_#9f1239]"}`}>
+                                  Rp {autoLaba.toLocaleString("id-ID")}
+                                </div>
+                              </div>
+                            </div>
+                         </div>
+                       );
+                    })}
+                  </div>
                 </div>
               </div>
             </section>
@@ -5051,51 +4924,27 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                     className="flex-1 overflow-x-auto overflow-y-auto min-w-0 max-h-[600px] relative scrollbar-thin"
                     onScroll={handleSalesScroll}
                   >
-                    <table className="w-full text-left whitespace-nowrap min-w-[1600px] border-collapse table-auto">
-                      <thead className="bg-slate-900 text-white sticky top-0 z-10 text-[9px] uppercase tracking-widest font-black">
-                        <tr>
-                          <th className="px-3 py-4 border-r border-slate-700">
-                            Tgl. Order
-                          </th>
-                          <th className="px-3 py-4 border-r border-slate-700">
-                            Channel
-                          </th>
-                          <th className="px-3 py-4 border-r border-slate-700">
-                            No. Pesanan / Alamat
-                          </th>
-                          <th className="px-3 py-4 border-r border-slate-700">
-                            No Resi
-                          </th>
-                          <th className="px-3 py-4 border-r border-slate-700">
-                            Nama Ekspedisi
-                          </th>
-                          <th className="px-3 py-4 border-r border-slate-700">
-                            Jenis Barang
-                          </th>
-                          <th className="px-3 py-4 border-r border-slate-700 text-center">
-                            Qty
-                          </th>
-                          <th className="px-3 py-4 border-r border-slate-700 text-right">
-                            Total Penjualan
-                          </th>
-                          <th className="px-3 py-4 border-r border-slate-700">
-                            Kode Barang
-                          </th>
-                          <th className="px-3 py-4 border-r border-slate-700 text-right">
-                            HPP
-                          </th>
-                          <th className="px-3 py-4 border-r border-slate-700 text-center">
-                            Stok Saat ini
-                          </th>
-                          <th className="px-3 py-4 border-r border-slate-700 text-right">
-                            Total HPP
-                          </th>
-                          <th className="px-3 py-4 border-r border-slate-700 text-right">
-                            Laba
-                          </th>
-                          <th className="px-3 py-4 text-center">Aksi</th>
-                        </tr>
-                      </thead>
+                    {/* Table View (Hidden on mobile) */}
+                    <div className="hidden md:block overflow-x-auto overflow-y-auto">
+                      <table className="w-full text-left whitespace-nowrap min-w-[1600px] border-collapse table-auto">
+                        <thead className="bg-slate-900 text-white sticky top-0 z-10 text-[9px] uppercase tracking-widest font-black">
+                          <tr>
+                            <th className="px-3 py-4 border-r border-slate-700">Tgl. Order</th>
+                            <th className="px-3 py-4 border-r border-slate-700">Channel</th>
+                            <th className="px-3 py-4 border-r border-slate-700">No. Pesanan / Alamat</th>
+                            <th className="px-3 py-4 border-r border-slate-700">No Resi</th>
+                            <th className="px-3 py-4 border-r border-slate-700">Nama Ekspedisi</th>
+                            <th className="px-3 py-4 border-r border-slate-700">Jenis Barang</th>
+                            <th className="px-3 py-4 border-r border-slate-700 text-center">Qty</th>
+                            <th className="px-3 py-4 border-r border-slate-700 text-right">Total Penjualan</th>
+                            <th className="px-3 py-4 border-r border-slate-700">Kode Barang</th>
+                            <th className="px-3 py-4 border-r border-slate-700 text-right">HPP</th>
+                            <th className="px-3 py-4 border-r border-slate-700 text-center">Stok Saat ini</th>
+                            <th className="px-3 py-4 border-r border-slate-700 text-right">Total HPP</th>
+                            <th className="px-3 py-4 border-r border-slate-700 text-right">Laba</th>
+                            <th className="px-3 py-4 text-center">Aksi</th>
+                          </tr>
+                        </thead>
                       <tbody className="bg-white">
                         {filteredSales.length === 0 ? (
                           <tr>
@@ -5206,140 +5055,177 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                                 </tr>
                               );
                             })}
-                            {virtualizedSales.bottomSpacerHeight > 0 && (
-                              <tr style={{ height: `${virtualizedSales.bottomSpacerHeight}px` }}>
-                                <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSales.bottomSpacerHeight}px` }} />
-                              </tr>
-                            )}
-                          </>
-                        )}
-                      </tbody>
-                    </table>
+                              {virtualizedSales.bottomSpacerHeight > 0 && (
+                                <tr style={{ height: `${virtualizedSales.bottomSpacerHeight}px` }}>
+                                  <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSales.bottomSpacerHeight}px` }} />
+                                </tr>
+                              )}
+                            </>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile Card View (Regular) */}
+                    <div className="block md:hidden p-4 space-y-4 bg-slate-50">
+                       {filteredSales.length === 0 && (
+                         <div className="text-center p-8 bg-white border-2 border-slate-200 rounded-lg">
+                           <p className="text-xs font-bold text-slate-400 uppercase">Data tidak ditemukan</p>
+                         </div>
+                       )}
+                       {virtualizedSales.slice.map((s, idx) => (
+                         <div key={s.id || idx} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a]" onClick={() => handleEditSale(s)}>
+                            <div className="bg-slate-50 p-3 border-b-2 border-slate-900 flex justify-between items-center">
+                               <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{s.tanggalOrder}</span>
+                               <div className="flex gap-2">
+                                  <button onClick={(e) => { e.stopPropagation(); handleEditSale(s); }} className="p-1.5 bg-white border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000]"><Pencil className="w-3 h-3" /></button>
+                                  <button onClick={(e) => { e.stopPropagation(); setSaleToDelete(s); }} className="p-1.5 bg-rose-50 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] leading-none mb-1"><Trash2 className="w-3 h-3 text-rose-600" /></button>
+                               </div>
+                            </div>
+                            <div className="p-3 space-y-2">
+                               <div className="flex justify-between items-start gap-4">
+                                  <div className="flex-1">
+                                     <h3 className="text-xs font-black text-slate-900 uppercase leading-snug">{s.jenisBarang}</h3>
+                                     <p className="text-[10px] font-mono text-slate-500 mt-1 uppercase tracking-tighter">SKU: {s.kodeBarang || "-"}</p>
+                                  </div>
+                                  <div className="text-right">
+                                     <div className="text-[10px] font-black text-slate-700 uppercase leading-none">Qty: {s.qty}</div>
+                                     <div className="text-sm font-black text-indigo-700 mt-1">Rp {(s.totalPenjualan || 0).toLocaleString("id-ID")}</div>
+                                  </div>
+                               </div>
+                               <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100">
+                                  <div>
+                                     <p className="text-[9px] font-black text-slate-400 uppercase">Channel / Resi</p>
+                                     <p className="text-[10px] font-bold text-slate-800">{s.channel} • {s.noResi || "-"}</p>
+                                  </div>
+                                  <div className="text-right">
+                                     <p className="text-[9px] font-black text-slate-400 uppercase">Estimasi Laba</p>
+                                     <p className={`text-[11px] font-black ${s.laba && s.laba > 0 ? "text-emerald-600" : "text-slate-900"}`}>Rp {(s.laba || 0).toLocaleString("id-ID")}</p>
+                                  </div>
+                               </div>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
                   </div>
                 ) : (
                   <div 
-                    className="flex-1 overflow-x-auto overflow-y-auto min-w-0 max-h-[600px] relative scrollbar-thin"
+                    className="flex-1 overflow-y-auto min-w-0 max-h-[600px] relative scrollbar-thin overflow-x-hidden"
                     onScroll={handleSalesDSScroll}
                   >
-                    <table className="w-full text-left whitespace-nowrap min-w-[1600px] border-collapse table-auto">
-                      <thead className="bg-[#0f172a] text-white sticky top-0 z-10 text-[9px] uppercase tracking-widest font-black">
-                        <tr>
-                          <th className="px-3 py-4 border-r border-slate-700">Tgl. Order</th>
-                          <th className="px-3 py-4 border-r border-slate-700">Kode Supplier</th>
-                          <th className="px-3 py-4 border-r border-slate-700">Channel</th>
-                          <th className="px-3 py-4 border-r border-slate-700">No. Pesanan</th>
-                          <th className="px-3 py-4 border-r border-slate-700">No Resi</th>
-                          <th className="px-3 py-4 border-r border-slate-700">Pelanggan</th>
-                          <th className="px-3 py-4 border-r border-slate-700">Alamat Pelanggan</th>
-                          <th className="px-3 py-4 border-r border-slate-700">Nama Produk</th>
-                          <th className="px-3 py-4 border-r border-slate-700 text-center w-12">Qty</th>
-                          <th className="px-3 py-4 border-r border-slate-700 text-right w-24">HPP</th>
-                          <th className="px-3 py-4 border-r border-slate-700 text-right w-32">Total Penjualan</th>
-                          <th className="px-3 py-4 border-r border-slate-700 text-right w-24">Ongkir</th>
-                          <th className="px-3 py-4 text-right w-28 bg-slate-800">Laba DS</th>
-                          <th className="px-3 py-4 text-center w-16">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white">
-                        {filteredSalesDS.length === 0 ? (
+                    {/* Desktop View Dropship */}
+                    <div className="hidden xl:block overflow-x-auto">
+                      <table className="w-full text-left whitespace-nowrap min-w-[1600px] border-collapse table-auto text-xs font-bold text-slate-700">
+                        <thead className="bg-[#0f172a] text-white sticky top-0 z-10 text-[9px] uppercase tracking-widest font-black">
                           <tr>
-                            <td
-                              className="px-6 py-12 text-sm text-center text-slate-500"
-                              colSpan={14}
-                            >
-                              {salesDS.length === 0
-                                ? "Belum ada transaksi penjualan dropship (DS) tersimpan."
-                                : "Tidak ada transaksi dropship yang cocok dengan pencarian."}
-                            </td>
+                            <th className="px-3 py-4 border-r border-slate-700">Tgl. Order</th>
+                            <th className="px-3 py-4 border-r border-slate-700">Kode Supplier</th>
+                            <th className="px-3 py-4 border-r border-slate-700">Channel</th>
+                            <th className="px-3 py-4 border-r border-slate-700">No. Pesanan</th>
+                            <th className="px-3 py-4 border-r border-slate-700">No Resi</th>
+                            <th className="px-3 py-4 border-r border-slate-700">Pelanggan</th>
+                            <th className="px-3 py-4 border-r border-slate-700">Alamat Pelanggan</th>
+                            <th className="px-3 py-4 border-r border-slate-700">Nama Produk</th>
+                            <th className="px-3 py-4 border-r border-slate-700 text-center w-12">Qty</th>
+                            <th className="px-3 py-4 border-r border-slate-700 text-right w-24">HPP</th>
+                            <th className="px-3 py-4 border-r border-slate-700 text-right w-32">Total Penjualan</th>
+                            <th className="px-3 py-4 border-r border-slate-700 text-right w-24">Ongkir</th>
+                            <th className="px-3 py-4 text-right w-28 bg-slate-800">Laba DS</th>
+                            <th className="px-3 py-4 text-center w-16">Aksi</th>
                           </tr>
-                        ) : (
-                          <>
-                            {virtualizedSalesDS.topSpacerHeight > 0 && (
-                              <tr style={{ height: `${virtualizedSalesDS.topSpacerHeight}px` }}>
-                                <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSalesDS.topSpacerHeight}px` }} />
-                              </tr>
-                            )}
-                            {virtualizedSalesDS.slice.map((s, idx) => {
-                              const absoluteIdx = salesDSStartIndex + idx;
-                              const bgColor =
-                                absoluteIdx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
-                              return (
-                                <tr
-                                  key={s.id || idx}
-                                  className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}
-                                >
-                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
-                                    {s.tanggalOrder ||
-                                      (s.tanggal
-                                        ? new Date(
-                                            s.tanggal.seconds ? s.tanggal.seconds * 1000 : s.tanggal,
-                                          ).toLocaleDateString("id-ID")
-                                        : "-")}
-                                  </td>
-                                  <td className="px-3 py-4 text-[11px] font-mono font-medium text-indigo-700 border-r border-slate-200">
-                                    {s.kodeSupplier || "-"}
-                                  </td>
-                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
-                                    {s.channel || "-"}
-                                  </td>
-                                  <td className="px-3 py-4 text-[11px] font-mono text-slate-700 border-r border-slate-200 truncate max-w-[150px]" title={s.noPesanan}>
-                                    {s.noPesanan || "-"}
-                                  </td>
-                                  <td className="px-3 py-4 text-[11px] font-mono text-slate-500 border-r border-slate-200 truncate max-w-[150px]" title={s.noResi}>
-                                    {s.noResi || "-"}
-                                  </td>
-                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
-                                    {s.namaPelanggan || "-"}
-                                  </td>
-                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-500 border-r border-slate-200 truncate max-w-[200px]" title={s.alamatPelanggan}>
-                                    {s.alamatPelanggan || "-"}
-                                  </td>
-                                  <td className="px-3 py-4 text-[11px] font-bold text-slate-900 border-r border-slate-200 truncate max-w-[220px]" title={s.namaProduk}>
-                                    {s.namaProduk}
-                                  </td>
-                                  <td className="px-3 py-4 text-[11px] text-center font-bold text-slate-900 border-r border-slate-200">
-                                    {s.qty}
-                                  </td>
-                                  <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">
-                                    {(s.hpp || 0).toLocaleString("id-ID")}
-                                  </td>
-                                  <td className="px-3 py-4 text-[11px] text-right font-bold text-indigo-600 border-r border-slate-200">
-                                    {(s.totalPenjualan || 0).toLocaleString("id-ID")}
-                                  </td>
-                                  <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">
-                                    {(s.ongkosKirim || 0).toLocaleString("id-ID")}
-                                  </td>
-                                  <td className="px-3 py-4 text-[11px] text-right font-bold font-mono text-emerald-600 border-r border-slate-200 bg-emerald-50/25">
-                                    {(s.laba || 0).toLocaleString("id-ID")}
-                                  </td>
-                                  <td className="px-3 py-4 text-center">
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        if (!s.id) {
-                                          alert("ID penjualan tidak ditemukan!");
-                                          return;
-                                        }
-                                        setSaleDSToDelete(s);
-                                      }}
-                                      className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-50 border border-transparent hover:border-slate-300 transition-all pointer-events-auto"
-                                      title="Hapus DS"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </td>
+                        </thead>
+                        <tbody className="bg-white">
+                          {filteredSalesDS.length === 0 ? (
+                            <tr>
+                              <td className="px-6 py-12 text-sm text-center text-slate-500" colSpan={14}>
+                                {salesDS.length === 0 ? "Belum ada transaksi penjualan dropship (DS) tersimpan." : "Tidak ada transaksi dropship yang cocok dengan pencarian."}
+                              </td>
+                            </tr>
+                          ) : (
+                            <>
+                              {virtualizedSalesDS.topSpacerHeight > 0 && (
+                                <tr style={{ height: `${virtualizedSalesDS.topSpacerHeight}px` }}>
+                                  <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSalesDS.topSpacerHeight}px` }} />
                                 </tr>
-                              );
-                            })}
-                            {virtualizedSalesDS.bottomSpacerHeight > 0 && (
-                              <tr style={{ height: `${virtualizedSalesDS.bottomSpacerHeight}px` }}>
-                                <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSalesDS.bottomSpacerHeight}px` }} />
-                              </tr>
-                            )}
-                          </>
-                        )}
-                      </tbody>
-                    </table>
+                              )}
+                              {virtualizedSalesDS.slice.map((s, idx) => {
+                                const absoluteIdx = salesDSStartIndex + idx;
+                                const bgColor = absoluteIdx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
+                                return (
+                                  <tr key={s.id || idx} className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}>
+                                    <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">{s.tanggalOrder || "-"}</td>
+                                    <td className="px-3 py-4 text-[11px] font-mono font-medium text-indigo-700 border-r border-slate-200">{s.kodeSupplier || "-"}</td>
+                                    <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">{s.channel || "-"}</td>
+                                    <td className="px-3 py-4 text-[11px] font-mono text-slate-700 border-r border-slate-200 truncate max-w-[150px]">{s.noPesanan || "-"}</td>
+                                    <td className="px-3 py-4 text-[11px] font-mono text-slate-500 border-r border-slate-200 truncate max-w-[150px]">{s.noResi || "-"}</td>
+                                    <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">{s.namaPelanggan || "-"}</td>
+                                    <td className="px-3 py-4 text-[11px] font-medium text-slate-500 border-r border-slate-200 truncate max-w-[200px]">{s.alamatPelanggan || "-"}</td>
+                                    <td className="px-3 py-4 text-[11px] font-bold text-slate-900 border-r border-slate-200 truncate max-w-[220px]">{s.namaProduk}</td>
+                                    <td className="px-3 py-4 text-[11px] text-center font-bold text-slate-900 border-r border-slate-200">{s.qty}</td>
+                                    <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">{(s.hpp || 0).toLocaleString("id-ID")}</td>
+                                    <td className="px-3 py-4 text-[11px] text-right font-bold text-indigo-600 border-r border-slate-200">{(s.totalPenjualan || 0).toLocaleString("id-ID")}</td>
+                                    <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">{(s.ongkosKirim || 0).toLocaleString("id-ID")}</td>
+                                    <td className="px-3 py-4 text-[11px] text-right font-bold font-mono text-emerald-600 border-r border-slate-200 bg-emerald-50/25">{(s.laba || 0).toLocaleString("id-ID")}</td>
+                                    <td className="px-3 py-4 text-center">
+                                      <button onClick={() => setSaleDSToDelete(s)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-50 border border-transparent hover:border-slate-300 transition-all shadow-none"><Trash2 className="w-3.5 h-3.5" /></button>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                              {virtualizedSalesDS.bottomSpacerHeight > 0 && (
+                                <tr style={{ height: `${virtualizedSalesDS.bottomSpacerHeight}px` }}>
+                                  <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSalesDS.bottomSpacerHeight}px` }} />
+                                </tr>
+                              )}
+                            </>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mobile View Dropship */}
+                    <div className="block xl:hidden p-4 space-y-4 bg-slate-50">
+                       {filteredSalesDS.length === 0 && (
+                         <div className="text-center p-8 bg-white border-2 border-slate-200 rounded-lg">
+                           <p className="text-xs font-bold text-slate-400 uppercase">Dropship tidak ditemukan</p>
+                         </div>
+                       )}
+                       {virtualizedSalesDS.slice.map((s, idx) => (
+                         <div key={s.id || idx} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a]">
+                            <div className="bg-slate-50 p-3 border-b-2 border-slate-900 flex justify-between items-center">
+                               <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{s.tanggalOrder} • DS</span>
+                               <button onClick={() => setSaleDSToDelete(s)} className="p-1.5 bg-rose-50 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] leading-none mb-1"><Trash2 className="w-3 h-3 text-rose-600" /></button>
+                            </div>
+                            <div className="p-3 space-y-3">
+                               <div className="flex justify-between items-start gap-4">
+                                  <div className="flex-1">
+                                     <h3 className="text-xs font-black text-slate-900 uppercase leading-snug">{s.namaProduk}</h3>
+                                     <p className="text-[10px] font-mono text-slate-500 mt-1 uppercase tracking-tighter">Supplier: {s.kodeSupplier || "-"}</p>
+                                  </div>
+                                  <div className="text-right">
+                                     <div className="text-[10px] font-black text-slate-700 uppercase leading-none">Qty: {s.qty}</div>
+                                     <div className="text-sm font-black text-indigo-700 mt-1">Rp {(s.totalPenjualan || 0).toLocaleString("id-ID")}</div>
+                                  </div>
+                               </div>
+                               <div className="space-y-1.5 py-2 border-y border-slate-100">
+                                  <p className="text-[9px] font-black text-slate-400 uppercase">Pelanggan</p>
+                                  <p className="text-[10px] font-bold text-slate-800 leading-tight">{s.namaPelanggan}</p>
+                                  <p className="text-[10px] text-slate-500 leading-tight italic truncate">{s.alamatPelanggan}</p>
+                               </div>
+                               <div className="grid grid-cols-2 gap-2 pt-1">
+                                  <div>
+                                     <p className="text-[9px] font-black text-slate-400 uppercase">No Resi</p>
+                                     <p className="text-[10px] font-mono text-slate-600">{s.noResi || "-"}</p>
+                                  </div>
+                                  <div className="text-right">
+                                     <p className="text-[9px] font-black text-slate-400 uppercase">Laba Dropship</p>
+                                     <p className="text-[11px] font-black text-emerald-600">Rp {(s.laba || 0).toLocaleString("id-ID")}</p>
+                                  </div>
+                               </div>
+                            </div>
+                         </div>
+                       ))}
+                    </div>
                   </div>
                 )}
 
