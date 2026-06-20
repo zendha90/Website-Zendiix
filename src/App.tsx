@@ -1090,6 +1090,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const [salesStartIndex, setSalesStartIndex] = useState(0);
   const [salesDSStartIndex, setSalesDSStartIndex] = useState(0);
   const [incomingStartIndex, setIncomingStartIndex] = useState(0);
+  const [inventoryStartIndex, setInventoryStartIndex] = useState(0);
 
   // Sync virtual scroll ranges to 0 when pagination, search, or limits change
   useEffect(() => {
@@ -1103,6 +1104,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   useEffect(() => {
     setIncomingStartIndex(0);
   }, [incomingPage, incomingLimit, incomingSearch]);
+
+
 
   const handleSalesScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const scrollTop = e.currentTarget.scrollTop;
@@ -1128,12 +1131,21 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     }
   };
 
+  const handleInventoryScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    const scrollTop = e.currentTarget.scrollTop;
+    const computedIndex = Math.max(0, Math.floor(scrollTop / ROW_HEIGHT) - 5);
+    if (Math.abs(computedIndex - inventoryStartIndex) >= 3 || computedIndex === 0) {
+      setInventoryStartIndex(computedIndex);
+    }
+  };
+
   const [editProductId, setEditProductId] = useState<string | null>(null);
 
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
   const [editSaleId, setEditSaleId] = useState<string | null>(null);
   const [saleForm, setSaleForm] = useState<Partial<Sale>>({});
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
+  const [saleDSToDelete, setSaleDSToDelete] = useState<SaleDS | null>(null);
 
   const [isIncomingModalOpen, setIsIncomingModalOpen] = useState(false);
   const [incomingForm, setIncomingForm] = useState<Partial<IncomingGood>>({
@@ -1181,6 +1193,18 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       setSaleToDelete(null);
     } catch (err) {
       alert("Gagal menghapus transaksi");
+    }
+  };
+
+  const handleDeleteDSConfirm = async () => {
+    if (!saleDSToDelete) return;
+    try {
+      setSalesDS((prev) => prev.filter((item) => item.id !== saleDSToDelete.id));
+      await deleteSaleDS(saleDSToDelete);
+      setSaleDSToDelete(null);
+    } catch (err) {
+      console.error("Delete error:", err);
+      alert("Gagal menghapus transaksi dropship.");
     }
   };
 
@@ -1509,6 +1533,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     setSortConfig({ key, direction });
   };
 
+  useEffect(() => {
+    setInventoryStartIndex(0);
+  }, [searchInventory, sortConfig]);
+
   const sortedAndFilteredProducts = React.useMemo(() => {
     const { incoming, sales: salesMap } = productStats;
     let baseProducts = products.map((p) => {
@@ -1644,6 +1672,16 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       bottomSpacerHeight: Math.max(0, (paginatedIncomingGoods.length - end) * ROW_HEIGHT)
     };
   }, [paginatedIncomingGoods, incomingStartIndex]);
+
+  const virtualizedProducts = React.useMemo(() => {
+    const start = Math.min(inventoryStartIndex, Math.max(0, sortedAndFilteredProducts.length - VISIBLE_ROWS_COUNT));
+    const end = Math.min(sortedAndFilteredProducts.length, start + VISIBLE_ROWS_COUNT + 10);
+    return {
+      slice: sortedAndFilteredProducts.slice(start, end),
+      topSpacerHeight: start * ROW_HEIGHT,
+      bottomSpacerHeight: Math.max(0, (sortedAndFilteredProducts.length - end) * ROW_HEIGHT)
+    };
+  }, [sortedAndFilteredProducts, inventoryStartIndex]);
 
   interface DraftSale {
     id: string;
@@ -2350,6 +2388,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const productFileInput = useRef<HTMLInputElement>(null);
   const saleFileInput = useRef<HTMLInputElement>(null);
   const incomingFileInput = useRef<HTMLInputElement>(null);
+  const salesDSFileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const authStat = localStorage.getItem("isAdminLoggedIn");
@@ -2814,6 +2853,107 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
         setImportProgress(null);
         alert(`Berhasil import ${count} riwayat penjualan!`);
         if (saleFileInput.current) saleFileInput.current.value = "";
+      },
+    });
+  };
+
+  const handleImportSalesDS = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const data = results.data as any[];
+        const totalItems = data.length;
+        if (totalItems === 0) {
+          alert("Tidak ada data yang valid untuk diimport.");
+          return;
+        }
+
+        setImportProgress({ current: 0, total: totalItems });
+        let count = 0;
+
+        const parseNum = (val: any) => {
+          if (!val && val !== 0) return 0;
+          if (typeof val === "number") return val;
+          let str = String(val).trim();
+          str = str.replace(/[.,](\d{3})\b/g, "$1");
+          const clean = str.replace(/[^0-9.-]+/g, "");
+          return Number(clean) || 0;
+        };
+
+        const getVal = (item: any, ...keys: string[]) => {
+          for (const key of keys) {
+            if (
+              item[key] !== undefined &&
+              item[key] !== null &&
+              String(item[key]).trim() !== ""
+            )
+              return item[key];
+            const foundKey = Object.keys(item).find(
+              (k) => k.trim().toLowerCase() === key.toLowerCase(),
+            );
+            if (
+              foundKey &&
+              item[foundKey] !== undefined &&
+              item[foundKey] !== null &&
+              String(item[foundKey]).trim() !== ""
+            )
+              return item[foundKey];
+          }
+          return undefined;
+        };
+
+        for (const [index, item] of data.entries()) {
+          const kodeSupplier = String(getVal(item, "Kode Supplier", "ID Supplier", "kodeSupplier") || "").trim();
+          const tanggalOrder = String(getVal(item, "Tgl. Order", "Tgl Order", "Tanggal Order", "Tanggal", "tanggalOrder") || "").trim();
+          const channel = String(getVal(item, "Channel", "Kurir", "channel") || "").trim();
+          const noPesanan = String(getVal(item, "No. Pesanan", "No Pesanan", "No. Pesanan / Alamat", "noPesanan") || "").trim();
+          const noResi = String(getVal(item, "No Resi", "Resi", "No. Resi", "noResi") || "").trim();
+          const namaPelanggan = String(getVal(item, "Nama Pelanggan", "Pelanggan", "Buyer", "namaPelanggan") || "").trim();
+          const alamatPelanggan = String(getVal(item, "Alamat Pelanggan", "Alamat", "Address", "alamatPelanggan") || "").trim();
+          const namaProduk = String(getVal(item, "Nama Produk", "Produk", "Barang", "namaProduk") || "Imported DS Sale").trim();
+          
+          const qty = parseNum(getVal(item, "Qty", "Jumlah", "qty")) || 1;
+          const hpp = parseNum(getVal(item, "HPP", "Harga Modal", "hpp")) || 0;
+          const totalPenjualan = parseNum(getVal(item, "Total Penjualan", "Omset", "Total Harga", "totalPenjualan")) || 0;
+          const ongkosKirim = parseNum(getVal(item, "Ongkos Kirim", "Ongkir", "ongkosKirim")) || 0;
+          
+          let laba = parseNum(getVal(item, "Laba", "Profit", "laba"));
+          if (!laba && laba !== 0) {
+            laba = totalPenjualan - (hpp * qty) - ongkosKirim;
+          }
+
+          try {
+            const baseDate = parseIndonesianDate(tanggalOrder);
+            const offsetDate = new Date(baseDate.getTime() + index * 1000);
+            
+            await addSaleDSRecord({
+              kodeSupplier,
+              tanggalOrder: tanggalOrder || offsetDate.toLocaleDateString("id-ID"),
+              channel,
+              noPesanan,
+              noResi,
+              namaPelanggan,
+              alamatPelanggan,
+              namaProduk,
+              qty,
+              hpp,
+              totalPenjualan,
+              ongkosKirim,
+              laba,
+            });
+            count++;
+          } catch (err) {
+            console.error("SaleDS import err", err);
+          }
+          setImportProgress((p) => ({ ...p, current: index + 1 }));
+        }
+        setImportProgress(null);
+        alert(`Berhasil import ${count} riwayat penjualan DS!`);
+        if (salesDSFileInput.current) salesDSFileInput.current.value = "";
       },
     });
   };
@@ -4157,10 +4297,16 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                     </button>
                   </div>
                 </div>
-                <div className="flex-1 overflow-x-auto overflow-y-auto min-w-0">
+                <div 
+                  className="flex-1 overflow-x-auto overflow-y-auto min-w-0 max-h-[600px] relative scrollbar-thin"
+                  onScroll={handleInventoryScroll}
+                >
                   <table className="w-full text-left whitespace-nowrap min-w-[1200px] border-collapse table-auto">
                     <thead className="bg-slate-900 text-white sticky top-0 z-10 text-xs uppercase tracking-widest font-black">
                       <tr>
+                        <th className="px-6 py-4 text-xs font-black text-slate-100 uppercase tracking-widest text-center border-r border-slate-700 w-[80px]">
+                          AKSI
+                        </th>
                         <SortableHeader
                           label="Nama Barang"
                           sortKey="namaBarang"
@@ -4243,9 +4389,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                           onSort={handleSort}
                           align="center"
                         />
-                        <th className="px-6 py-4 text-xs font-black text-slate-100 uppercase tracking-widest text-center">
-                          AKSI
-                        </th>
                       </tr>
                     </thead>
                     <tbody className="bg-white">
@@ -4255,74 +4398,87 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                              className="px-6 py-4 pt-10 text-xs text-center text-slate-400 font-black uppercase tracking-widest"
                              colSpan={13}
                           >
-                            Belum ada data barang.
+                             Belum ada data barang.
                           </td>
                         </tr>
                       ) : (
-                        sortedAndFilteredProducts.map((p: any, idx) => {
-                          const isLowStock = p.stokSaatIni <= 0;
-                          const bgColor =
-                            idx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
-                          return (
-                            <tr
-                              key={p.id}
-                              className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}
-                            >
-                              <td className="px-6 py-4 text-sm font-bold text-slate-800 border-r border-slate-200">
-                                {p.namaBarang}
-                              </td>
-                              <td
-                                className={`px-6 py-4 text-sm text-center font-bold border-r border-slate-200 ${isLowStock ? "bg-rose-50 text-red-600" : "bg-indigo-50/30 text-indigo-600"}`}
-                              >
-                                {p.stokSaatIni}
-                              </td>
-                              <td className="px-6 py-4 text-xs font-black text-slate-900 border-r border-slate-200">
-                                {p.kodeBarang}
-                              </td>
-                              <td className="px-6 py-4 text-xs font-medium text-slate-500 border-r border-slate-200">
-                                {p.supplier || "-"}
-                              </td>
-                              <td className="px-6 py-4 text-sm font-bold text-slate-700 text-right font-mono border-r border-slate-200">
-                                {(p.hargaBeli || 0).toLocaleString("id-ID")}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-center font-mono text-slate-600 border-r border-slate-200">
-                                {p.stokAwal}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-center font-mono text-slate-600 border-r border-slate-200 font-bold">
-                                {p.stokBarang}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-center font-bold text-slate-600 border-r border-slate-200">
-                                {p.terjual}
-                              </td>
-                              <td className="px-6 py-4 text-xs font-bold font-mono text-slate-600 border-r border-slate-200 text-center">
-                                {p.groupName || "-"}
-                              </td>
-                              <td className="px-6 py-4 text-xs border-r border-slate-200 text-center">
-                                {p.color ? (
-                                  <span className="px-2 py-1 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest italic">
-                                    {p.color}
-                                  </span>
-                                ) : (
-                                  "-"
-                                )}
-                              </td>
-                              <td className="px-6 py-4 text-xs font-mono text-slate-600 border-r border-slate-200 text-center">
-                                {p.bc || "-"}
-                              </td>
-                              <td className="px-6 py-4 text-xs text-center font-mono text-slate-600 border-r border-slate-200">
-                                {p.kadarAir || "-"}
-                              </td>
-                              <td className="px-6 py-4 text-center">
-                                <button
-                                  onClick={() => handleEditProduct(p)}
-                                  className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 border-2 border-transparent hover:border-slate-900 transition-all opacity-0 group-hover:opacity-100 shadow-none hover:shadow-[2px_2px_0px_0px_#0f172a]"
-                                >
-                                  <Pencil className="w-4 h-4" />
-                                </button>
-                              </td>
+                        <>
+                          {virtualizedProducts.topSpacerHeight > 0 && (
+                            <tr style={{ height: `${virtualizedProducts.topSpacerHeight}px` }}>
+                              <td colSpan={13} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedProducts.topSpacerHeight}px` }} />
                             </tr>
-                          );
-                        })
+                          )}
+                          {virtualizedProducts.slice.map((p: any, idx) => {
+                            const absoluteIdx = inventoryStartIndex + idx;
+                            const isLowStock = p.stokSaatIni <= 0;
+                            const bgColor =
+                              absoluteIdx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
+                            return (
+                              <tr
+                                key={p.id}
+                                className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}
+                              >
+                                <td className="px-6 py-4 text-center border-r border-slate-200">
+                                  <button
+                                    onClick={() => handleEditProduct(p)}
+                                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border-2 border-transparent hover:border-slate-900 transition-all sm:opacity-80 group-hover:opacity-100 shadow-none hover:shadow-[2px_2px_0px_0px_#0f172a]"
+                                  >
+                                    <Pencil className="w-4 h-4" />
+                                  </button>
+                                </td>
+                                <td className="px-6 py-4 text-sm font-bold text-slate-800 border-r border-slate-200">
+                                  {p.namaBarang}
+                                </td>
+                                <td
+                                  className={`px-6 py-4 text-sm text-center font-bold border-r border-slate-200 ${isLowStock ? "bg-rose-50 text-red-600" : "bg-indigo-50/30 text-indigo-600"}`}
+                                >
+                                  {p.stokSaatIni}
+                                </td>
+                                <td className="px-6 py-4 text-xs font-black text-slate-900 border-r border-slate-200">
+                                  {p.kodeBarang}
+                                </td>
+                                <td className="px-6 py-4 text-xs font-medium text-slate-500 border-r border-slate-200">
+                                  {p.supplier || "-"}
+                                </td>
+                                <td className="px-6 py-4 text-sm font-bold text-slate-700 text-right font-mono border-r border-slate-200">
+                                  {(p.hargaBeli || 0).toLocaleString("id-ID")}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-center font-mono text-slate-600 border-r border-slate-200">
+                                  {p.stokAwal}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-center font-mono text-slate-600 border-r border-slate-200 font-bold">
+                                  {p.stokBarang}
+                                </td>
+                                <td className="px-6 py-4 text-sm text-center font-bold text-slate-600 border-r border-slate-200">
+                                  {p.terjual}
+                                </td>
+                                <td className="px-6 py-4 text-xs font-bold font-mono text-slate-600 border-r border-slate-200 text-center">
+                                  {p.groupName || "-"}
+                                </td>
+                                <td className="px-6 py-4 text-xs border-r border-slate-200 text-center">
+                                  {p.color ? (
+                                    <span className="px-2 py-1 bg-slate-900 text-white text-[10px] font-black uppercase tracking-widest italic">
+                                      {p.color}
+                                    </span>
+                                  ) : (
+                                    "-"
+                                  )}
+                                </td>
+                                <td className="px-6 py-4 text-xs font-mono text-slate-600 border-r border-slate-200 text-center">
+                                  {p.bc || "-"}
+                                </td>
+                                <td className="px-6 py-4 text-xs text-center font-mono text-slate-600">
+                                  {p.kadarAir || "-"}
+                                </td>
+                              </tr>
+                            );
+                          })}
+                          {virtualizedProducts.bottomSpacerHeight > 0 && (
+                            <tr style={{ height: `${virtualizedProducts.bottomSpacerHeight}px` }}>
+                              <td colSpan={13} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedProducts.bottomSpacerHeight}px` }} />
+                            </tr>
+                          )}
+                        </>
                       )}
                     </tbody>
                   </table>
@@ -4718,20 +4874,13 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                                   </td>
                                   <td className="px-3 py-4 text-center">
                                     <button
-                                      onClick={async (e) => {
+                                      onClick={(e) => {
                                         e.stopPropagation();
                                         if (!s.id) {
                                           alert("ID penjualan tidak ditemukan!");
                                           return;
                                         }
-                                        if (confirm("Hapus transaksi dropship ini?")) {
-                                          try {
-                                            await deleteSaleDS(s);
-                                          } catch (err) {
-                                            console.error("Delete error:", err);
-                                            alert("Gagal menghapus.");
-                                          }
-                                        }
+                                        setSaleDSToDelete(s);
                                       }}
                                       className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-50 border border-transparent hover:border-slate-300 transition-all pointer-events-auto"
                                       title="Hapus DS"
@@ -5562,6 +5711,34 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                   <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-12 border-b-2 border-slate-900 border-dashed">
                     <div className="flex-1">
                       <h3 className="text-lg font-black text-slate-900 flex items-center gap-2 mb-2 uppercase tracking-widest">
+                        <UploadCloud className="w-5 h-5" /> IMPORT DATA PENJUALAN DS
+                      </h3>
+                      <p className="text-sm font-medium text-slate-600">
+                        Upload riwayat transaksi dropship (DS) untuk sinkronisasi
+                        database penjualan DS.
+                      </p>
+                    </div>
+                    <div>
+                      <input
+                        type="file"
+                        accept=".csv"
+                        ref={salesDSFileInput}
+                        onChange={handleImportSalesDS}
+                        className="hidden"
+                        id="csv-upload-sales-ds-settings"
+                      />
+                      <label
+                        htmlFor="csv-upload-sales-ds-settings"
+                        className="cursor-pointer inline-block text-center px-8 py-4 bg-indigo-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center gap-2"
+                      >
+                        <UploadCloud className="w-4 h-4" /> IMPORT PENJUALAN DS
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-12 border-b-2 border-slate-900 border-dashed">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-black text-slate-900 flex items-center gap-2 mb-2 uppercase tracking-widest">
                         <UploadCloud className="w-5 h-5" /> IMPORT DATA BARANG
                         MASUK
                       </h3>
@@ -5654,6 +5831,55 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                   </button>
                   <button
                     onClick={handleDeleteConfirm}
+                    className="flex-1 py-4 bg-rose-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
+                  >
+                    YA, HAPUS
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* SALES DS DELETE CONFIRM MODAL */}
+          {saleDSToDelete && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
+              <div className="bg-white border-4 border-slate-900 w-full max-w-md p-8 shadow-[16px_16px_0px_0px_#0f172a] flex flex-col gap-8">
+                <div>
+                  <h3 className="text-2xl font-black text-rose-600 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                    HAPUS TRANSAKSI DS?
+                  </h3>
+                  <div className="p-4 bg-rose-50 border-2 border-rose-200 text-slate-900 font-bold text-sm space-y-4">
+                    <p>Apakah Anda yakin ingin menghapus transaksi dropship ini?</p>
+                    <p className="text-xs font-medium text-slate-600">
+                      Produk:{" "}
+                      <span className="font-black">
+                        {saleDSToDelete.namaProduk}
+                      </span>
+                      <br />
+                      No Pesanan:{" "}
+                      <span className="font-black">
+                        {saleDSToDelete.noPesanan}
+                      </span>
+                      <br />
+                      Pelanggan:{" "}
+                      <span className="font-black">
+                        {saleDSToDelete.namaPelanggan}
+                      </span>
+                      <br />
+                      Qty:{" "}
+                      <span className="font-black">{saleDSToDelete.qty}</span>
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-4 pt-4 border-t-2 border-slate-900">
+                  <button
+                    onClick={() => setSaleDSToDelete(null)}
+                    className="flex-1 py-4 bg-white border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
+                  >
+                    BATAL
+                  </button>
+                  <button
+                    onClick={handleDeleteDSConfirm}
                     className="flex-1 py-4 bg-rose-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
                   >
                     YA, HAPUS

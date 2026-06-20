@@ -140,6 +140,22 @@ export async function fetchApi(path: string, options?: RequestInit) {
   return res.json();
 }
 
+// Registry to store the runFetch callbacks for all active smart subscribers
+const subscribersRegistry = new Map<string, Set<() => void>>();
+
+export function triggerFetch(path: string) {
+  const listeners = subscribersRegistry.get(path);
+  if (listeners) {
+    listeners.forEach(runFetch => {
+      try {
+        runFetch();
+      } catch (e) {
+        console.error(`Error triggering subscriber for ${path}:`, e);
+      }
+    });
+  }
+}
+
 // Smart subscription creator to save background API requests, optimize memory queries, and respect tab visibility states
 function createSmartSubscriber<T>(path: string, callback: (data: T) => void, intervalMs = 60000, defaultValue?: T) {
   let active = true;
@@ -154,6 +170,11 @@ function createSmartSubscriber<T>(path: string, callback: (data: T) => void, int
       })
       .catch(console.error);
   };
+
+  if (!subscribersRegistry.has(path)) {
+    subscribersRegistry.set(path, new Set());
+  }
+  subscribersRegistry.get(path)!.add(runFetch);
 
   // Initial fetch immediate
   fetchApi(path).then(data => {
@@ -176,6 +197,7 @@ function createSmartSubscriber<T>(path: string, callback: (data: T) => void, int
     active = false;
     clearInterval(interval);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
+    subscribersRegistry.get(path)?.delete(runFetch);
   };
 }
 
@@ -203,6 +225,7 @@ export async function upsertProduct(product: Omit<Product, 'createdAt' | 'update
     id = res.id;
   }
   queryClient.invalidateQueries({ queryKey: ["products"] });
+  triggerFetch('/api/products');
   return id;
 }
 
@@ -219,6 +242,8 @@ export async function processSale(product: Product, qty: number, additionalField
     }),
   });
   queryClient.invalidateQueries({ queryKey: ["sales"] });
+  triggerFetch('/api/sales');
+  triggerFetch('/api/products');
 }
 
 export function subscribeToIncomingGoods(callback: (goods: IncomingGood[]) => void) {
@@ -231,6 +256,8 @@ export async function addIncomingGood(good: Omit<IncomingGood, 'id'>) {
     body: JSON.stringify(good),
   });
   queryClient.invalidateQueries({ queryKey: ["incomingGoods"] });
+  triggerFetch('/api/incoming-goods');
+  triggerFetch('/api/products');
 }
 
 export function subscribeToSalesDS(callback: (salesDS: SaleDS[]) => void) {
@@ -243,6 +270,7 @@ export async function addSaleDSRecord(sale: Omit<SaleDS, 'id' | 'tanggal'>) {
     body: JSON.stringify(sale),
   });
   queryClient.invalidateQueries({ queryKey: ["salesDS"] });
+  triggerFetch('/api/sales-ds');
 }
 
 export function subscribeToIklan(callback: (iklanList: Iklan[]) => void) {
@@ -254,6 +282,7 @@ export async function addIklanRecord(iklan: Omit<Iklan, 'id' | 'createdAt'>) {
     method: 'POST',
     body: JSON.stringify(iklan),
   });
+  triggerFetch('/api/iklan');
 }
 
 export function subscribeToWeeklySales(callback: (weeklySales: WeeklySale[]) => void) {
@@ -265,6 +294,7 @@ export async function addWeeklySaleRecord(weeklySale: Omit<WeeklySale, 'id' | 'c
     method: 'POST',
     body: JSON.stringify(weeklySale),
   });
+  triggerFetch('/api/weekly-sales');
 }
 
 export function subscribeToBanners(callback: (banners: StorefrontBanner[]) => void) {
@@ -290,27 +320,35 @@ export async function updateBranding(settings: BrandingSettings) {
     method: 'POST',
     body: JSON.stringify(settings),
   });
+  triggerFetch('/api/settings/branding');
 }
 
 export async function deleteAllProducts() {
   await fetchApi('/api/products', { method: 'DELETE' });
   queryClient.invalidateQueries({ queryKey: ["products"] });
+  triggerFetch('/api/products');
 }
 
 export async function deleteAllSales() {
   await fetchApi('/api/sales', { method: 'DELETE' });
   queryClient.invalidateQueries({ queryKey: ["sales"] });
+  triggerFetch('/api/sales');
+  triggerFetch('/api/products');
 }
 
 export async function deleteAllIncomingGoods() {
   await fetchApi('/api/incoming-goods', { method: 'DELETE' });
   queryClient.invalidateQueries({ queryKey: ["incomingGoods"] });
+  triggerFetch('/api/incoming-goods');
+  triggerFetch('/api/products');
 }
 
 export async function deleteSale(sale: Sale) {
   if (sale.id) {
     await fetchApi(`/api/sales/${sale.id}`, { method: 'DELETE' });
     queryClient.invalidateQueries({ queryKey: ["sales"] });
+    triggerFetch('/api/sales');
+    triggerFetch('/api/products');
   }
 }
 
@@ -321,6 +359,8 @@ export async function updateSale(sale: Sale) {
       body: JSON.stringify(sale),
     });
     queryClient.invalidateQueries({ queryKey: ["sales"] });
+    triggerFetch('/api/sales');
+    triggerFetch('/api/products');
   }
 }
 
@@ -330,12 +370,16 @@ export async function addSaleRecord(kodeBarang: string, namaBarang: string, qty:
     body: JSON.stringify({ kodeBarang, namaBarang, qty, totalHarga, ...additionalFields }),
   });
   queryClient.invalidateQueries({ queryKey: ["sales"] });
+  triggerFetch('/api/sales');
+  triggerFetch('/api/products');
 }
 
 export async function deleteIncomingGood(good: IncomingGood) {
   if (good.id) {
     await fetchApi(`/api/incoming-goods/${good.id}`, { method: 'DELETE' });
     queryClient.invalidateQueries({ queryKey: ["incomingGoods"] });
+    triggerFetch('/api/incoming-goods');
+    triggerFetch('/api/products');
   }
 }
 
@@ -343,6 +387,7 @@ export async function deleteSaleDS(sale: SaleDS) {
   if (sale.id) {
     await fetchApi(`/api/sales-ds/${sale.id}`, { method: 'DELETE' });
     queryClient.invalidateQueries({ queryKey: ["salesDS"] });
+    triggerFetch('/api/sales-ds');
   }
 }
 
@@ -353,42 +398,58 @@ export async function updateSaleDS(sale: SaleDS) {
       body: JSON.stringify(sale),
     });
     queryClient.invalidateQueries({ queryKey: ["salesDS"] });
+    triggerFetch('/api/sales-ds');
   }
 }
 
 export async function deleteAllSalesDS() {
   await fetchApi('/api/sales-ds', { method: 'DELETE' });
   queryClient.invalidateQueries({ queryKey: ["salesDS"] });
+  triggerFetch('/api/sales-ds');
 }
 
 export async function updateIklan(iklan: Iklan) {
-  if (iklan.id) await fetchApi(`/api/iklan/${iklan.id}`, {
-    method: 'PUT',
-    body: JSON.stringify(iklan),
-  });
+  if (iklan.id) {
+    await fetchApi(`/api/iklan/${iklan.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(iklan),
+    });
+    triggerFetch('/api/iklan');
+  }
 }
 
 export async function deleteIklan(iklan: Iklan) {
-  if (iklan.id) await fetchApi(`/api/iklan/${iklan.id}`, { method: 'DELETE' });
+  if (iklan.id) {
+    await fetchApi(`/api/iklan/${iklan.id}`, { method: 'DELETE' });
+    triggerFetch('/api/iklan');
+  }
 }
 
 export async function deleteAllIklan() {
   await fetchApi('/api/iklan', { method: 'DELETE' });
+  triggerFetch('/api/iklan');
 }
 
 export async function updateWeeklySale(weeklySale: WeeklySale) {
-  if (weeklySale.id) await fetchApi(`/api/weekly-sales/${weeklySale.id}`, {
-    method: 'PUT',
-    body: JSON.stringify(weeklySale),
-  });
+  if (weeklySale.id) {
+    await fetchApi(`/api/weekly-sales/${weeklySale.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(weeklySale),
+    });
+    triggerFetch('/api/weekly-sales');
+  }
 }
 
 export async function deleteWeeklySale(weeklySale: WeeklySale) {
-  if (weeklySale.id) await fetchApi(`/api/weekly-sales/${weeklySale.id}`, { method: 'DELETE' });
+  if (weeklySale.id) {
+    await fetchApi(`/api/weekly-sales/${weeklySale.id}`, { method: 'DELETE' });
+    triggerFetch('/api/weekly-sales');
+  }
 }
 
 export async function deleteAllWeeklySales() {
   await fetchApi('/api/weekly-sales', { method: 'DELETE' });
+  triggerFetch('/api/weekly-sales');
 }
 
 export async function addBanner(banner: any) {
@@ -396,10 +457,12 @@ export async function addBanner(banner: any) {
     method: 'POST',
     body: JSON.stringify(banner),
   });
+  triggerFetch('/api/banners');
 }
 
 export async function deleteBanner(id: string) {
   await fetchApi(`/api/banners/${id}`, { method: 'DELETE' });
+  triggerFetch('/api/banners');
 }
 
 export function subscribeToReviews(callback: (reviews: Review[]) => void) {
@@ -411,10 +474,12 @@ export async function addReview(review: Omit<Review, 'id' | 'createdAt'>) {
     method: 'POST',
     body: JSON.stringify(review),
   });
+  triggerFetch('/api/reviews');
 }
 
 export async function deleteReview(id: string) {
   await fetchApi(`/api/reviews/${id}`, { method: 'DELETE' });
+  triggerFetch('/api/reviews');
 }
 
 export async function updateReview(review: Review) {
@@ -422,4 +487,5 @@ export async function updateReview(review: Review) {
     method: 'PUT',
     body: JSON.stringify(review),
   });
+  triggerFetch('/api/reviews');
 }
