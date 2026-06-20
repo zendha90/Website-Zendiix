@@ -33,7 +33,9 @@ import {
   AlertTriangle,
   Database,
   Copy,
-  ExternalLink
+  ExternalLink,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
 import {
   subscribeToProducts,
@@ -136,26 +138,96 @@ const parseToDate = (tStr: any): Date | null => {
   if (tStr instanceof Date) return tStr;
   const sStr = String(tStr).trim();
   if (!sStr) return null;
-  
-  // Try parsing DD/MM/YYYY or DD-MM-YYYY
-  const parts = sStr.split(/[-/]/);
-  if (parts.length === 3) {
-    // Determine if DD/MM/YYYY or YYYY/MM/DD
-    if (parts[2].length === 4) {
-      const day = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      const year = parseInt(parts[2], 10);
-      return new Date(year, month, day);
-    } else if (parts[0].length === 4) {
-      const year = parseInt(parts[0], 10);
-      const month = parseInt(parts[1], 10) - 1;
-      const day = parseInt(parts[2], 10);
-      return new Date(year, month, day);
+
+  const cleanStr = sStr.replace(/\s+/g, ' ');
+
+  const indonesianMonths: { [key: string]: number } = {
+    januari: 0, jan: 0,
+    februari: 1, feb: 1,
+    maret: 2, mar: 2,
+    april: 3, apr: 3,
+    mei: 4, may: 4,
+    juni: 5, jun: 5,
+    juli: 6, jul: 6,
+    agustus: 7, agt: 7, agst: 7, agu: 7,
+    oktober: 9, okt: 9,
+    september: 8, sep: 8,
+    november: 10, nov: 10,
+    desember: 11, des: 11
+  };
+
+  // 1. Check space separated "DD Month YYYY" (e.g. "15 Mei 2026")
+  const spaceParts = cleanStr.split(' ');
+  if (spaceParts.length === 3) {
+    const dStr = spaceParts[0].trim();
+    const mStr = spaceParts[1].trim().toLowerCase();
+    const yStr = spaceParts[2].trim();
+    
+    let monthIdx = -1;
+    if (indonesianMonths[mStr] !== undefined) {
+      monthIdx = indonesianMonths[mStr];
+    } else {
+      const mInt = parseInt(mStr, 10);
+      if (!isNaN(mInt)) monthIdx = mInt - 1;
+    }
+
+    if (monthIdx >= 0 && monthIdx <= 11) {
+      const day = parseInt(dStr, 10);
+      const year = parseInt(yStr, 10);
+      if (!isNaN(day) && !isNaN(year)) {
+        if (year > 999) {
+          return new Date(year, monthIdx, day);
+        } else if (day > 999) {
+          return new Date(day, monthIdx, year);
+        }
+      }
     }
   }
-  // Fallback standard Date parsing
-  const d = new Date(sStr);
-  return isNaN(d.getTime()) ? null : d;
+
+  // 2. Check dash/slash/dot separated (e.g. "15-Mei-2026" or "15/05/2026")
+  const parts = cleanStr.split(/[-/.]/);
+  if (parts.length === 3) {
+    const p0 = parts[0].trim();
+    const p1 = parts[1].trim().toLowerCase();
+    const p2 = parts[2].trim();
+
+    let monthIdx = -1;
+    if (indonesianMonths[p1] !== undefined) {
+      monthIdx = indonesianMonths[p1];
+    } else {
+      const mInt = parseInt(p1, 10);
+      if (!isNaN(mInt)) monthIdx = mInt - 1;
+    }
+
+    if (monthIdx >= 0 && monthIdx <= 11) {
+      const day = parseInt(p0, 10);
+      const year = parseInt(p2, 10);
+      if (!isNaN(day) && !isNaN(year)) {
+        if (year > 999) {
+          return new Date(year, monthIdx, day);
+        } else if (day > 999) {
+          return new Date(day, monthIdx, year);
+        }
+      }
+    }
+  }
+
+  // 3. Fallback standard Date parsing
+  const d = new Date(cleanStr);
+  if (!isNaN(d.getTime())) return d;
+
+  // 4. Fallback Indonesian regex match if standard parse fails
+  const matches = cleanStr.toLowerCase().match(/^(\d{1,2})\s+([a-z]+)\s+(\d{4})/i);
+  if (matches) {
+    const day = parseInt(matches[1], 10);
+    const monthName = matches[2];
+    const year = parseInt(matches[3], 10);
+    if (indonesianMonths[monthName] !== undefined) {
+      return new Date(year, indonesianMonths[monthName], day);
+    }
+  }
+
+  return null;
 };
 
 interface WeekDef {
@@ -934,6 +1006,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [databaseSubTab, setDatabaseSubTab] = useState<"regular" | "dropship">("regular");
   const [searchIklanQuery, setSearchIklanQuery] = useState("");
+  const [showFullIklan, setShowFullIklan] = useState(false);
+  const [iklanDisplayLimit, setIklanDisplayLimit] = useState(5);
   const [selectedReportYear, setSelectedReportYear] = useState<number>(() => new Date().getFullYear());
   const [isIklanModalOpen, setIsIklanModalOpen] = useState(false);
   const [editingIklan, setEditingIklan] = useState<Partial<Iklan>>({});
@@ -1730,7 +1804,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     // Help clean up numeric strings
     const parseIndoNumber = (val: string) => {
       if (!val) return 0;
-      const clean = val.replace(/\./g, "").replace(/,/g, ".").trim();
+      // Remove Rp, space, and thousand separator (.)
+      let clean = val.replace(/Rp/i, "").replace(/\s/g, "").replace(/\./g, "").replace(/,/g, ".").trim();
       const num = Number(clean);
       return isNaN(num) ? 0 : num;
     };
@@ -1979,11 +2054,12 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     });
 
     if (!result.data || result.data.length === 0) return;
-
+ 
     // Help clean up numeric strings
     const parseIndoNumber = (val: string) => {
       if (!val) return 0;
-      const clean = val.toString().replace(/\./g, "").replace(/,/g, ".").trim();
+      // Remove Rp, space, and thousand separator (.)
+      let clean = val.toString().replace(/Rp/i, "").replace(/\s/g, "").replace(/\./g, "").replace(/,/g, ".").trim();
       const num = Number(clean);
       return isNaN(num) ? 0 : num;
     };
@@ -2389,6 +2465,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const saleFileInput = useRef<HTMLInputElement>(null);
   const incomingFileInput = useRef<HTMLInputElement>(null);
   const salesDSFileInput = useRef<HTMLInputElement>(null);
+  const iklanFileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     const authStat = localStorage.getItem("isAdminLoggedIn");
@@ -2854,6 +2931,60 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
         alert(`Berhasil import ${count} riwayat penjualan!`);
         if (saleFileInput.current) saleFileInput.current.value = "";
       },
+    });
+  };
+
+  const handleImportIklan = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const data = results.data as any[];
+        const totalItems = data.length;
+        if (totalItems === 0) {
+          alert("Tidak ada data yang valid untuk diimport.");
+          return;
+        }
+
+        setImportProgress({ current: 0, total: totalItems });
+        let count = 0;
+
+        const parsePrice = (val: any) => {
+          if (!val && val !== 0) return 0;
+          if (typeof val === "number") return val;
+          let str = String(val).trim();
+          str = str.replace(/[Rp\s.]/g, "");
+          str = str.replace(",", ".");
+          return Number(str) || 0;
+        };
+
+        for (const [index, item] of data.entries()) {
+          const tanggal = String(item["Tanggal"] || item["tanggal"] || "").trim();
+          const totalPembayaran = parsePrice(item["Total Pembayaran"] || item["TotalPembayaran"] || item["total_pembayaran"] || item["totalPembayaran"]);
+          const noPesanan = String(item["No.Pesanan"] || item["NoPesanan"] || item["no_pesanan"] || item["noPesanan"] || "").trim();
+
+          if (tanggal && totalPembayaran) {
+            try {
+              await addIklanRecord({
+                tanggal,
+                totalPembayaran,
+                noPesanan
+              });
+              count++;
+            } catch (err) {
+              console.error("Iklan import err", err);
+            }
+          }
+          setImportProgress({ current: index + 1, total: totalItems });
+        }
+
+        alert(`Berhasil mengimport ${count} data pengeluaran iklan!`);
+        setImportProgress({ current: 0, total: 0 });
+        if (iklanFileInput.current) iklanFileInput.current.value = "";
+      }
     });
   };
 
@@ -5232,45 +5363,80 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                       </tr>
                     </thead>
                     <tbody className="divide-y-2 divide-slate-100 bg-white">
-                      {iklanList
-                        .filter(iklan => 
-                          iklan.tanggal.toLowerCase().includes(searchIklanQuery.toLowerCase()) ||
-                          iklan.noPesanan?.toLowerCase().includes(searchIklanQuery.toLowerCase())
-                        )
-                        .map((iklan, index) => (
-                          <tr key={iklan.id} className="hover:bg-slate-50 transition-colors group">
-                            <td className="px-6 py-4 border-r border-slate-100 text-center font-mono font-bold text-slate-400 bg-slate-50/50">
-                              {index + 1}
-                            </td>
-                            <td className="px-6 py-4 border-r border-slate-100 font-bold text-slate-900">
-                              {iklan.tanggal}
-                            </td>
-                            <td className="px-6 py-4 border-r border-slate-100 text-right font-mono font-black text-emerald-700 text-sm">
-                              Rp {iklan.totalPembayaran.toLocaleString("id-ID")}
-                            </td>
-                            <td className="px-6 py-4 border-r border-slate-100 font-mono text-slate-500">
-                              {iklan.noPesanan || "-"}
-                            </td>
-                            <td className="px-6 py-4 text-center">
-                              <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={() => handleOpenIklanModal(iklan)}
-                                  className="p-2 bg-indigo-50 text-indigo-600 border-2 border-indigo-200 rounded hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all"
-                                  title="Edit"
-                                >
-                                  <Pencil className="w-3.5 h-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => setIklanToDelete(iklan)}
-                                  className="p-2 bg-rose-50 text-rose-600 border-2 border-rose-200 rounded hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all"
-                                  title="Hapus"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
+                      {(() => {
+                        const sortedFiltered = iklanList
+                          .slice()
+                          .sort((a, b) => {
+                            const da = parseToDate(a.tanggal) || new Date(0);
+                            const db = parseToDate(b.tanggal) || new Date(0);
+                            return db.getTime() - da.getTime();
+                          })
+                          .filter(iklan => 
+                            iklan.tanggal.toLowerCase().includes(searchIklanQuery.toLowerCase()) ||
+                            iklan.noPesanan?.toLowerCase().includes(searchIklanQuery.toLowerCase())
+                          );
+                        
+                        const displayList = showFullIklan ? sortedFiltered : sortedFiltered.slice(0, 5);
+                        
+                        return (
+                          <>
+                            {displayList.map((iklan, index) => (
+                              <tr key={iklan.id} className="hover:bg-slate-50 transition-colors group">
+                                <td className="px-6 py-4 border-r border-slate-100 text-center font-mono font-bold text-slate-400 bg-slate-50/50">
+                                  {index + 1}
+                                </td>
+                                <td className="px-6 py-4 border-r border-slate-100 font-bold text-slate-900">
+                                  {iklan.tanggal}
+                                </td>
+                                <td className="px-6 py-4 border-r border-slate-100 text-right font-mono font-black text-emerald-700 text-sm">
+                                  Rp {iklan.totalPembayaran.toLocaleString("id-ID")}
+                                </td>
+                                <td className="px-6 py-4 border-r border-slate-100 font-mono text-slate-500">
+                                  {iklan.noPesanan || "-"}
+                                </td>
+                                <td className="px-6 py-4 text-center">
+                                  <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button
+                                      onClick={() => handleOpenIklanModal(iklan)}
+                                      className="p-2 bg-indigo-50 text-indigo-600 border-2 border-indigo-200 rounded hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all"
+                                      title="Edit"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => setIklanToDelete(iklan)}
+                                      className="p-2 bg-rose-50 text-rose-600 border-2 border-rose-200 rounded hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all"
+                                      title="Hapus"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </td>
+                              </tr>
+                            ))}
+                            {sortedFiltered.length > 5 && (
+                              <tr>
+                                <td colSpan={5} className="p-0">
+                                  <button
+                                    onClick={() => setShowFullIklan(!showFullIklan)}
+                                    className="w-full py-4 bg-slate-50 hover:bg-slate-100 text-slate-600 font-black uppercase text-[10px] tracking-[0.2em] flex items-center justify-center gap-3 transition-colors border-t border-slate-200"
+                                  >
+                                    {showFullIklan ? (
+                                      <>
+                                        <ChevronUp className="w-4 h-4" /> SEMBUNYIKAN DATA LAMA
+                                      </>
+                                    ) : (
+                                      <>
+                                        <ChevronDown className="w-4 h-4" /> TAMPILKAN SEMUA DATA ({sortedFiltered.length} BARIS)
+                                      </>
+                                    )}
+                                  </button>
+                                </td>
+                              </tr>
+                            )}
+                          </>
+                        );
+                      })()}
                       {iklanList.length === 0 && (
                         <tr>
                           <td colSpan={5} className="px-6 py-20 text-center">
@@ -5761,6 +5927,34 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                         className="cursor-pointer inline-block text-center px-8 py-4 bg-indigo-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center gap-2"
                       >
                         <UploadCloud className="w-4 h-4" /> IMPORT BARANG MASUK
+                      </label>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-12 border-b-2 border-slate-900 border-dashed">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-black text-slate-900 flex items-center gap-2 mb-2 uppercase tracking-widest">
+                        <UploadCloud className="w-5 h-5" /> IMPORT PENGELUARAN IKLAN
+                      </h3>
+                      <p className="text-sm font-medium text-slate-600">
+                        Upload data pengeluaran iklan (Facebook/TikTok/Google Ads) 
+                        untuk evaluasi harian/mingguan.
+                      </p>
+                    </div>
+                    <div>
+                      <input
+                        type="file"
+                        accept=".csv"
+                        ref={iklanFileInput}
+                        onChange={handleImportIklan}
+                        className="hidden"
+                        id="csv-upload-iklan-settings"
+                      />
+                      <label
+                        htmlFor="csv-upload-iklan-settings"
+                        className="cursor-pointer inline-block text-center px-8 py-4 bg-indigo-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center gap-2"
+                      >
+                        <UploadCloud className="w-4 h-4" /> IMPORT IKLAN
                       </label>
                     </div>
                   </div>
