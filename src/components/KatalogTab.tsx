@@ -307,7 +307,15 @@ export function KatalogTab({ products }: KatalogTabProps) {
       // Update ALL variants in this series
       const updatePromises = editingSeries.allProducts.map(prod => {
         const customColorImg = colorImages[prod.color || ""];
-        const finalImg = customColorImg || imageUrl; // Fallback to main series image URL
+        
+        // Merge logic: ensure main series photos are always included alongside color-specific photos
+        const colorParts = splitImageUrls(customColorImg);
+        const seriesParts = splitImageUrls(imageUrl);
+        
+        // Filter out any overlap to prevent duplicates, then combine (color-specific photos first)
+        const uniqueColorParts = colorParts.filter(p => !seriesParts.includes(p));
+        const finalImg = [...uniqueColorParts, ...seriesParts].filter(Boolean).join(", ");
+
         return upsertProduct({
           ...prod,
           imageUrl: finalImg || undefined,
@@ -423,7 +431,7 @@ export function KatalogTab({ products }: KatalogTabProps) {
                           {/* Image preview */}
                           {rp.imageUrl ? (
                             <img 
-                              src={rp.imageUrl} 
+                              src={splitImageUrls(rp.imageUrl)[0]} 
                               alt={s.seriesName} 
                               className="w-12 h-12 rounded-lg border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_#0f172a] shrink-0" 
                               referrerPolicy="no-referrer"
