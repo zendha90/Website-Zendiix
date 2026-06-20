@@ -18,6 +18,9 @@ import {
   Settings,
   Download,
   Trash2,
+  Table,
+  RefreshCcw,
+  Wrench,
   ShoppingBag,
   ArrowRight,
   Undo,
@@ -359,7 +362,24 @@ function CatalogPage() {
   );
 }
 
-function parseFormatAkumaucantik(text: string) {
+function applyGlobalReplacements(name: string, replacements: { old: string; new: string }[]) {
+  const sortedReps = [...replacements]
+    .filter(r => r.old.trim() !== "")
+    .sort((a, b) => b.old.length - a.old.length);
+
+  let result = name;
+  for (const rep of sortedReps) {
+    if (result.toUpperCase().includes(rep.old.toUpperCase())) {
+      // Escape special chars and replace globally (case-insensitive)
+      const escapedOld = rep.old.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escapedOld, "gi");
+      result = result.replace(regex, rep.new);
+    }
+  }
+  return result.trim();
+}
+
+function parseFormatAkumaucantik(text: string, replacements: { old: string; new: string }[]) {
   const lines = text.split(/\r?\n/);
   const multiplierKeywords = /(maki|matake|emma|veronica|clear)/i;
   const list: { rawName: string; qty: number }[] = [];
@@ -385,7 +405,7 @@ function parseFormatAkumaucantik(text: string) {
 
     let qty = parseInt(match[1], 10);
     const unit = match[2].toLowerCase();
-    const name = match[3].trim();
+    let name = match[3].trim();
 
     // 6. Multiplier 2x KHUSUS pasang/psg + keyword tertentu
     if (
@@ -395,12 +415,15 @@ function parseFormatAkumaucantik(text: string) {
       qty *= 2;
     }
 
+    // Apply replacements
+    name = applyGlobalReplacements(name, replacements);
+
     list.push({ rawName: name, qty });
   }
   return list;
 }
 
-function parseFormatKim(text: string) {
+function parseFormatKim(text: string, replacementsKim: { old: string; new: string }[], replacementsGlobal: { old: string; new: string }[]) {
   const lines = text.split(/\r?\n/);
   const list: { rawName: string; qty: number }[] = [];
   let currentProductName = "";
@@ -415,10 +438,18 @@ function parseFormatKim(text: string) {
       if (isNaN(qty)) qty = 1;
 
       if (currentProductName !== "") {
-        const finalName = currentProductName.trim();
+        let finalName = currentProductName.trim();
+        
+        // Apply multipliers
         if (finalName.toUpperCase().includes("TRAPZ")) {
           qty *= 2;
         }
+
+        // Apply KIM replacements first
+        finalName = applyGlobalReplacements(finalName, replacementsKim);
+        // Apply Global replacements second
+        finalName = applyGlobalReplacements(finalName, replacementsGlobal);
+
         list.push({ rawName: finalName, qty });
         currentProductName = "";
       }
@@ -439,13 +470,15 @@ function parseFormatKim(text: string) {
 
   // Add the last product if exists
   if (currentProductName !== "") {
-    list.push({ rawName: currentProductName.trim(), qty: 1 });
+    let finalName = applyGlobalReplacements(currentProductName, replacementsKim);
+    finalName = applyGlobalReplacements(finalName, replacementsGlobal);
+    list.push({ rawName: finalName, qty: 1 });
   }
 
   return list;
 }
 
-function parseFormatShopee(text: string) {
+function parseFormatShopee(text: string, replacements: { old: string; new: string }[]) {
   const lines = text.split(/\r?\n/);
   const list: { rawName: string; qty: number }[] = [];
 
@@ -488,8 +521,11 @@ function parseFormatShopee(text: string) {
         finalQty *= 2;
       }
 
+      let rawName = `${productName} Variasi: ${variation}`;
+      rawName = applyGlobalReplacements(rawName, replacements);
+
       list.push({
-        rawName: `${productName} Variasi: ${variation}`,
+        rawName: rawName,
         qty: finalQty,
       });
 
@@ -540,7 +576,7 @@ function parseFormatShopee(text: string) {
   return list;
 }
 
-function parseFormatSisse(text: string) {
+function parseFormatSisse(text: string, replacements: { old: string; new: string }[]) {
   const lines = text.split(/\r?\n/);
   const list: { rawName: string; qty: number }[] = [];
 
@@ -558,7 +594,8 @@ function parseFormatSisse(text: string) {
         const power = parseInt(match[2], 10);
         const qty = parseInt(match[3], 10);
         const minusValue = "-" + (power / 100).toFixed(2);
-        const finalName = `${name} ${minusValue}`;
+        let finalName = `${name} ${minusValue}`;
+        finalName = applyGlobalReplacements(finalName, replacements);
         list.push({ rawName: finalName, qty });
       }
     } else if (/^NORMAL/i.test(trimLine)) {
@@ -569,16 +606,16 @@ function parseFormatSisse(text: string) {
           .toLowerCase()
           .replace(/\b\w/g, (l) => l.toUpperCase());
         const qty = parseInt(match[2], 10);
-        const finalName = `${name} -0.00`;
+        let finalName = `${name} -0.00`;
+        finalName = applyGlobalReplacements(finalName, replacements);
         list.push({ rawName: finalName, qty });
       }
     }
   }
-
   return list;
 }
 
-function parseFormatAnna(text: string) {
+function parseFormatAnna(text: string, replacements: { old: string; new: string }[]) {
   const lines = text.split(/\r?\n/);
   const list: { rawName: string; qty: number }[] = [];
 
@@ -606,6 +643,8 @@ function parseFormatAnna(text: string) {
     const unit = match[2] ? match[2].toLowerCase() : "";
     let name = match[3].trim();
 
+    name = applyGlobalReplacements(name, replacements);
+
     list.push({ rawName: name, qty });
   }
 
@@ -616,50 +655,108 @@ function findAutoMatch(
   rawName: string,
   productList: Product[],
 ): Product | undefined {
-  const cleanRaw = rawName.toLowerCase().replace(/[\s\-_]+/g, "");
+  if (!rawName) return undefined;
+  
+  const cleanRaw = rawName.toLowerCase().trim();
+  const slugRaw = cleanRaw.replace(/[^a-z0-9]/g, "");
 
-  // 1. Precise check for matching code
-  let match = productList.find(
-    (p) =>
-      p.kodeBarang &&
-      cleanRaw.includes(p.kodeBarang.toLowerCase().replace(/[\s\-_]+/g, "")),
-  );
-  if (match) return match;
+  // 1. Priority: Exact match Code
+  const exactCodeMatch = productList.find(p => p.kodeBarang && p.kodeBarang.toLowerCase().trim() === cleanRaw);
+  if (exactCodeMatch) return exactCodeMatch;
 
-  // 2. Contains in code
-  match = productList.find(
-    (p) =>
-      p.kodeBarang &&
-      p.kodeBarang.length >= 3 &&
-      cleanRaw.includes(p.kodeBarang.toLowerCase()),
-  );
-  if (match) return match;
+  // 2. Priority: Exact match Name
+  const exactNameMatch = productList.find(p => p.namaBarang && p.namaBarang.toLowerCase().trim() === cleanRaw);
+  if (exactNameMatch) return exactNameMatch;
 
-  // 3. Match product name
-  match = productList.find(
-    (p) =>
-      p.namaBarang &&
-      cleanRaw.includes(p.namaBarang.toLowerCase().replace(/[\s\-_]+/g, "")),
-  );
-  if (match) return match;
+  // 3. Priority: Slug match
+  const slugMatch = productList.find(p => {
+    const pSlugCode = (p.kodeBarang || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    const pSlugName = (p.namaBarang || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+    return (pSlugCode && pSlugCode === slugRaw) || (pSlugName && pSlugName === slugRaw);
+  });
+  if (slugMatch) return slugMatch;
 
-  // 4. Word intersection matching
-  const words = rawName
-    .toLowerCase()
-    .split(/\s+/)
-    .filter((w) => w.length > 2);
-  if (words.length > 0) {
-    let bestMatch: Product | undefined = undefined;
-    let maxMatches = 0;
-    for (const p of productList) {
-      const pNameLower = (p.namaBarang || "").toLowerCase();
-      const matchCount = words.filter((w) => pNameLower.includes(w)).length;
-      if (matchCount > maxMatches) {
-        maxMatches = matchCount;
-        bestMatch = p;
+  // 4. Advanced Word Intersection
+  const inputWords = cleanRaw.split(/[^a-z0-9]+/).filter(w => w.length >= 1);
+  if (inputWords.length === 0) return undefined;
+
+  let bestMatch: Product | undefined = undefined;
+  let bestScore = 0;
+  let minLengthDiff = 999;
+
+  for (const p of productList) {
+    const pName = (p.namaBarang || "").toLowerCase();
+    const pCode = (p.kodeBarang || "").toLowerCase();
+    const pFullName = (pCode + " " + pName);
+    const pWords = pFullName.split(/[^a-z0-9]+/).filter(w => w.length >= 1);
+    const pWordsSet = new Set(pWords);
+    const pDigitsOnly = pFullName.replace(/[^0-9]/g, "");
+    
+    let score = 0;
+    let numericMismatches = 0;
+
+    for (const iw of inputWords) {
+      const isNumber = /^\d+$/.test(iw);
+      
+      if (pWordsSet.has(iw)) {
+        score += isNumber ? 4 : 2; 
+      } else if (isNumber) {
+        // Number not found directly, check if it's part of the product's digits
+        // e.g., "150" vs "1,50"
+        if (pDigitsOnly.includes(iw) || iw.includes(pDigitsOnly)) {
+          score += 2;
+        } else {
+          numericMismatches++;
+        }
+      } else {
+        // Fuzzy word match
+        let foundPartial = false;
+        for (const pw of pWords) {
+          if (pw.includes(iw) || iw.includes(pw)) {
+            score += 0.5;
+            foundPartial = true;
+            break;
+          }
+        }
       }
     }
-    if (maxMatches >= 1) return bestMatch;
+
+    // Heavy penalty for variation mismatches
+    score -= numericMismatches * 5;
+
+    // Strict requirement: If input has numbers, the match MUST have at least one numeric intersection
+    const inputNumericWords = inputWords.filter(w => /^\d+$/.test(w));
+    if (inputNumericWords.length > 0) {
+      let numericSatisfied = false;
+      for (const inw of inputNumericWords) {
+        if (pWordsSet.has(inw) || pDigitsOnly.includes(inw)) {
+          numericSatisfied = true;
+          break;
+        }
+      }
+      if (!numericSatisfied) {
+        score -= 10; // Extra heavy penalty if no numbers match but input has numbers
+      }
+    }
+
+    const currentLen = pFullName.length;
+    const lengthDiff = Math.abs(cleanRaw.length - currentLen);
+
+    if (score > bestScore) {
+      bestScore = score;
+      bestMatch = p;
+      minLengthDiff = lengthDiff;
+    } else if (score > 0 && score === bestScore) {
+      if (lengthDiff < minLengthDiff) {
+        bestMatch = p;
+        minLengthDiff = lengthDiff;
+      }
+    }
+  }
+
+  // Reasonable threshold for fuzzy matching
+  if (bestScore >= 3) {
+    return bestMatch;
   }
 
   return undefined;
@@ -1003,8 +1100,220 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   }, []);
 
   const [activeTab, setActiveTab] = useState("form"); // form, stok_barang, database_penjualan
+  const [pengaturanSubTab, setPengaturanSubTab] = useState<"sync" | "rules" | "maintenance">("sync");
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
   const [databaseSubTab, setDatabaseSubTab] = useState<"regular" | "dropship">("regular");
+  const [parsingMode, setParsingMode] = useState<"standard" | "shopee" | "kim">("standard");
+  const [replacementGlobal, setReplacementGlobal] = useState<{ old: string; new: string }[]>(() => {
+    const saved = localStorage.getItem("replacementGlobal");
+    if (saved) return JSON.parse(saved);
+    return [
+      { old: "-0.00", new: "Normal" },
+      { old: "(Min. Order 10 Btl) Cairan Air Tetes Mata Softlens X2 Contacts O2 15ml Freshkon Simi A+ Be Seen 15ml Variasi: A+ 10ml", new: "A+ 10ml" },
+      { old: "[ COD ] Eye Tools Opener Alat Pakai Bantu Pasang Pakai Softlens Pemula Lensa Kontak Contact Lenses Mudah Praktis Variasi: Pink (Merah Muda)", new: "Alat Pakai Softlens PINK" },
+      { old: "[ COD ] Eye Tools Opener Alat Pakai Bantu Pasang Pakai Softlens Pemula Lensa Kontak Contact Lenses Mudah Praktis Variasi: Blue (Biru)", new: "Alat Pakai Softlens TOSCA" },
+      { old: "FREE BOX Eye Tools Opener Alat Bantu Pakai Softlens Pembuka Kelopak Mata Variasi: Trans Love Hijau", new: "Alat Pakai Softlens Transparant Green" },
+      { old: "FREE BOX Eye Tools Opener Alat Bantu Pakai Softlens Pembuka Kelopak Mata Variasi: Trans Love Abu", new: "Alat Pakai Softlens Transparant Grey" },
+      { old: "FREE BOX Eye Tools Opener Alat Bantu Pakai Softlens Pembuka Kelopak Mata Variasi: Trans Love Pink", new: "Alat Pakai Softlens Transparant Pink" },
+      { old: "FREE BOX Eye Tools Opener Alat Bantu Pakai Pembuka Kelopak Mata Variasi: Trans Love Ungu", new: "Alat Pakai Softlens Transparant Violet" },
+      { old: "[ COD ] Eye Tools Opener Alat Pakai Bantu Pasang Pakai Softlens Pemula Lensa Kontak Contact Lenses Mudah Praktis Variasi: White (Putih)", new: "Alat Pakai Softlens WHITE" },
+      { old: "(Min. 10 Botol) Cairan Pembersih Softlens X2 Ice Simi A+ Be Seen Nicelook Sol8 60ml sd 360ml Variasi: BE SEEN 60ml", new: "Be Seen 60ml" },
+      { old: "BERRYBLUE", new: "BERRY BLUE" },
+      { old: "AIR BESSEN-60ML", new: "Be Seen 60ml" },
+      { old: "CAIRAN SOFTLENS BIO TRUE 60ML TRAVEL SIZE EXP 2025/01 Variasi: 2025/01", new: "Bio True 60ml" },
+      { old: "CAIRAN SOFTLENS BIO TRUE 60ML TRAVEL SIZE EXP 2025/01 Variasi: 2025/04", new: "Bio True 60ml" },
+      { old: "CAIRAN SOFTLENS BIO TRUE 60ML TRAVEL SIZE EXP 2025/05 Variasi: 2025/05", new: "Bio True 60ml" },
+      { old: "BOWN", new: "BROWN" },
+      { old: "BRWN", new: "BROWN" },
+      { old: "Softlens KPOP  K-POP | K POP & New KPOP Dia. 16.00 Big Eyes Minus -0.50 sd -2.75 By Exoticon Variasi: OCRE BROWN", new: "KPOP Ochre Brown" },
+      { old: "Softlens KPOP  K-POP | K POP & New KPOP Dia. 16.00 Big Eyes Normal By Exoticon Variasi: OCRE BROWN", new: "KPOP Ochre Brown" },
+      { old: "Softlens KPOP  K-POP | K POP & New KPOP Dia. 16.00 Big Eyes Minus -3.00 sd -6.00 By Exoticon Variasi: OCRE BROWN", new: "KPOP Ochre Brown" },
+      { old: "TETES MATA FRESH-COMFORT-15ml", new: "Fresh Comfort 15ml" },
+      { old: "(Min. Order 10 Btl) Cairan Air Tetes Mata Softlens X2 Contacts O2 15ml Freshkon Simi A+ Be Seen 15ml Variasi: FRESHKON 10ml", new: "FRESHKON 10ml" },
+      { old: "(Min. Order 10 Btl) Cairan Air Tetes Mata Softlens X2 Contacts O2 15ml Freshkon Simi A+ Be Seen 15ml Variasi: O2 15ml", new: "O2 Comfort Drops 15ml" },
+      { old: "GRAY", new: "Grey" },
+      { old: "Idol Desire ", new: "I-dol Desire " },
+      { old: "IDOL ROZE", new: "I-dol Roze" },
+      { old: "Kotak Softlens ISI 3 PASANG Tempat Softlen Lenscase Kaida BEAR + Penjepit Variasi: LINE isi 3", new: "Lenscase 3in1 LINE" },
+      { old: "Kotak Softlens ISI 3 PASANG Tempat Softlen Lenscase Kaida BEAR + Penjepit Variasi: BEAR isi 3", new: "Lenscase 3in1 We Are Bears" },
+      { old: "Softlens Living Color Lily Dia. 14.40 Big Eyes Minus -0.50 sd -6.00 By Irislab Variasi:", new: "LILY" },
+      { old: "Softlens Living Color Lily Dia. 14.40 Big Eyes Normal By Irislab Variasi:", new: "LILY" },
+      { old: "SOFTLENS LILY GREY (-0.50 S/D -6.00) Variasi:", new: "LILY GREY" },
+      { old: "Softlens Macaron Dia. 14.50mm Natural Look Minus -0.50 sd -6.00 By CTK Variasi:", new: "MACARON" },
+      { old: "Softlens Macaron Dia. 14.50mm Natural Look Normal By CTK Variasi:", new: "MACARON" },
+      { old: "Softlens Macaron Dia. 14.50mm Natural Look Minus -0.50 sd -6.00 By CTK Variasi: ALMOND BROWN,", new: "MACARON ALMOND " },
+      { old: "Softlens Macaron Dia. 14.50mm Natural Look Normal By CTK Variasi: ALMOND BROWN,NORMAL  0.00", new: "MACARON ALMOND NORMAL" },
+      { old: "MAKI BROWN DREAMCOLOR (NORMAL S/D -6.00) Variasi:", new: "MAKI" },
+      { old: "MAKI GREY DREAMCOLOR (NORMAL s/d -8.00) Variasi:", new: "MAKI" },
+      { old: "MATAKE GREY DREAMCOLOR (NORMAL S/D -10.00) Variasi:", new: "MATAKE" },
+      { old: "MATAKE BROWN DREAMCOLOR DC1 (NORMAL S/D -10.00) 14.5MM Variasi:", new: "MATAKE BROWN" },
+      { old: "MATAKE BROWN DREAMCOLOR DC1 (NORMAL S/D -10.00) 14.5MM Variasi: BROWN", new: "MATAKE BROWN" },
+      { old: "Softlens Living Color Mini Circle Dia. 14.00 Minus -0.50 sd -6.00 By Irislab Variasi: CHOCO BROWN,", new: "Mini Circle Choco " },
+      { old: "Softlens Living Color Mini Circle Dia. 14.00 Normal By Irislab Variasi: CHOCO BRWN,", new: "Mini Circle Choco " },
+      { old: "Softlens Living Color Mini Circle Dia. 14.00 Minus -0.50 sd -6.00 By Irislab Variasi: HONEY BROWN,", new: "MINI CIRCLE HONEY " },
+      { old: "(COD) SOFTLENS LIVING COLOR MINI CIRCLE - ICE GREY NORMAL & MINUS - 0.50 SD - 6.00 Variasi: ICE GREY,", new: "Mini Circle Ice " },
+      { old: "Softlens Living Color Mini Circle Dia. 14.00 Normal By Irislab Variasi: ICE GREY,", new: "Mini Circle Ice " },
+      { old: "Softlens Living Color Mini Circle Dia. 14.00 Minus -0.50 sd -6.00 By Irislab Variasi: OCEAN GREY,", new: "MINI CIRCLE OCEAN " },
+      { old: "Softlens Living Color Mini Circle Dia. 14.00 Normal By Irislab Variasi: OCEAN GREY,", new: "MINI CIRCLE OCEAN " },
+      { old: "MINI EMMA BROWN (NORMAL S/D -4.00) Variasi: ", new: "Mini Emma Brown " },
+      { old: "Softlens Newbluk Dia. 15.00mm Natural Look Minus -0.50 sd -6.00 By CTK Variasi:", new: "NEWBLUK" },
+      { old: "Softlens Newbluk Dia. 15.00mm Natural Look Normal By CTK Variasi:", new: "NEWBLUK" },
+      { old: "(COD) SOFTLENS CTK NEW MORE DUBAI - CRYSTAL GREY 0.00 S.D - 6.00 Variasi:", new: "NMD" },
+      { old: "(COD) SOFTLENS CTK NEW MORE DUBAI - GALAXY GREY 0.00 S.D - 6.00 Variasi:", new: "NMD" },
+      { old: "(COD) SOFTLENS CTK NEW MORE DUBAI - HONEY BROWN 0.00 S.D - 6.00 Variasi:", new: "NMD" },
+      { old: "(COD) SOFTLENS CTK NEW MORE DUBAI - MARBLE GREY 0.00 S.D - 6.00 Variasi:", new: "NMD" },
+      { old: "(COD) SOFTLENS CTK NEW MORE DUBAI - OCRE ASH 0.00 S.D - 6.00 Variasi:", new: "NMD" },
+      { old: "(COD) SOFTLENS CTK NEW MORE DUBAI - OCRE BROWN 0.00 S.D - 6.00 Variasi:", new: "NMD" },
+      { old: "(COD) SOFTLENS CTK NEW MORE DUBAI - OCRE KAKAO 0.00 S.D - 6.00 Variasi:", new: "NMD" },
+      { old: "(COD) SOFTLENS NEW MORE DUBAI - NORMAL DIA. 14.50MM BEST SELLER Variasi:", new: "NMD" },
+      { old: "Softlens New More Dubai Dia. 14.50 Natural Look Minus -0.50 sd -1.75 By CTK Variasi:", new: "NMD" },
+      { old: "Softlens New More Dubai Dia. 14.50 Natural Look Minus -2.00 sd -3.25 By CTK Variasi:", new: "NMD" },
+      { old: "Softlens New More Dubai Dia. 14.50 Natural Look Minus -3.50 sd -4.50 By CTK Variasi:", new: "NMD" },
+      { old: "Softlens New More Dubai Dia. 14.50 Natural Look Normal By CTK Variasi:", new: "NMD" },
+      { old: "(COD) SOFTLENS NEW MORE DUBAI - NORMAL DIA. 14.50MM BEST SELLER Variasi: CRYSTALL GREY,", new: "NMD Crystal Grey " },
+      { old: "MALT NORMAL", new: "NORMAL" },
+      { old: "NORMAL ", new: "NORMAL" },
+      { old: "NORMAL  0.00", new: "NORMAL" },
+      { old: "(Minimal Order 10 Botol) Cairan Air Tetes Mata Softlens X2 Contacts O2 15ml Freshkon Simi A+ 10ml Be Seen 15ml Variasi: O2 15ml", new: "O2 Comfort Drops 15ml" },
+      { old: "Cairan Tetes Mata Softlens O2 15ml Fresh & Comfort With Oxygen Variasi: AIR TETES MATA,O2 - 15 ML", new: "O2 Comfort Drops 15ml" },
+      { old: "Alat Bantu Cuci Softlens Manual | Steamer Softlens Manual Variasi: STEAMER SOFTLENS", new: "Pencuci Manual" },
+      { old: "(COD) PINSET SOFTLENS / ALAT PENJEPIT SOFTLENS Variasi: PINSET 2 IN 1", new: "Pinset" },
+      { old: "HPT Tweezer Penjepit Softlens Capitan Contact Lens Jepitan Pencabut Lensa Kontak Mata Softlens Variasi: PUTIH", new: "Pinset" },
+      { old: "Air softlens / CAIRAN SOFTLENS RENU FRESH 60ML TRAVEL SIZE Variasi: EXP 2025/03", new: "Renu 60ml" },
+      { old: "Softlens Russian Velvet Dia. 14.50mm Minus -3.00 sd -6.00 By Exoticon Variasi: IRINA - GREY,", new: "Russian Velvet Irina Grey " },
+      { old: "Softlens Russian Velvet Dia. 14.50mm Minus -0.50 sd -2.75 By Exoticon Variasi: IRINA - GREY,", new: "Russian Velvet Irina Grey " },
+      { old: "Softlens Russian Velvet Dia. 14.50mm Normal By Exoticon Variasi: IRINA - GREY,", new: "Russian Velvet Irina Grey " },
+      { old: "(Grosir Min. 10 Botol) Cairan Pembersih Softlens X2 Ice Simi A+ Be Seen Nicelook Sol8 60ml sd 360ml Variasi: SOL-8 60ml", new: "SOL-8 60ML" },
+      { old: "(COD) SOFTLENS LIVING COLOR SPANISH - CARAMEL BROWN NORMAL S.D - 6.00 Variasi:", new: "SPANISH" },
+      { old: "(COD) SOFTLENS LIVING COLOR SPANISH - MALT GREY NORMAL S.D - 6.00 Variasi:", new: "SPANISH" },
+      { old: "(COD) SOFTLENS LIVING COLOR SPANISH - PASTEL GREY NORMAL S.D - 6.00 Variasi:", new: "SPANISH" },
+      { old: "SOFTLENS SPANISH CARAMEL (NORMAL S/D -6.00) Variasi:", new: "Spanish Caramel Brown" },
+      { old: "CRYSTALL", new: "CRYSTAL" },
+      { old: "SOFTLENS SPANISH CARAMEL (NORMAL S/D -6.00) Variasi: CARAMEL", new: "Spanish Caramel Brown" },
+      { old: "SOFTLENS LIVING COLOR SPANISH NORMAL S.D -6.00 14.4 MM Variasi: SPANISH CARAMEL,", new: "Spanish Caramel Brown " },
+      { old: "SOFTLENS SPANISH GRANOLA (NORMAL S/D -6.00) Variasi: GRANOLA NORMAL", new: "SPANISH GRANOLA BROWN NORMAL" },
+      { old: "SOFTLENS SPANISH MALT (NORMAL S/D -6.00) Variasi:", new: "SPANISH MALT GREY" },
+      { old: "SOFTLENS LIVING COLOR SPANISH NORMAL S.D -6.00 14.4 MM Variasi: SPANISH MALT,", new: "Spanish Malt Grey " },
+      { old: "SOFTLENS SPANISH PASTEL (NORMAL S/D -6.00) Variasi:", new: "SPANISH PASTEL GREY" },
+      { old: "SOFTLENS LIVING COLOR SPANISH NORMAL S.D -6.00 14.4 MM Variasi: SPANIS PASTEL,", new: "Spanish Pastel Grey " },
+      { old: "(COD) SOFTLENS CTK - TRAPEZIUM - BELLA SMOKY NORMAL S/D -6.00 Variasi:", new: "Trapezium" },
+      { old: "Softlens Trapezium Betel & Bella Series Dia. 14.50mm Natural Look Normal By CTK Variasi:", new: "Trapezium" },
+      { old: "Softlens Trapezium Betel & Bella Series Dia. 14.50mm Natural Look Normal By CTK Variasi: BELLA MOCHA,", new: "Trapezium Bella Mocha Brown " },
+      { old: "Softlens Trapezium Betel & Bella Series Dia. 14.50mm Natural Look Minus -0.50 sd -2.75 By CTK Variasi: BELLA ONYX,", new: "Trapezium Bella Onyx Black " },
+      { old: "Softlens Trapezium Betel & Bella Series Dia. 14.50mm Natural Look Minus -3.00 sd -6.00 By CTK Variasi: BELLA ONYX,", new: "Trapezium Bella Onyx Black " },
+      { old: "Softlens Trapezium Betel & Bella Series Dia. 14.50mm Natural Look Normal By CTK Variasi: BELLA ONYX,NORMAL", new: "Trapezium Bella Onyx Black Normal" },
+      { old: "Case BESAR Bear Cat Panda Dog Bunny Duck Pink Dora Kotak Softlens 3D Tempat Lensa Capit Tongkat Variasi: 24 - BIG Bebek Topi", new: "Travel Kit Duck Hat" },
+      { old: "Case BESAR Bear Cat Panda Dog Bunny Duck Pink Dora Kotak Softlens 3D Tempat Lensa Capit Tongkat Variasi: 23 - BIG Bebek Koyo", new: "Travel Kit Duck Plester" },
+      { old: "2in1 Case Lensa Mini Softlens Baby Bunny Cat Rabbit Bear Line Brown Premium / Wadah Soflens isi 2 in 1 Travel Kit Mini Cute Lucu / Tempat Softlen Kotak Soflen T Kit 09 Variasi: H", new: "Travel Kit Hologram Bear Flower" },
+      { old: "2in1 Case Lensa Mini Baby Bunny Cat Rabbit Bear Line Brown Premium / Wadah Soflens isi 2 in 1 Travel Kit Mini Cute Lucu / Tempat Softlen Kotak Soflen T Kit 09 Variasi: I", new: "Travel Kit Hologram Bear Lemon" },
+      { old: "2in1 Case Lensa Mini Softlens Baby Bunny Cat Rabbit Bear Line Brown Premium / Wadah Soflens isi 2 in 1 Travel Kit Mini Cute Lucu / Tempat Softlen Kotak Soflen T Kit 09 Variasi: J", new: "Travel Kit Hologram Carrot Rabbit" },
+      { old: "2in1 Case Lensa Mini Softlens Baby Bunny Cat Rabbit Bear Line Brown Premium / Wadah Soflens isi 2 in 1 Travel Kit Mini Cute Lucu / Tempat Softlen Kotak Soflen T Kit 09 Variasi: G", new: "Travel Kit Hologram Stripes" },
+      { old: "Case BESAR Bear Cat Panda Dog Bunny Duck Pink Dora Kotak Softlens 3D Tempat Lensa Capit Tongkat Variasi: 7 -BIG Pink Segitiga", new: "Travel Kit Kakao Apeach" },
+      { old: "Case BESAR Bear Cat Panda Dog Bunny Duck Pink Dora Kotak Softlens 3D Tempat Lensa Capit Tongkat Variasi: 6 - BIG Dog Kuning", new: "Travel Kit Kakao Ryan" },
+      { old: "Tempat Soflens Kapsul Premium Travel Kit Kotak Softlens Capsul Oval Bulat / Travel Kit Mini Brown Line Softlen + Capitan - T Kit 25 Variasi: Biru", new: "Travel Kit Kapsul Blue" },
+      { old: "Tempat Soflens Kapsul Premium Travel Kit Kotak Softlens Capsul Oval Bulat / Travel Kit Mini Brown Line Softlen + Capitan - T Kit 25 Variasi: Cream Tua", new: "Travel Kit Kapsul Cream" },
+      { old: "Tempat Soflens Kapsul Premium Travel Kit Kotak Softlens Capsul Oval Bulat / Travel Kit Mini Brown Line Softlen + Capitan - T Kit 25 Variasi: Hijau Tua", new: "Travel Kit Kapsul Green" },
+      { old: "Tempat Soflens Kapsul Premium Travel Kit Kotak Softlens Capsul Oval Bulat / Travel Kit Mini Brown Line Softlen + Capitan - T Kit 25 Variasi: Orange", new: "Travel Kit Kapsul Peach" },
+      { old: "Tempat Soflens Kapsul Premium Travel Kit Kotak Softlens Capsul Oval Bulat / Travel Kit Mini Brown Line Softlen + Capitan - T Kit 25 Variasi: Pink", new: "Travel Kit Kapsul Pink" },
+      { old: "Tempat Soflens Kapsul Premium Travel Kit Kotak Softlens Capsul Oval Bulat / Travel Kit Mini Brown Line Softlen + Capitan - T Kit 25 Variasi: Ungu Tua", new: "Travel Kit Kapsul Violet" },
+      { old: "Kotak Softlens Love Pita Transparan Premium / Travel Kit Tempat Kotak Transparant Soflens / Case Softlen Bening + Jepitan + Botol Variasi: Love Biru", new: "Travel Kit Transparant Love Tosca" },
+      { old: "Kotak Softlens Love Pita Transparan Premium / Travel Kit Tempat Kotak Transparant Soflens / Case Softlen Bening + Jepitan + Botol Variasi: Love Pink", new: "Travel Kit Transparant Love Pink" },
+      { old: "Kotak Softlens Love Pita Transparan Premium / Travel Kit Tempat Kotak Transparant Soflens / Case Softlen Bening + Jepitan + Botol Variasi: Love Ungu", new: "Travel Kit Transparant Love Violet" },
+      { old: "Kotak Softlens L-I-N-E 3D / Travel Kit Soflens Karakter Animal Variasi: BROWN", new: "Travel Kit Line Brown" },
+      { old: "Kotak Softlens L-I-N-E 3D / Travel Kit Soflens Karakter Animal Variasi: PUTIH", new: "Travel Kit Line Cony" },
+      { old: "Kotak Softlens Love Pink Rose Premium / Tempat Softlens Heart Hati Merah Free Capitan Tongkat Stik Kaida / Tempat Softlens Love Cute Case Transparant Softlen / Travel Kit Mini Fashion + Stick Variasi: Maroon - Bear", new: "Travel Kit Mini 3D Bear" },
+      { old: "Kotak Softlens Love Pink Rose Premium / Tempat Softlens Heart Hati Merah Free Capitan Tongkat Stik Kaida / Tempat Softlens Love Cute Case Transparant Softlen / Travel Kit Mini Fashion + Stick Variasi: Maroon - Cherry", new: "Travel Kit Mini 3D Cherry" },
+      { old: "Kotak Softlens Love Pink Rose Premium / Tempat Softlens Heart Hati Merah Free Capitan Tongkat Stik Kaida / Tempat Softlens Love Cute Case Transparant Softlen / Travel Kit Mini Fashion + Stick Variasi: Maroon - Girl", new: "Travel Kit Mini 3D Girl" },
+      { old: "Kotak Softlens Love Pink Rose Premium / Tempat Softlens Heart Hati Merah Free Capitan Tongkat Stik Kaida / Tempat Softlens Love Cute Case Transparant Softlen / Travel Kit Mini Fashion + Stick Variasi: Maroon - Strawberry", new: "Travel Kit Mini 3D Strawberry" },
+      { old: "Tempat Softlens KARAKTER ANIMAL / Kotak Lensa + Capitan + Tongkat / Kaida Mini Lucu Kotak Softlen / Box Soflens Variasi: 29", new: "Travel Kit Mini Karakter 1" },
+      { old: "Tempat Softlens KARAKTER ANIMAL / Kotak Lensa + Capitan + Tongkat / Kaida Mini Lucu Kotak Softlen / Box Soflens Variasi: 40", new: "Travel Kit Mini Karakter 2" },
+      { old: "Tempat Softlens KARAKTER ANIMAL / Kotak Lensa + Capitan + Tongkat / Kaida Mini Lucu Kotak Softlen / Box Soflens Variasi: 13", new: "Travel Kit Mini Karakter 3" },
+      { old: "Tempat Softlens KARAKTER ANIMAL / Kotak Lensa + Capitan + Tongkat / Kaida Mini Lucu Kotak Softlen / Box Soflens Variasi: 17", new: "Travel Kit Mini Karakter 4" },
+      { old: "Tempat Softlens KARAKTER ANIMAL / Kotak Lensa + Capitan + Tongkat / Kaida Mini Lucu Kotak Softlen / Box Soflens Variasi: 15", new: "Travel Kit Mini Karakter 5" },
+      { old: "Tempat Softlens KARAKTER ANIMAL / Kotak Lensa + Capitan + Tongkat / Kaida Mini Lucu Kotak Softlen / Box Soflens Variasi: 25", new: "Travel Kit Mini Karakter 6" },
+      { old: "Tempat Softlens KARAKTER ANIMAL / Kotak Lensa + Capitan + Tongkat / Kaida Mini Lucu Kotak Softlen / Box Soflens Variasi: 45", new: "Travel Kit Mini Karakter 7" },
+      { old: "Tempat Softlens KARAKTER ANIMAL / Kotak Lensa + Capitan + Tongkat / Kaida Mini Lucu Kotak Softlen / Box Soflens Variasi: 18", new: "Travel Kit Mini Karakter 8" },
+      { old: "Case BESAR Bear Cat Panda Dog Bunny Duck Pink Dora Kotak Softlens 3D Tempat Lensa Capit Tongkat Variasi: 5 - BIG Smile White", new: "Travel Kit Moon Smile" },
+      { old: "Case BESAR Bear Cat Panda Dog Bunny Duck Pink Dora Kotak Softlens 3D Tempat Lensa Capit Tongkat Variasi: 3 - BIG Laugh White", new: "Travel Kit Moon Wink Moon" },
+      { old: "Case BESAR Bear Cat Panda Dog Bunny Duck Pink Dora Kotak Softlens 3D Tempat Lensa Capit Tongkat Variasi: 2 - BIG Black Cat", new: "Travel Kit Sailor Moon Black" },
+      { old: "Case BESAR Bear Cat Panda Dog Bunny Duck Pink Dora Kotak 3D Tempat Lensa Capit Tongkat Variasi: 1 - BIG White Cat", new: "Travel Kit Sailor Moon White" },
+      { old: "Travel Kit Transparant 2in1 Grey", new: "Travel Kit Transparant 2in1 Grey" },
+      { old: "Kotak Softlens Transparan Premium 2in1 / Travel Kit Tempat Kotak Transparant Soflens 2 IN 1 / Case Softlen Bening + Jepitan + Botol Variasi: 2in1 Bunga", new: "Travel Kit Transparant 2in1 Flower" },
+      { old: "Kotak Softlens Transparan Premium 2in1 / Travel Kit Tempat Kotak Transparant Soflens 2 IN 1 / Case Softlen Bening + Jepitan + Botol Variasi: 2in1 Abu", new: "Travel Kit Transparant 2in1 Grey" },
+      { old: "Kotak Softlens Transparan Premium 2in1 / Travel Kit Tempat Kotak Transparant Soflens 2 IN 1 / Case Softlen Bening + Jepitan + Botol Variasi: 2in1 Pink", new: "Travel Kit Transparant 2in1 Pink" },
+      { old: "Kotak Softlens Transparan Premium 2in1 / Travel Kit Tempat Kotak Transparant Soflens 2 IN 1 / Case Softlen Bening + Jepitan + Botol Variasi: 2in1 Ungu", new: "Travel Kit Transparant 2in1 Violet" },
+      { old: "Kotak Softlens Transparan Premium 2in1 / Travel Kit Tempat Kotak Transparant Soflens 2 IN 1 / Case Softlen Bening + Jepitan + Botol Variasi: 2in1 Putih", new: "Travel Kit Transparant 2in1 White" },
+      { old: "Kotak Softlens Transparan Premium / Travel Kit Tempat Kotak Transparant Soflens / Case Softlen Bening + Jepitan + Botol Variasi: Biru Muda", new: "Travel Kit Transparant Blue" },
+      { old: "MSBS Softlens Case Bening Plastik Tempat Kontak Lensa + Penjepit + Tongkat Tempat Softlens Bening Satu Set Tempat Kontak Lensa Mata Variasi: BIRU MUDA", new: "Travel Kit Transparant Blue" },
+      { old: "Kotak Softlens Transparan Premium / Travel Kit Tempat Kotak Transparant Soflens / Case Softlen Bening + Jepitan + Botol Variasi: Pink", new: "Travel Kit Transparant Pink" },
+      { old: "MSBS Softlens Case Bening Plastik Tempat Kontak Lensa + Penjepit + Tongkat Tempat Softlens Bening Satu Set Tempat Kontak Lensa Mata Variasi: PINK MUDA", new: "Travel Kit Transparant Pink" },
+      { old: "Kotak Softlens Transparan Premium / Travel Kit Tempat Kotak Transparant Soflens / Case Softlen Bening + Jepitan + Botol Variasi: Ungu", new: "Travel Kit Transparant Violet" },
+      { old: "MSBS Softlens Case Bening Plastik Tempat Kontak Lensa + Penjepit + Tongkat Tempat Softlens Bening Satu Set Tempat Kontak Lensa Mata Variasi: LILAC", new: "Travel Kit Transparant Violet" },
+      { old: "Kotak Softlens Transparan Premium / Travel Kit Tempat Kotak Transparant Soflens / Case Softlen Bening + Jepitan + Botol Variasi: Hijau", new: "Travel Kit Transparant Tosca" },
+      { old: "Case BESAR Bear Cat Panda Dog Bunny Duck Pink Dora Kotak Softlens 3D Tempat Lensa Capit Tongkat Variasi: 17 - BIG Bear Brown", new: "Travel Kit We Are Bears Alaska" },
+      { old: "Case BESAR Bear Cat Panda Dog Bunny Duck Pink Dora Kotak Softlens 3D Tempat Lensa Capit Tongkat Variasi: 14 - BIG Bear Choco", new: "Travel Kit We Are Bears Grizzly" },
+      { old: "Case BESAR Bear Cat Panda Dog Bunny Duck Pink Dora Kotak Softlens 3D Tempat Lensa Capit Tongkat Variasi: 16 - BIG Bear White", new: "Travel Kit We Are Bears Ice Bear" },
+      { old: "Case BESAR Bear Cat Panda Dog Bunny Duck Pink Dora Kotak Softlens 3D Tempat Lensa Capit Tongkat Variasi: 15 - BIG Bear Gray", new: "Travel Kit We Are Bears Panda" },
+      { old: "SOFTLENS LIVIGN COLOR - TWILIGHT - ECLIPSE GREY NORMAL DAN MINUS Variasi:", new: "TWILIGHT" },
+      { old: "SOFTLENS LIVIGN COLOR - TWILIGHT - LUNAR GREY NORMAL DAN MINUS Variasi:", new: "TWILIGHT" },
+      { old: "SOFTLENS LIVIGN COLOR - TWILIGHT - TERRA BROWN NORMAL DAN MINUS Variasi:", new: "TWILIGHT" },
+      { old: "Softlens Living Color Twilight Dia. 14.20 Natural Normal By Irislab Variasi:", new: "TWILIGHT" },
+      { old: "LIVING COLOR TWILIGHT ECLIPSE ( -0.50 S/ -6.00) Variasi:", new: "Twilight Eclipse Grey" },
+      { old: "Softlens Living Color Twilight Dia. 14.20 Natural Minus -0.50 sd -6.00 By Irislab Variasi: ECLIPSE GREY,", new: "Twilight Eclipse Grey " },
+      { old: "Softlens Living Color Twilight Dia. 14.20 Natural Minus -0.50 sd -6.00 By Irislab Variasi: LUNAR GREY,", new: "Twilight Lunar Grey " },
+      { old: "TWILIGHT TERRA BROWN ( NORMAL S/D -6.00) Variasi:", new: "TWILIGHT TERRA BROWN" },
+      { old: "Softlens Living Color Twilight Dia. 14.20 Natural Minus -0.50 sd -6.00 By Irislab Variasi: TERRA BROWN,", new: "TWILIGHT TERRA BROWN " },
+      { old: "LIVING COLOR TWILIGHT (NORMAL ONLY) Variasi: TERRA BROWN", new: "Twilight Terra Brown Normal" },
+      { old: "Softlens X2 Clear 12 Bln & Miimoo Clear 6 Bln Minus -0.50 sd -10.00 (Harga Perbox/Botol isi 1 lensa) Variasi:", new: "X2 CLEAR" },
+      { old: "SOFTLENS X2 CLEAR 12 MONTHS - 0.50 SD - 10.00 Variasi: CLEAR/BENING", new: "X2 CLEAR" },
+      { old: "(Grosir Min. 10 Botol) Cairan Pembersih Softlens X2 Ice Simi A+ Be Seen Nicelook Sol8 60ml sd 360ml Variasi: X2 60ml", new: "X2 Comfort 60ml" },
+      { old: "Cairan Pembersih Softlens | Air Cuci Softlens X2 60ml Extra Comfort Multi Purpose Solution - Expired Maret 2028 Variasi: X2,60 ML", new: "X2 Comfort 60ml" },
+      { old: "(Min. Order 10 Btl) Cairan Air Tetes Mata Softlens X2 Contacts O2 15ml Freshkon Simi A+ Be Seen 15ml Variasi: X2 CONTACTS 15ml", new: "X2 CONTACTS DROPS 15ML" },
+      { old: "Cairan Tetes Mata Softlens X2 Contacts 15ml Fresh With HA - Expired Juli 2027 Variasi: X2 CONTACT,15 ML", new: "X2 CONTACTS DROPS 15ML" },
+      { old: "Softlens Ice No. 8 Baby & Dol Eyes Minus -0.50 sd -2.75 By Exoticon Variasi: N8 BABY", new: "X2 Ice No.8" },
+      { old: "Softlens Ice No. 8 Baby & Doll Eyes Normal By Exoticon Variasi: N8 BABY", new: "X2 Ice No.8" },
+      { old: "SOFTLENS X2 ICE N8 GREY ( NORMAL S/D -10,00 ) Variasi: N8 GREY", new: "X2 ICE NO.8 Grey" }
+    ];
+  });
+
+  const [replacementKim, setReplacementKim] = useState<{ old: string; new: string }[]>(() => {
+    const saved = localStorage.getItem("replacementKim");
+    if (saved) return JSON.parse(saved);
+    return [
+      { old: "CAIRAN X2 60ML", new: "X2 Comfort 60ml" },
+      { old: "CAPITAN SOFTLEN NEW EDISI CAMPUR", new: "Pinset" },
+      { old: "ICE N8", new: "X2 ICE NO.8" },
+      { old: "MACARON BLUE", new: "MACARON BERRY BLUE" },
+      { old: "MACARON CHOCO", new: "MACARON CHOCO BROWN" },
+      { old: "MACARON GREY", new: "MACARON SUGAR GREY" },
+      { old: "MORE DUBAI", new: "NMD" },
+      { old: "NEW MORE DUBAI", new: "NMD" },
+      { old: "NORMAL  0.00", new: "NORMAL" },
+      { old: "PENCUCI SOFTLENS MANUAL PASTEL", new: "Pencuci Manual" },
+      { old: "PENCUCI SOFTLENS MANUAL POLOS", new: "Pencuci Manual" },
+      { old: "PLANO", new: "NORMAL" },
+      { old: "TETES A+ 10ML", new: "A+ 10ml" },
+      { old: "TETES FRESHKON 10ML", new: "Freshkon 10ml" },
+      { old: "TETES X2 15 ML", new: "X2 Contacts Drops 15ml" },
+      { old: "TOP GEL UNIVERSAL", new: "UNIVERSAL" },
+      { old: "TRAPZ BELLA HAZEL", new: "Trapezium Bella Hazel" },
+      { old: "TRAPZ BELLA ONYX", new: "Trapezium Bella Onyx Black" },
+      { old: "TRAPZ BELLA SMOKY", new: "Trapezium Bella Smoky" },
+      { old: "TRAPZ BETEL SEPIA", new: "Trapezium Betel Sepia" },
+      { old: "TRAPZZ BELLA ONYX", new: "Trapezium Bella Onyx Black" },
+      { old: "X2 KPOP OCHRE", new: "KPOP Ochre Brown" }
+    ];
+  });
+
+  useEffect(() => {
+    localStorage.setItem("replacementGlobal", JSON.stringify(replacementGlobal));
+  }, [replacementGlobal]);
+
+
+  useEffect(() => {
+    localStorage.setItem("replacementKim", JSON.stringify(replacementKim));
+  }, [replacementKim]);
+
   const [searchIklanQuery, setSearchIklanQuery] = useState("");
   const [showFullIklan, setShowFullIklan] = useState(false);
   const [iklanDisplayLimit, setIklanDisplayLimit] = useState(5);
@@ -1317,15 +1626,15 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const handleProcessText = () => {
     let newList: { rawName: string; qty: number }[] = [];
     if (selectedFormat === "akumaucantik") {
-      newList = parseFormatAkumaucantik(rawText);
+      newList = parseFormatAkumaucantik(rawText, replacementGlobal);
     } else if (selectedFormat === "kim") {
-      newList = parseFormatKim(rawText);
+      newList = parseFormatKim(rawText, replacementKim, replacementGlobal);
     } else if (selectedFormat === "shopee") {
-      newList = parseFormatShopee(rawText);
+      newList = parseFormatShopee(rawText, replacementGlobal);
     } else if (selectedFormat === "sisse") {
-      newList = parseFormatSisse(rawText);
+      newList = parseFormatSisse(rawText, replacementGlobal);
     } else if (selectedFormat === "anna") {
-      newList = parseFormatAnna(rawText);
+      newList = parseFormatAnna(rawText, replacementGlobal);
     }
 
     setParsedItems(newList);
@@ -5790,190 +6099,388 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
           {/* Pengaturan TAB */}
           {activeTab === "pengaturan" && (
-            <section className="col-span-12 max-w-4xl mx-auto w-full pt-8">
-              <div className="bg-white border-4 border-slate-900 flex flex-col min-h-[500px] overflow-hidden shadow-[12px_12px_0px_0px_#0f172a]">
-                <div className="p-8 border-b-4 border-slate-900 flex items-center justify-between bg-slate-50">
-                  <h2 className="text-2xl font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest leading-none">
-                    <Settings className="w-8 h-8 border-2 border-slate-900 bg-indigo-100 p-1 shadow-[3px_3px_0px_0px_#0f172a]" />
-                    PENGATURAN DATABASE
-                  </h2>
+            <section className="col-span-12 max-w-6xl mx-auto w-full pt-8 pb-12 px-4">
+              <div className="bg-white border-4 border-slate-900 flex flex-col md:flex-row min-h-[600px] overflow-hidden shadow-[12px_12px_0px_0px_#0f172a]">
+                
+                {/* SETTINGS SIDEBAR */}
+                <div className="w-full md:w-64 border-b-4 md:border-b-0 md:border-r-4 border-slate-900 bg-slate-50 flex flex-col">
+                  <div className="p-6 border-b-4 border-slate-900 bg-white">
+                    <h2 className="text-xl font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest leading-none">
+                      <Settings className="w-6 h-6" />
+                      BACKEND
+                    </h2>
+                    <p className="text-[10px] font-bold text-slate-400 mt-2 uppercase tracking-tighter">System & Database</p>
+                  </div>
+                  
+                  <nav className="flex-1 p-4 space-y-2">
+                    <button 
+                      onClick={() => setPengaturanSubTab("sync")}
+                      className={`w-full flex items-center gap-3 px-4 py-3 border-2 font-black text-xs uppercase tracking-widest transition-all ${
+                        pengaturanSubTab === "sync" 
+                        ? "bg-indigo-600 text-white border-slate-900 shadow-[4px_4px_0px_0px_#0f172a]" 
+                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-900 hover:text-slate-900"
+                      }`}
+                    >
+                      <RefreshCcw className="w-4 h-4" /> DATA SYNC
+                    </button>
+                    
+                    <button 
+                      onClick={() => setPengaturanSubTab("rules")}
+                      className={`w-full flex items-center gap-3 px-4 py-3 border-2 font-black text-xs uppercase tracking-widest transition-all ${
+                        pengaturanSubTab === "rules" 
+                        ? "bg-indigo-600 text-white border-slate-900 shadow-[4px_4px_0px_0px_#0f172a]" 
+                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-900 hover:text-slate-900"
+                      }`}
+                    >
+                      <Table className="w-4 h-4" /> MAPPING RULES
+                    </button>
+                    
+                    <button 
+                      onClick={() => setPengaturanSubTab("maintenance")}
+                      className={`w-full flex items-center gap-3 px-4 py-3 border-2 font-black text-xs uppercase tracking-widest transition-all ${
+                        pengaturanSubTab === "maintenance" 
+                        ? "bg-rose-600 text-white border-slate-900 shadow-[4px_4px_0px_0px_#0f172a]" 
+                        : "bg-white text-slate-600 border-slate-200 hover:border-slate-900 hover:border-rose-900 hover:text-rose-600"
+                      }`}
+                    >
+                      <Wrench className="w-4 h-4" /> MAINTENANCE
+                    </button>
+                  </nav>
+                  
+                  <div className="p-4 border-t-2 border-slate-200 bg-slate-50">
+                    <div className="flex items-center gap-2 p-3 bg-white border-2 border-slate-200 rounded-lg">
+                      <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
+                      <span className="text-[10px] font-black text-slate-500 uppercase">DB Connection Stable</span>
+                    </div>
+                  </div>
                 </div>
 
-                <div className="p-8 space-y-12">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-12 border-b-2 border-slate-900 border-dashed">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-black text-slate-900 flex items-center gap-2 mb-2 uppercase tracking-widest">
-                        <Download className="w-5 h-5" /> EXPORT STOK BARANG
-                      </h3>
-                      <p className="text-sm font-medium text-slate-600">
-                        Download data stok ke format CSV untuk arsip atau dibuka
-                        di Excel.
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleExportProducts}
-                      className="px-8 py-4 bg-indigo-50 border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] transition-all flex items-center gap-2"
-                    >
-                      <Download className="w-4 h-4" /> EXPORT CSV
-                    </button>
+                {/* SETTINGS CONTENT */}
+                <div className="flex-1 flex flex-col bg-slate-50/30">
+                  <div className="p-8 pb-4">
+                    <h3 className="text-2xl font-black text-slate-900 uppercase tracking-widest">
+                      {pengaturanSubTab === "sync" && "SINKRONISASI DATA"}
+                      {pengaturanSubTab === "rules" && "AUTO MAPPING RULES"}
+                      {pengaturanSubTab === "maintenance" && "DATABASE MAINTENANCE"}
+                    </h3>
+                    <p className="text-xs font-bold text-slate-500 mt-1">
+                      {pengaturanSubTab === "sync" && "Kelola perpindahan data melalui file CSV untuk stok dan penjualan."}
+                      {pengaturanSubTab === "rules" && "Atur penggantian nama produk otomatis saat melakukan import data."}
+                      {pengaturanSubTab === "maintenance" && "Tindakan kritis untuk pembersihan dan perbaikan database."}
+                    </p>
                   </div>
 
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-12 border-b-2 border-slate-900 border-dashed">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-black text-slate-900 flex items-center gap-2 mb-2 uppercase tracking-widest">
-                        <UploadCloud className="w-5 h-5" /> IMPORT STOK BARANG
-                      </h3>
-                      <p className="text-sm font-medium text-slate-600">
-                        Upload file CSV untuk menambahkan barang ke database
-                        stok.
-                      </p>
-                    </div>
-                    <div>
-                      <input
-                        type="file"
-                        accept=".csv"
-                        onChange={handleImportProducts}
-                        className="hidden"
-                        id="csv-upload-settings"
-                      />
-                      <label
-                        htmlFor="csv-upload-settings"
-                        className="cursor-pointer px-8 py-4 bg-indigo-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] transition-all flex items-center gap-2"
-                      >
-                        <UploadCloud className="w-4 h-4" /> IMPORT CSV
-                      </label>
-                    </div>
-                  </div>
+                  <div className="p-8 pt-4 flex-1">
+                    {pengaturanSubTab === "sync" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* STOK CARD */}
+                        <div className="bg-white border-2 border-slate-900 p-6 shadow-[6px_6px_0px_0px_#0f172a]">
+                          <div className="flex items-center gap-3 mb-4">
+                             <div className="p-2 bg-indigo-100 border-2 border-slate-900">
+                               <Package className="w-5 h-5 text-indigo-600" />
+                             </div>
+                             <h4 className="font-black text-sm uppercase tracking-wider">Master Stok</h4>
+                          </div>
+                          <div className="space-y-3">
+                            <button
+                              onClick={handleExportProducts}
+                              className="w-full py-3 bg-slate-50 border-2 border-slate-200 text-slate-900 font-bold uppercase tracking-widest text-[10px] hover:border-slate-900 transition-all flex items-center justify-center gap-2"
+                            >
+                              <Download className="w-3 h-3" /> Export CSV
+                            </button>
+                            <div className="relative">
+                              <input
+                                type="file"
+                                accept=".csv"
+                                onChange={handleImportProducts}
+                                className="hidden"
+                                id="csv-upload-settings"
+                              />
+                              <label
+                                htmlFor="csv-upload-settings"
+                                className="cursor-pointer w-full py-3 bg-indigo-600 border-2 border-slate-900 text-white font-bold uppercase tracking-widest text-[10px] shadow-[3px_3px_0px_0px_#0f172a] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex items-center justify-center gap-2"
+                              >
+                                <UploadCloud className="w-3 h-3" /> Import Master
+                              </label>
+                            </div>
+                          </div>
+                        </div>
 
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-12 border-b-2 border-slate-900 border-dashed">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-black text-slate-900 flex items-center gap-2 mb-2 uppercase tracking-widest">
-                        <UploadCloud className="w-5 h-5" /> IMPORT DATA
-                        PENJUALAN
-                      </h3>
-                      <p className="text-sm font-medium text-slate-600">
-                        Upload riwayat transaksi manual untuk sinkronisasi
-                        database penjualan.
-                      </p>
-                    </div>
-                    <div>
-                      <input
-                        type="file"
-                        accept=".csv"
-                        ref={saleFileInput}
-                        onChange={handleImportSales}
-                        className="hidden"
-                        id="csv-upload-sales-settings"
-                      />
-                      <label
-                        htmlFor="csv-upload-sales-settings"
-                        className="cursor-pointer inline-block text-center px-8 py-4 bg-indigo-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center gap-2"
-                      >
-                        <UploadCloud className="w-4 h-4" /> IMPORT PENJUALAN
-                      </label>
-                    </div>
-                  </div>
+                        {/* PENJUALAN CARD */}
+                        <div className="bg-white border-2 border-slate-900 p-6 shadow-[6px_6px_0px_0px_#0f172a]">
+                          <div className="flex items-center gap-3 mb-4">
+                             <div className="p-2 bg-emerald-100 border-2 border-slate-900">
+                               <ShoppingBag className="w-5 h-5 text-emerald-600" />
+                             </div>
+                             <h4 className="font-black text-sm uppercase tracking-wider">Data Penjualan</h4>
+                          </div>
+                          <div className="space-y-3">
+                            <div>
+                              <input
+                                type="file"
+                                accept=".csv"
+                                ref={saleFileInput}
+                                onChange={handleImportSales}
+                                className="hidden"
+                                id="csv-upload-sales-settings"
+                              />
+                              <label
+                                htmlFor="csv-upload-sales-settings"
+                                className="cursor-pointer w-full py-3 bg-white border-2 border-slate-900 text-slate-900 font-bold uppercase tracking-widest text-[10px] shadow-[3px_3px_0px_0px_#0f172a] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex items-center justify-center gap-2"
+                              >
+                                <UploadCloud className="w-3 h-3" /> Import Regular
+                              </label>
+                            </div>
+                            <div>
+                              <input
+                                type="file"
+                                accept=".csv"
+                                ref={salesDSFileInput}
+                                onChange={handleImportSalesDS}
+                                className="hidden"
+                                id="csv-upload-sales-ds-settings"
+                              />
+                              <label
+                                htmlFor="csv-upload-sales-ds-settings"
+                                className="cursor-pointer w-full py-3 bg-white border-2 border-slate-900 text-slate-900 font-bold uppercase tracking-widest text-[10px] shadow-[3px_3px_0px_0px_#0f172a] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex items-center justify-center gap-2"
+                              >
+                                <UploadCloud className="w-3 h-3" /> Import Dropship
+                              </label>
+                            </div>
+                          </div>
+                        </div>
 
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-12 border-b-2 border-slate-900 border-dashed">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-black text-slate-900 flex items-center gap-2 mb-2 uppercase tracking-widest">
-                        <UploadCloud className="w-5 h-5" /> IMPORT DATA PENJUALAN DS
-                      </h3>
-                      <p className="text-sm font-medium text-slate-600">
-                        Upload riwayat transaksi dropship (DS) untuk sinkronisasi
-                        database penjualan DS.
-                      </p>
-                    </div>
-                    <div>
-                      <input
-                        type="file"
-                        accept=".csv"
-                        ref={salesDSFileInput}
-                        onChange={handleImportSalesDS}
-                        className="hidden"
-                        id="csv-upload-sales-ds-settings"
-                      />
-                      <label
-                        htmlFor="csv-upload-sales-ds-settings"
-                        className="cursor-pointer inline-block text-center px-8 py-4 bg-indigo-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center gap-2"
-                      >
-                        <UploadCloud className="w-4 h-4" /> IMPORT PENJUALAN DS
-                      </label>
-                    </div>
-                  </div>
+                        {/* OPERATIONS CARD */}
+                        <div className="bg-white border-2 border-slate-900 p-6 shadow-[6px_6px_0px_0px_#0f172a]">
+                          <div className="flex items-center gap-3 mb-4">
+                             <div className="p-2 bg-amber-100 border-2 border-slate-900">
+                               <ArrowDown className="w-5 h-5 text-amber-600" />
+                             </div>
+                             <h4 className="font-black text-sm uppercase tracking-wider">Barang Masuk</h4>
+                          </div>
+                          <div className="space-y-3">
+                            <input
+                              type="file"
+                              accept=".csv"
+                              ref={incomingFileInput}
+                              onChange={handleImportIncomingGoods}
+                              className="hidden"
+                              id="csv-upload-incoming-settings"
+                            />
+                            <label
+                              htmlFor="csv-upload-incoming-settings"
+                              className="cursor-pointer w-full py-3 bg-white border-2 border-slate-900 text-slate-900 font-bold uppercase tracking-widest text-[10px] shadow-[3px_3px_0px_0px_#0f172a] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex items-center justify-center gap-2"
+                            >
+                              <UploadCloud className="w-3 h-3" /> Import Batch
+                            </label>
+                          </div>
+                        </div>
 
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-12 border-b-2 border-slate-900 border-dashed">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-black text-slate-900 flex items-center gap-2 mb-2 uppercase tracking-widest">
-                        <UploadCloud className="w-5 h-5" /> IMPORT DATA BARANG
-                        MASUK
-                      </h3>
-                      <p className="text-sm font-medium text-slate-600">
-                        Upload riwayat stok barang masuk secara massal melalui
-                        file CSV.
-                      </p>
-                    </div>
-                    <div>
-                      <input
-                        type="file"
-                        accept=".csv"
-                        ref={incomingFileInput}
-                        onChange={handleImportIncomingGoods}
-                        className="hidden"
-                        id="csv-upload-incoming-settings"
-                      />
-                      <label
-                        htmlFor="csv-upload-incoming-settings"
-                        className="cursor-pointer inline-block text-center px-8 py-4 bg-indigo-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center gap-2"
-                      >
-                        <UploadCloud className="w-4 h-4" /> IMPORT BARANG MASUK
-                      </label>
-                    </div>
-                  </div>
+                        {/* MARKETING CARD */}
+                        <div className="bg-white border-2 border-slate-900 p-6 shadow-[6px_6px_0px_0px_#0f172a]">
+                          <div className="flex items-center gap-3 mb-4">
+                             <div className="p-2 bg-rose-100 border-2 border-slate-900">
+                               <Megaphone className="w-5 h-5 text-rose-600" />
+                             </div>
+                             <h4 className="font-black text-sm uppercase tracking-wider">Ads Expense</h4>
+                          </div>
+                          <div className="space-y-3">
+                            <input
+                              type="file"
+                              accept=".csv"
+                              ref={iklanFileInput}
+                              onChange={handleImportIklan}
+                              className="hidden"
+                              id="csv-upload-iklan-settings"
+                            />
+                            <label
+                              htmlFor="csv-upload-iklan-settings"
+                              className="cursor-pointer w-full py-3 bg-white border-2 border-slate-900 text-slate-900 font-bold uppercase tracking-widest text-[10px] shadow-[3px_3px_0px_0px_#0f172a] active:shadow-none active:translate-x-[2px] active:translate-y-[2px] transition-all flex items-center justify-center gap-2"
+                            >
+                              <UploadCloud className="w-3 h-3" /> Import Ads Log
+                            </label>
+                          </div>
+                        </div>
+                      </div>
+                    )}
 
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 pb-12 border-b-2 border-slate-900 border-dashed">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-black text-slate-900 flex items-center gap-2 mb-2 uppercase tracking-widest">
-                        <UploadCloud className="w-5 h-5" /> IMPORT PENGELUARAN IKLAN
-                      </h3>
-                      <p className="text-sm font-medium text-slate-600">
-                        Upload data pengeluaran iklan (Facebook/TikTok/Google Ads) 
-                        untuk evaluasi harian/mingguan.
-                      </p>
-                    </div>
-                    <div>
-                      <input
-                        type="file"
-                        accept=".csv"
-                        ref={iklanFileInput}
-                        onChange={handleImportIklan}
-                        className="hidden"
-                        id="csv-upload-iklan-settings"
-                      />
-                      <label
-                        htmlFor="csv-upload-iklan-settings"
-                        className="cursor-pointer inline-block text-center px-8 py-4 bg-indigo-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center gap-2"
-                      >
-                        <UploadCloud className="w-4 h-4" /> IMPORT IKLAN
-                      </label>
-                    </div>
-                  </div>
+                    {pengaturanSubTab === "rules" && (
+                      <div className="space-y-8">
+                        {/* GLOBAL REPLACEMENT TABLE */}
+                        <div className="bg-white border-2 border-slate-900 p-6 shadow-[6px_6px_0px_0px_#0f172a]">
+                          <div className="mb-4 flex items-center justify-between">
+                             <h4 className="font-black text-sm uppercase tracking-wider flex items-center gap-2">
+                               <Sparkles className="w-4 h-4 text-emerald-600" />
+                               Global Replacements
+                             </h4>
+                             <button 
+                               onClick={() => setReplacementGlobal([...replacementGlobal, { old: "", new: "" }])}
+                               className="px-3 py-1 bg-emerald-600 border-2 border-slate-900 text-white font-black text-[9px] uppercase shadow-[2px_2px_0px_0px_#0f172a] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all flex items-center gap-1"
+                             >
+                               <Plus className="w-3 h-3" /> Add Rule
+                             </button>
+                          </div>
+                          
+                          <div className="border-2 border-slate-900 overflow-hidden bg-slate-50 max-h-[300px] overflow-y-auto">
+                             <table className="w-full text-left border-collapse">
+                                <thead className="sticky top-0 bg-slate-900 text-white text-[9px] uppercase tracking-widest font-black">
+                                   <tr>
+                                      <th className="px-3 py-2 border-r border-slate-700">Original Text</th>
+                                      <th className="px-3 py-2 border-r border-slate-700">Mapped To</th>
+                                      <th className="px-3 py-2 text-center w-12">Action</th>
+                                   </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                   {replacementGlobal.map((rep, idx) => (
+                                     <tr key={idx} className="bg-white text-[11px]">
+                                        <td className="px-3 py-1.5 border-r border-slate-200">
+                                           <input 
+                                             type="text"
+                                             value={rep.old}
+                                             onChange={(e) => {
+                                               const newRep = [...replacementGlobal];
+                                               newRep[idx].old = e.target.value;
+                                               setReplacementGlobal(newRep);
+                                             }}
+                                             className="w-full bg-transparent border-none focus:outline-none font-bold"
+                                           />
+                                        </td>
+                                        <td className="px-3 py-1.5 border-r border-slate-200">
+                                           <input 
+                                             type="text"
+                                             value={rep.new}
+                                             onChange={(e) => {
+                                               const newRep = [...replacementGlobal];
+                                               newRep[idx].new = e.target.value;
+                                               setReplacementGlobal(newRep);
+                                             }}
+                                             className="w-full bg-transparent border-none focus:outline-none font-black text-indigo-700"
+                                           />
+                                        </td>
+                                        <td className="px-3 py-1.5 text-center">
+                                           <button onClick={() => setReplacementGlobal(replacementGlobal.filter((_, i) => i !== idx))} className="text-rose-600 p-1">
+                                             <Trash2 className="w-3 h-3" />
+                                           </button>
+                                        </td>
+                                     </tr>
+                                   ))}
+                                </tbody>
+                             </table>
+                          </div>
+                        </div>
 
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
-                    <div className="flex-1">
-                      <h3 className="text-lg font-black text-rose-600 flex items-center gap-2 mb-2 uppercase tracking-widest">
-                        <Trash2 className="w-5 h-5" /> HAPUS SEMUA DATA STOK
-                      </h3>
-                      <p className="text-sm font-medium text-slate-500">
-                        Tindakan ini permanen dan tidak dapat dibatalkan.
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setIsConfirmDeleteModalOpen(true)}
-                      className="px-8 py-4 bg-rose-50 border-2 border-slate-900 text-rose-600 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] transition-all flex items-center gap-2"
-                    >
-                      <Trash2 className="w-4 h-4" /> KOSONGKAN DATABASE
-                    </button>
+                        {/* KIM REPLACEMENT TABLE */}
+                        <div className="bg-white border-2 border-slate-900 p-6 shadow-[6px_6px_0px_0px_#0f172a]">
+                          <div className="mb-4 flex items-center justify-between">
+                             <h4 className="font-black text-sm uppercase tracking-wider flex items-center gap-2">
+                               <Package className="w-4 h-4 text-indigo-600" />
+                               KIM Format Mapping
+                             </h4>
+                             <button 
+                               onClick={() => setReplacementKim([...replacementKim, { old: "", new: "" }])}
+                               className="px-3 py-1 bg-indigo-600 border-2 border-slate-900 text-white font-black text-[9px] uppercase shadow-[2px_2px_0px_0px_#0f172a] active:shadow-none active:translate-x-[1px] active:translate-y-[1px] transition-all flex items-center gap-1"
+                             >
+                               <Plus className="w-3 h-3" /> Add Rule
+                             </button>
+                          </div>
+                          
+                          <div className="border-2 border-slate-900 overflow-hidden bg-slate-50 max-h-[300px] overflow-y-auto">
+                             <table className="w-full text-left border-collapse">
+                                <thead className="sticky top-0 bg-slate-900 text-white text-[9px] uppercase tracking-widest font-black">
+                                   <tr>
+                                      <th className="px-3 py-2 border-r border-slate-700">KIM Text</th>
+                                      <th className="px-3 py-2 border-r border-slate-700">Catalog Name</th>
+                                      <th className="px-3 py-2 text-center w-12">Action</th>
+                                   </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-200">
+                                   {replacementKim.map((rep, idx) => (
+                                     <tr key={idx} className="bg-white text-[11px]">
+                                        <td className="px-3 py-1.5 border-r border-slate-200">
+                                           <input 
+                                             type="text"
+                                             value={rep.old}
+                                             onChange={(e) => {
+                                               const newRep = [...replacementKim];
+                                               newRep[idx].old = e.target.value;
+                                               setReplacementKim(newRep);
+                                             }}
+                                             className="w-full bg-transparent border-none focus:outline-none font-bold"
+                                           />
+                                        </td>
+                                        <td className="px-3 py-1.5 border-r border-slate-200">
+                                           <input 
+                                             type="text"
+                                             value={rep.new}
+                                             onChange={(e) => {
+                                               const newRep = [...replacementKim];
+                                               newRep[idx].new = e.target.value;
+                                               setReplacementKim(newRep);
+                                             }}
+                                             className="w-full bg-transparent border-none focus:outline-none font-black text-indigo-700"
+                                           />
+                                        </td>
+                                        <td className="px-3 py-1.5 text-center">
+                                           <button onClick={() => setReplacementKim(replacementKim.filter((_, i) => i !== idx))} className="text-rose-600 p-1">
+                                             <Trash2 className="w-3 h-3" />
+                                           </button>
+                                        </td>
+                                     </tr>
+                                   ))}
+                                </tbody>
+                             </table>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {pengaturanSubTab === "maintenance" && (
+                      <div className="space-y-6">
+                        <div className="p-6 bg-rose-50 border-2 border-rose-200 rounded-lg">
+                          <div className="flex items-start gap-4">
+                            <div className="p-3 bg-rose-100 border-2 border-rose-600 rounded-full">
+                               <AlertTriangle className="w-6 h-6 text-rose-600" />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-lg font-black text-rose-600 uppercase tracking-widest mb-1">Pembersihan Database</h4>
+                              <p className="text-xs font-bold text-slate-600 leading-relaxed">
+                                Menghapus semua data stok dari database secara permanen. Pastikan Anda sudah mengeksport data sebagai backup sebelum melakukan tindakan ini.
+                              </p>
+                              <div className="mt-6">
+                                <button
+                                  onClick={() => setIsConfirmDeleteModalOpen(true)}
+                                  className="px-8 py-3 bg-white border-2 border-rose-600 text-rose-600 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#e11d48] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#e11d48] active:shadow-none active:translate-x-[4px] active:translate-y-[4px] transition-all flex items-center gap-2"
+                                >
+                                  <Trash2 className="w-4 h-4" /> KOSONGKAN DATABASE
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="p-6 bg-slate-100 border-2 border-slate-200 rounded-lg">
+                          <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest mb-4">System Statistics</h4>
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="bg-white border-2 border-slate-200 p-3 rounded-md">
+                              <p className="text-[10px] font-black text-slate-400 uppercase">Total Products</p>
+                              <p className="text-lg font-black text-slate-900">{products.length}</p>
+                            </div>
+                            <div className="bg-white border-2 border-slate-200 p-3 rounded-md">
+                              <p className="text-[10px] font-black text-slate-400 uppercase">Regular Sales</p>
+                              <p className="text-lg font-black text-slate-900">{sales.length}</p>
+                            </div>
+                            <div className="bg-white border-2 border-slate-200 p-3 rounded-md">
+                              <p className="text-[10px] font-black text-slate-400 uppercase">Dropship Sales</p>
+                              <p className="text-lg font-black text-slate-900">{salesDS.length}</p>
+                            </div>
+                            <div className="bg-white border-2 border-slate-200 p-3 rounded-md">
+                              <p className="text-[10px] font-black text-slate-400 uppercase">Input History</p>
+                              <p className="text-lg font-black text-slate-900">{incomingGoods.length}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
