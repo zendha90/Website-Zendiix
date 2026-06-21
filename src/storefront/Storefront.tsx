@@ -629,7 +629,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
   }, [groupedSeriesList, searchQuery, activeCategory, activeColorFilter, activeDiameterFilter, activeWaterFilter, activeBCFilter]);
 
   const random8Products = useMemo(() => {
-    return [...filteredSeries].sort(() => 0.5 - Math.random()).slice(0, 8);
+    return [...filteredSeries].sort((a, b) => a.seriesName.localeCompare(b.seriesName)).slice(0, 8);
   }, [filteredSeries]);
 
   const handleToggleFav = (seriesName: string, e: React.MouseEvent) => {
@@ -2176,7 +2176,6 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
 
           <a 
             href="https://wa.me/6281234567890" 
-            target="_blank" 
             rel="noreferrer"
             onClick={() => setIsCartOpen(false)}
             className="flex flex-col items-center justify-center gap-0.5 text-neutral-400 focus:outline-none"
