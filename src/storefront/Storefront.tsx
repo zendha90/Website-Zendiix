@@ -994,12 +994,6 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                 {/* Product Info Section */}
                 <div className="p-4 space-y-4 font-sans">
                   <div className="space-y-1 text-left">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-[9px] bg-slate-900 text-white font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider font-sans">
-                        ORIGINAL MALL
-                      </span>
-                      <span className="text-xs text-neutral-400 font-bold font-sans">Terjual 500+</span>
-                    </div>
                     <h1 className="text-xl font-extrabold text-slate-950 uppercase tracking-tight leading-snug font-display">
                       {selectedSeries.seriesName} Series
                     </h1>

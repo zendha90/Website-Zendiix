@@ -389,6 +389,7 @@ export function KatalogTab({ products }: KatalogTabProps) {
           hideSpecs: hideSpecs,
           notSoftlens: notSoftlens,
           isFlashSale: isFlashSale,
+          description: description || undefined,
           createdAt: prod.createdAt,
           updatedAt: prod.updatedAt
         });
