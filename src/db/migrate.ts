@@ -119,12 +119,53 @@ async function migrate() {
       logo_url VARCHAR(500),
       footer_about_text VARCHAR(1000) NOT NULL,
       updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+    )`,
+    `CREATE TABLE IF NOT EXISTS reviews (
+      id VARCHAR(255) PRIMARY KEY,
+      product_id VARCHAR(255) NOT NULL,
+      reviewer_name VARCHAR(255) NOT NULL,
+      rating INT NOT NULL,
+      comment TEXT,
+      photo_url TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`
   ];
 
   for (const sql of tables) {
     console.log('Executing:', sql.substring(0, 50) + '...');
     await connection.execute(sql);
+  }
+
+  // Safe ALTER TABLE updates for existing database instances to auto-inject missing columns
+  const alters = [
+    `ALTER TABLE settings ADD COLUMN browser_title VARCHAR(255) NULL`,
+    `ALTER TABLE settings ADD COLUMN favicon_url VARCHAR(500) NULL`,
+    `ALTER TABLE products MODIFY COLUMN image_url MEDIUMTEXT NULL`,
+    `ALTER TABLE products ADD COLUMN series_image_url MEDIUMTEXT NULL`,
+    `ALTER TABLE settings MODIFY COLUMN logo_url MEDIUMTEXT NULL`,
+    `ALTER TABLE settings MODIFY COLUMN favicon_url MEDIUMTEXT NULL`,
+    `ALTER TABLE storefront_banners MODIFY COLUMN image_url MEDIUMTEXT NOT NULL`,
+    `ALTER TABLE products ADD COLUMN durasi VARCHAR(255) NULL`,
+    `ALTER TABLE products ADD COLUMN g_dia VARCHAR(255) NULL`,
+    `ALTER TABLE products ADD COLUMN diameter VARCHAR(255) NULL`,
+    `ALTER TABLE products ADD COLUMN rating DOUBLE NULL`,
+    `ALTER TABLE products ADD COLUMN reviews_count INT NULL`,
+    `ALTER TABLE products ADD COLUMN allow_dual_power TINYINT(1) DEFAULT 1 NULL`,
+    `ALTER TABLE products ADD COLUMN group_name VARCHAR(255) NULL`,
+    `ALTER TABLE products ADD COLUMN custom_category VARCHAR(255) NULL`,
+    `ALTER TABLE products ADD COLUMN hide_specs TINYINT(1) DEFAULT 0 NULL`,
+    `ALTER TABLE products ADD COLUMN not_softlens TINYINT(1) DEFAULT 0 NULL`,
+    `ALTER TABLE products ADD COLUMN description VARCHAR(1000) NULL`,
+    `ALTER TABLE products ADD COLUMN is_flash_sale TINYINT(1) DEFAULT 0 NULL`
+  ];
+
+  for (const sql of alters) {
+    try {
+      console.log('Running passive upgrade:', sql.substring(0, 50) + '...');
+      await connection.execute(sql);
+    } catch (err: any) {
+      // Column may already exist, skip gracefully
+    }
   }
 
   console.log('Migration completed successfully!');

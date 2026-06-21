@@ -174,6 +174,18 @@ const splitImageUrls = (str: string | undefined | null): string[] => {
   return result;
 };
 
+// Pure, stable hashing function using a robust Mulberry32-inspired generator to ensure 100% deterministic layout stability
+const getSeededValueForSeries = (seriesName: string, dateKey: string): number => {
+  const combined = `${seriesName}_${dateKey}`;
+  let h = 1779033703 ^ combined.length;
+  for (let i = 0; i < combined.length; i++) {
+    h = Math.imul(h ^ combined.charCodeAt(i), 3432918353);
+    h = (h << 13) | (h >>> 19);
+  }
+  // Convert integer hash to stable float in [0, 1)
+  return (h >>> 0) / 4294967296;
+};
+
 export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], branding, isLoading = false }) => {
   const [searchParams, setSearchParams] = useSearchParams();
   const [isUrlChecked, setIsUrlChecked] = useState(false);
@@ -192,6 +204,19 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
   const [activeBCFilter, setActiveBCFilter] = useState('All');
   const [favorites, setFavorites] = useState<string[]>([]);
   const [isFilterVisible, setIsFilterVisible] = useState(false);
+  
+  // Date refresh trigger for daily randomization
+  const [dateKey, setDateKey] = useState(new Date().toDateString());
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const currentString = new Date().toDateString();
+      if (currentString !== dateKey) {
+        setDateKey(currentString);
+      }
+    }, 60000); // Check every minute
+    return () => clearInterval(interval);
+  }, [dateKey]);
   
   // Custom Sliding Carousel state (4:5 portrait ratio)
   const [currentSlide, setCurrentSlide] = useState(0);
@@ -629,8 +654,15 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
   }, [groupedSeriesList, searchQuery, activeCategory, activeColorFilter, activeDiameterFilter, activeWaterFilter, activeBCFilter]);
 
   const random8Products = useMemo(() => {
-    return [...filteredSeries].sort((a, b) => a.seriesName.localeCompare(b.seriesName)).slice(0, 8);
-  }, [filteredSeries]);
+    return [...filteredSeries]
+      .map(item => ({ 
+        item, 
+        sortVal: getSeededValueForSeries(item.seriesName, dateKey) 
+      }))
+      .sort((a, b) => a.sortVal - b.sortVal)
+      .map(item => item.item)
+      .slice(0, 8);
+  }, [filteredSeries, dateKey]);
 
   const handleToggleFav = (seriesName: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1566,7 +1598,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                         <div>
                           {/* Title block */}
                           <h4 className="text-xs font-bold text-neutral-800 line-clamp-2 leading-tight uppercase tracking-tight mb-1 text-left font-display">
-                            {series.seriesName} SERIES
+                            {series.seriesName}
                           </h4>
 
                           {/* Softlens parameters dot swatches block */}

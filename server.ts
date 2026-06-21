@@ -226,6 +226,59 @@ async function startServer() {
     try {
       await db.execute(sql`ALTER TABLE storefront_banners MODIFY COLUMN image_url MEDIUMTEXT NOT NULL`);
     } catch (e) {}
+
+    // Ensure all products columns exist (safe for older MySQL/cPanel databases)
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN durasi VARCHAR(255) NULL`);
+    } catch (e) {}
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN g_dia VARCHAR(255) NULL`);
+    } catch (e) {}
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN diameter VARCHAR(255) NULL`);
+    } catch (e) {}
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN rating DOUBLE NULL`);
+    } catch (e) {}
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN reviews_count INT NULL`);
+    } catch (e) {}
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN allow_dual_power TINYINT(1) DEFAULT 1 NULL`);
+    } catch (e) {}
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN group_name VARCHAR(255) NULL`);
+    } catch (e) {}
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN custom_category VARCHAR(255) NULL`);
+    } catch (e) {}
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN hide_specs TINYINT(1) DEFAULT 0 NULL`);
+    } catch (e) {}
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN not_softlens TINYINT(1) DEFAULT 0 NULL`);
+    } catch (e) {}
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN description VARCHAR(1000) NULL`);
+    } catch (e) {}
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN is_flash_sale TINYINT(1) DEFAULT 0 NULL`);
+    } catch (e) {}
+
+    // Ensure reviews table exists
+    try {
+      await db.execute(sql`
+        CREATE TABLE IF NOT EXISTS reviews (
+          id VARCHAR(255) PRIMARY KEY,
+          product_id VARCHAR(255) NOT NULL,
+          reviewer_name VARCHAR(255) NOT NULL,
+          rating INT NOT NULL,
+          comment TEXT,
+          photo_url TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    } catch (e) {}
     console.log('Background schema check and bootstrap completed successfully.');
   })().catch(err => {
     console.error('Warning: Background database schema bootstrap check failed, server will remain active:', err);
