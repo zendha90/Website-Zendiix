@@ -225,6 +225,65 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     setActiveImageIdx(0);
   }, [selectedSeries, modalColor]);
 
+  // Toast message notification state & automatic clear
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => setToastMessage(null), 2500);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
+  // URL query synchronizer: updates "?product=SeriesName" search parameter dynamically
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (selectedSeries) {
+      url.searchParams.set('product', selectedSeries.seriesName);
+    } else {
+      url.searchParams.delete('product');
+    }
+    window.history.replaceState({}, '', url.toString());
+  }, [selectedSeries]);
+
+  const handleShare = (seriesName: string) => {
+    const shareUrl = `${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(seriesName)}`;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(shareUrl)
+        .then(() => {
+          setToastMessage('LINK PRODUK TERSALIN!');
+        })
+        .catch(() => {
+          fallbackCopyText(shareUrl);
+        });
+    } else {
+      fallbackCopyText(shareUrl);
+    }
+  };
+
+  const fallbackCopyText = (text: string) => {
+    const textArea = document.createElement("textarea");
+    textArea.value = text;
+    textArea.style.top = "0";
+    textArea.style.left = "0";
+    textArea.style.position = "fixed";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textSelect(textArea);
+    try {
+      document.execCommand('copy');
+      setToastMessage('LINK PRODUK TERSALIN!');
+    } catch (err) {
+      alert("Gagal menyalin link secara otomatis. Silakan salin link berikut: " + text);
+    }
+    document.body.removeChild(textArea);
+  };
+
+  const textSelect = (el: HTMLTextAreaElement) => {
+    el.select();
+    el.setSelectionRange(0, 99999);
+  };
+
   const defaultPromoTexts = [
     "✨ BELI 1 GRATIS 1 - Tingkatkan pesonamu dengan Zendiix!",
     "🚚 GRATIS ONGKIR dengan belanja minimal Rp 400.000!",
@@ -369,6 +428,26 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
 
     return Object.values(map);
   }, [productsWithStock]);
+
+  // URL query receiver (auto open product on mount or list load)
+  useEffect(() => {
+    if (products.length > 0 && !isLoading && groupedSeriesList.length > 0) {
+      const params = new URLSearchParams(window.location.search);
+      const productParam = params.get('product') || params.get('series');
+      if (productParam) {
+        const decodedName = decodeURIComponent(productParam).trim().toLowerCase();
+        const found = groupedSeriesList.find(s => s.seriesName.trim().toLowerCase() === decodedName);
+        if (found) {
+          setSelectedSeries(found);
+          setModalColor(found.colors[0] || 'Clear');
+          setModalIsDualPower(false);
+          setSelectedPowerL('0.00'); // Standard default normalization
+          setSelectedPowerR('0.00');
+          setBuyQty(1);
+        }
+      }
+    }
+  }, [products, isLoading, groupedSeriesList]);
 
   // Dynamic extraction of custom categories from series/representative products
   const availableCustomCategories = useMemo(() => {
@@ -835,16 +914,25 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                       >
                         <div className="aspect-square bg-white rounded-md overflow-hidden relative mb-1">
                           <img src={imageSrc} alt="" className="w-full h-full object-cover" />
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleShare(series.seriesName);
+                            }}
+                            className="absolute top-1 left-1 p-1 bg-white/95 hover:bg-slate-900 hover:text-white text-neutral-700 rounded-full shadow-sm z-10 transition-all cursor-pointer hover:scale-110 active:scale-95 flex items-center justify-center border border-neutral-100"
+                            title="Salin Link Produk"
+                          >
+                            <svg className="w-2.5 h-2.5 stroke-[2.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                            </svg>
+                          </button>
                           <div className="absolute top-0 right-0 bg-slate-950 text-white text-[7px] font-bold px-1 rounded-bl">
                             -25%
                           </div>
                         </div>
                         <span className="text-[9px] font-black text-neutral-800 line-clamp-1 block">{series.seriesName}</span>
                         <span className="text-[10px] font-extrabold text-slate-950 block">Rp {series.representativeProduct.hargaJual.toLocaleString()}</span>
-                        <div className="w-full h-1.5 bg-neutral-200 rounded-full mt-1 overflow-hidden relative">
-                          <div className="absolute top-0 left-0 bg-slate-950 h-full" style={{ width: '65%' }} />
-                        </div>
-                        <span className="text-[6px] text-neutral-400 block mt-0.5 text-center font-bold">65% TERJUAL</span>
                       </div>
                     );
                   })}
@@ -1019,6 +1107,21 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                           referrerPolicy="no-referrer"
                         />
 
+                        {/* Copy/Share Link Alert Overlay Button */}
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleShare(series.seriesName);
+                          }}
+                          className="absolute top-2 right-2 p-1.5 bg-white/95 hover:bg-slate-900 hover:text-white text-neutral-700 rounded-full shadow-md z-10 transition-all cursor-pointer hover:scale-110 active:scale-95 flex items-center justify-center border border-neutral-100"
+                          title="Salin Link Produk"
+                        >
+                          <svg className="w-3.2 h-3.2 stroke-[2.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                            <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                          </svg>
+                        </button>
+
                         {/* Sold out overlay */}
                         {!isAvailable && (
                           <div className="absolute inset-0 bg-white/75 backdrop-blur-[0.5px] flex items-center justify-center">
@@ -1055,13 +1158,12 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                         </div>
 
                         <div>
-                          {/* Rating & Sold count */}
-                          <div className="flex items-center justify-between text-[9px] text-neutral-400 mt-1 mb-2">
+                          {/* Rating */}
+                          <div className="flex items-center text-[9px] text-neutral-400 mt-1 mb-2">
                             <div className="flex items-center gap-0.5 text-amber-500">
                               <Star className="w-2.5 h-2.5 fill-current shrink-0" />
                               <span className="font-extrabold text-slate-950">{rating.toFixed(1)}</span>
                             </div>
-                            <span>{reviews}+ Terujal</span>
                           </div>
 
                           {/* Cosmetics Price Tag */}
@@ -1230,7 +1332,22 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                     </div>
 
                     <div className="flex-1 mt-1 text-left min-w-0">
-                      <h4 className="text-sm font-bold text-neutral-900 truncate uppercase mt-0.5 font-display">{selectedSeries.seriesName} Series</h4>
+                      <div className="flex items-center gap-1.5 mt-0.5 min-w-0">
+                        <h4 className="text-sm font-bold text-neutral-900 truncate uppercase font-display">{selectedSeries.seriesName} Series</h4>
+                        <button
+                          onClick={() => handleShare(selectedSeries.seriesName)}
+                          className="p-1 hover:bg-neutral-100 rounded text-neutral-500 hover:text-slate-900 transition-colors cursor-pointer shrink-0"
+                          title="Bagikan & Salin Link"
+                        >
+                          <svg className="w-3.5 h-3.5 stroke-[2.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                            <circle cx="18" cy="5" r="3" />
+                            <circle cx="6" cy="12" r="3" />
+                            <circle cx="18" cy="19" r="3" />
+                            <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                            <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                          </svg>
+                        </button>
+                      </div>
                       <p className="text-sm font-black text-slate-950 mt-0.5 animate-pulse">Rp {price.toLocaleString()}</p>
                       
                       {/* Live Selected parameters overview */}
@@ -1675,6 +1792,21 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
             <img src={fullScreenImage.urls[fullScreenImage.index]} alt="Full Screen" className="max-w-[90vw] max-h-[85vh] object-contain rounded-lg shadow-2xl" referrerPolicy="no-referrer" />
           </div>
         )}
+
+        {/* Global Copied/Share Notification Toast */}
+        <AnimatePresence>
+          {toastMessage && (
+            <motion.div
+              initial={{ opacity: 0, y: 50, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 30, scale: 0.95 }}
+              className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[300] px-4 py-2.5 bg-neutral-900/95 backdrop-blur-sm text-white text-[11px] font-black tracking-widest uppercase rounded-full shadow-lg flex items-center gap-2 border border-neutral-700 font-display"
+            >
+              <Check className="w-3.5 h-3.5 text-emerald-400 stroke-[3px]" />
+              <span>{toastMessage}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
       </div>
 
