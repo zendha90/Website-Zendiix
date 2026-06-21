@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { useSearchParams } from 'react-router-dom';
 import { 
@@ -19,11 +19,12 @@ import {
   Heart,
   ChevronDown,
   ChevronLeft,
+  ArrowLeft,
   ShoppingBag as CartIcon,
   Instagram,
   Music
 } from 'lucide-react';
-import { Product, Sale, IncomingGood, subscribeToSales, subscribeToIncomingGoods, BrandingSettings } from '../services';
+import { Product, Sale, IncomingGood, subscribeToSales, subscribeToIncomingGoods, BrandingSettings, Review, subscribeToReviews, addReview } from '../services';
 
 interface StorefrontProps {
   products: Product[];
@@ -175,9 +176,14 @@ const splitImageUrls = (str: string | undefined | null): string[] => {
 
 export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], branding, isLoading = false }) => {
   const [searchParams, setSearchParams] = useSearchParams();
+  const [isUrlChecked, setIsUrlChecked] = useState(false);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedSeries, setSelectedSeries] = useState<GroupedSeries | null>(null);
+  const selectedSeriesRef = useRef(selectedSeries);
+  useEffect(() => {
+    selectedSeriesRef.current = selectedSeries;
+  }, [selectedSeries]);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeCategory, setActiveCategory] = useState('All');
   const [activeColorFilter, setActiveColorFilter] = useState('All');
@@ -237,8 +243,49 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     }
   }, [toastMessage]);
 
+  // Reviews state and submit reviews functionality
+  const [reviews, setReviews] = useState<Review[]>([]);
+  const [newReviewName, setNewReviewName] = useState('');
+  const [newReviewRating, setNewReviewRating] = useState(5);
+  const [newReviewComment, setNewReviewComment] = useState('');
+
+  useEffect(() => {
+    return subscribeToReviews(setReviews);
+  }, []);
+
+  const productReviews = useMemo(() => {
+    if (!selectedSeries) return [];
+    return reviews.filter(r => 
+      r.productId?.toLowerCase() === selectedSeries.seriesName?.toLowerCase() ||
+      r.productId?.toLowerCase().includes(selectedSeries.seriesName?.toLowerCase()) ||
+      selectedSeries.seriesName?.toLowerCase().includes(r.productId?.toLowerCase())
+    );
+  }, [reviews, selectedSeries]);
+
+  const handleSubmitReview = async () => {
+    if (!selectedSeries || !newReviewName.trim() || !newReviewComment.trim()) return;
+    try {
+      await addReview({
+        productId: selectedSeries.seriesName,
+        reviewerName: newReviewName.trim(),
+        rating: newReviewRating,
+        comment: newReviewComment.trim(),
+        photoUrl: ''
+      });
+      setNewReviewName('');
+      setNewReviewRating(5);
+      setNewReviewComment('');
+      setToastMessage("Terima kasih! Ulasan Anda telah terkirim.");
+    } catch (err) {
+      console.error(err);
+      setToastMessage("Gagal mengirim ulasan.");
+    }
+  };
+
   // URL query synchronizer: updates "?product=SeriesName" search parameter dynamically
   useEffect(() => {
+    if (isLoading || products.length === 0 || !isUrlChecked) return;
+
     const currentParam = searchParams.get('product') || searchParams.get('series');
     if (selectedSeries) {
       if (currentParam !== selectedSeries.seriesName) {
@@ -256,7 +303,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
         }, { replace: true });
       }
     }
-  }, [selectedSeries, searchParams, setSearchParams]);
+  }, [selectedSeries, searchParams, setSearchParams, isLoading, products, isUrlChecked]);
 
   const handleShare = (seriesName: string) => {
     const shareUrl = `${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(seriesName)}`;
@@ -450,7 +497,8 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
         const found = groupedSeriesList.find(s => s.seriesName.trim().toLowerCase() === decodedName);
         if (found) {
           // Only update state if it is different than currently selected to prevent looping
-          if (!selectedSeries || selectedSeries.seriesName.trim().toLowerCase() !== decodedName) {
+          const currentSelect = selectedSeriesRef.current;
+          if (!currentSelect || currentSelect.seriesName.trim().toLowerCase() !== decodedName) {
             setSelectedSeries(found);
             setModalColor(found.colors[0] || 'Clear');
             setModalIsDualPower(false);
@@ -461,12 +509,13 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
         }
       } else {
         // If query parameters are removed (e.g. user goes back/dismisses), close the modal
-        if (selectedSeries) {
+        if (selectedSeriesRef.current) {
           setSelectedSeries(null);
         }
       }
+      setIsUrlChecked(true);
     }
-  }, [products, isLoading, groupedSeriesList, searchParams, selectedSeries]);
+  }, [products, isLoading, groupedSeriesList, searchParams]);
 
   // Dynamic extraction of custom categories from series/representative products
   const availableCustomCategories = useMemo(() => {
@@ -755,6 +804,13 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     }
   }, [selectedSeries, modalColor, selectedPowerL, selectedPowerR, modalIsDualPower, buyQty]);
 
+  const modalSubtotal = useMemo(() => {
+    if (!selectedSeries) return 0;
+    const price = selectedSeries.representativeProduct.hargaJual;
+    const multiplier = modalIsDualPower ? 2 : 1;
+    return price * buyQty * multiplier;
+  }, [selectedSeries, modalIsDualPower, buyQty]);
+
   return (
     <div className="min-h-screen bg-neutral-50 font-sans text-neutral-800 antialiased selection:bg-slate-900 selection:text-white flex justify-center items-start">
       
@@ -781,19 +837,32 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
         {/* Brand Elegant Sticky Header Bar with Enlarged Layout and Alignment */}
         <header className="sticky top-0 z-50 bg-white text-slate-900 px-4 py-4 border-b border-neutral-100 shadow-sm flex flex-col gap-2.5">
           <div className="flex items-center justify-between gap-4">
-            {/* Elegant Cosmetics Brand Branding with Mall/Boutique Gold Accent Badge */}
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {branding?.logoUrl ? (
-                <img src={branding.logoUrl} alt="Logo" className="h-8 w-auto object-contain" />
-              ) : (
-                <span className="font-display text-2xl font-black tracking-tighter leading-none text-slate-950">
-                  {branding?.logoText || "ZENDIIX"}
-                </span>
-              )}
-            </div>
+            {selectedSeries ? (
+              <button 
+                onClick={() => setSelectedSeries(null)}
+                className="flex items-center gap-1.5 text-slate-900 hover:text-slate-700 transition-colors font-extrabold text-[11px] uppercase tracking-wider"
+              >
+                <ArrowLeft className="w-5 h-5" />
+                <span>Beranda</span>
+              </button>
+            ) : (
+              /* Elegant Cosmetics Brand Branding with Mall/Boutique Gold Accent Badge */
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {branding?.logoUrl ? (
+                  <img src={branding.logoUrl} alt="Logo" className="h-8 w-auto object-contain" />
+                ) : (
+                  <span className="font-display text-2xl font-black tracking-tighter leading-none text-slate-950">
+                    {branding?.logoText || "ZENDIIX"}
+                  </span>
+                )}
+              </div>
+            )}
 
-            {/* Enlarged Top Search Input Box - Only visible in Beranda */}
-            {!isFilterVisible ? (
+            {selectedSeries ? (
+              <div className="flex-1 text-center font-display text-xs font-black text-slate-950 truncate uppercase pr-4">
+                {selectedSeries.seriesName} Detail
+              </div>
+            ) : !isFilterVisible ? (
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
                 <input 
@@ -826,7 +895,352 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
         {/* Main Phone Screen Viewport Area */}
         <div className="flex-1 overflow-y-auto overflow-x-hidden pb-10 scrollbar-none">
           
-          {!isFilterVisible && (
+          {selectedSeries ? (() => {
+            const stats = getSeriesStatistics(selectedSeries);
+            const repProduct = selectedSeries.representativeProduct;
+            const activeVariantByColor = selectedSeries.variants.find(
+              v => v.color?.toLowerCase() === modalColor.toLowerCase() && v.product?.imageUrl
+            );
+            
+            const displayImageUrls = (activeVariantByColor && activeVariantByColor.product?.imageUrl)
+              ? splitImageUrls(activeVariantByColor.product.imageUrl)
+              : (repProduct.imageUrl ? splitImageUrls(repProduct.imageUrl) : []);
+            
+            const currentImageUrl = displayImageUrls[activeImageIdx] || repProduct.imageUrl || `https://picsum.photos/seed/${selectedSeries.seriesName}/600/600`;
+            const price = repProduct.hargaJual;
+
+            return (
+              <div className="bg-white text-slate-900 min-h-screen pb-20">
+                {/* Product Hero Image Gallery */}
+                <div className="relative w-full aspect-square bg-[#F7F7F7] overflow-hidden group">
+                  <img 
+                    src={currentImageUrl}
+                    alt={selectedSeries.seriesName}
+                    className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                    referrerPolicy="no-referrer"
+                  />
+                  
+                  {/* Float share button */}
+                  <button
+                    onClick={() => handleShare(selectedSeries.seriesName)}
+                    className="absolute right-4 top-4 bg-white/90 backdrop-blur-md p-2.5 rounded-full shadow-md text-slate-800 hover:bg-white transition-all hover:scale-110 active:scale-95"
+                    title="Bagikan & Salin Link"
+                  >
+                    <svg className="w-5 h-5 stroke-[2.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="18" cy="5" r="3" />
+                      <circle cx="6" cy="12" r="3" />
+                      <circle cx="18" cy="19" r="3" />
+                      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+                      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Thumbnails Gallery inside page */}
+                {displayImageUrls.length > 1 && (
+                  <div className="px-4 py-3 bg-neutral-50/50 border-b border-neutral-100">
+                    <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block font-display mb-1.5 font-sans">Galeri Foto Lensa</span>
+                    <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
+                      {displayImageUrls.map((thumbUrl, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => setActiveImageIdx(idx)}
+                          className={`w-12 h-12 rounded overflow-hidden border transition-all shrink-0 ${
+                            activeImageIdx === idx 
+                              ? 'border-slate-950 ring-2 ring-slate-950/20 scale-95' 
+                              : 'border-neutral-200 opacity-80 hover:opacity-100'
+                          }`}
+                        >
+                          <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Product Info Section */}
+                <div className="p-4 space-y-4 font-sans">
+                  <div className="space-y-1 text-left">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-[9px] bg-slate-900 text-white font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider font-sans">
+                        ORIGINAL MALL
+                      </span>
+                      <span className="text-xs text-neutral-400 font-bold font-sans">Terjual 500+</span>
+                    </div>
+                    <h1 className="text-xl font-extrabold text-slate-950 uppercase tracking-tight leading-snug font-display">
+                      {selectedSeries.seriesName} Series
+                    </h1>
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg font-black text-slate-950 font-sans">
+                        Rp {price.toLocaleString()}
+                      </span>
+                      <span className="text-xs text-neutral-400 line-through font-sans">
+                        Rp {(price * 1.3).toLocaleString()}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Specs Section */}
+                  {!selectedSeries.representativeProduct.hideSpecs && (
+                    <div className="bg-neutral-50 p-3 rounded-xl border border-neutral-100 text-[10px] flex justify-between items-center text-center gap-2 font-semibold font-sans">
+                      <div className="flex-1">
+                        <span className="text-neutral-400 block text-[8px] font-bold uppercase tracking-wider mb-0.5 font-display">DIA</span>
+                        <span className="font-bold text-slate-800">{stats.diameter}</span>
+                      </div>
+                      <span className="text-neutral-200">|</span>
+                      <div className="flex-1">
+                        <span className="text-neutral-400 block text-[8px] font-bold uppercase tracking-wider mb-0.5 font-display">BC</span>
+                        <span className="font-bold text-slate-800">{stats.baseCurve}</span>
+                      </div>
+                      <span className="text-neutral-200">|</span>
+                      <div className="flex-1">
+                        <span className="text-neutral-400 block text-[8px] font-bold uppercase tracking-wider mb-0.5 font-display">Kadar Air</span>
+                        <span className="font-bold text-slate-800">{stats.waterContent}</span>
+                      </div>
+                      <span className="text-neutral-200">|</span>
+                      <div className="flex-1">
+                        <span className="text-neutral-400 block text-[8px] font-bold uppercase tracking-wider mb-0.5 font-display">DURASI</span>
+                        <span className="font-bold text-slate-800">{stats.duration || "6 Bulan"}</span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Color Swatch Picker */}
+                  <div className="space-y-2 text-left">
+                    <div className="flex justify-between text-[11px] font-bold uppercase tracking-wider text-neutral-400 font-display">
+                      <span>{selectedSeries.representativeProduct.notSoftlens ? "Pilihan Variasi" : "Pilihan Warna"}</span>
+                      <span className="text-slate-950 font-bold">{modalColor}</span>
+                    </div>
+                    
+                    <div className="flex flex-wrap gap-2">
+                      {selectedSeries.colors.map(col => {
+                        const isActive = modalColor.toLowerCase() === col.toLowerCase();
+                        return (
+                          <button
+                            key={col}
+                            onClick={() => {
+                              setModalColor(col);
+                              setActiveImageIdx(0);
+                            }}
+                            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-[10px] font-bold border transition-all ${
+                              isActive 
+                                ? 'border-slate-950 bg-slate-50 text-slate-950 font-black shadow-inner scale-[1.02]' 
+                                : 'border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300'
+                            }`}
+                          >
+                            <span 
+                              className="w-3 h-3 rounded-full border border-white shadow-xs shrink-0 block" 
+                              style={{ backgroundColor: getColorHex(col) }}
+                            />
+                            <span>{col}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Product Selection Description block */}
+                  {selectedSeries.representativeProduct.notSoftlens ? (
+                    <div className="bg-neutral-50 p-4 rounded-xl border border-neutral-100 text-xs text-left font-sans">
+                      <span className="text-[10px] font-bold text-slate-950 uppercase tracking-widest block mb-1.5 font-display">Deskripsi Detail Produk</span>
+                      <p className="text-neutral-600 font-medium leading-relaxed font-sans whitespace-pre-wrap text-[11px]">
+                        {selectedSeries.representativeProduct.description || "Tidak ada deskripsi detail untuk produk ini."}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 font-sans">
+                      {/* SPH POWER GRID */}
+                      <div className="space-y-1.5 text-left">
+                        <span className="text-[10px] font-bold uppercase text-neutral-400 block font-display">Pilihan Ukuran Minus</span>
+                        <div className="relative">
+                          <select
+                            value={selectedPowerL}
+                            onChange={(e) => setSelectedPowerL(e.target.value)}
+                            className="w-full bg-white border border-neutral-200 rounded-lg py-2.5 px-3 text-[11px] font-bold focus:outline-none focus:ring-1 focus:ring-slate-950 appearance-none"
+                          >
+                            {powerOptions.map(pow => {
+                              const matchingVariant = selectedSeries.variants.find(
+                                v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === pow
+                              );
+                              const stockVal = matchingVariant?.stokBarang ?? 0;
+                              return (
+                                <option key={pow} value={pow}>
+                                  SPH: {pow} {stockVal <= 0 ? '- [Stok Kosong]' : ''}
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <ChevronDown className="w-4 h-4 text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Product Description */}
+                  {!selectedSeries.representativeProduct.notSoftlens && selectedSeries.representativeProduct.description && (
+                    <div className="p-3 bg-neutral-50 rounded-xl border border-neutral-100 text-[10px] text-left space-y-1 font-sans">
+                      <span className="font-bold text-slate-800 uppercase block tracking-wider font-display">Deskripsi Seri</span>
+                      <p className="text-neutral-600 leading-relaxed font-semibold whitespace-pre-wrap text-[11px] font-sans">{selectedSeries.representativeProduct.description}</p>
+                    </div>
+                  )}
+
+                  {/* Quantity Row */}
+                  <div className="flex items-center justify-between bg-neutral-50 p-4 rounded-xl border border-neutral-100 font-sans">
+                    <div className="text-left font-sans">
+                      <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block mb-1 font-display">Jumlah Set</span>
+                      <div className="flex items-center gap-1 bg-white border border-neutral-200 rounded-md py-0.5 px-2 w-max shadow-sm">
+                        <button 
+                          onClick={() => setBuyQty(p => Math.max(1, p - 1))}
+                          className="text-sm font-black px-2 py-1 text-neutral-500 hover:text-slate-950 transition-colors"
+                        >
+                          -
+                        </button>
+                        <span className="text-xs font-bold w-10 text-center text-slate-900">{buyQty}</span>
+                        <button 
+                          onClick={() => setBuyQty(p => p + 1)}
+                          className="text-sm font-black px-2 py-1 text-neutral-500 hover:text-slate-950 transition-colors"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <span className="text-[9px] font-black text-neutral-400 uppercase tracking-widest block mb-1">Status Stok Varian</span>
+                      {activeStockStatus.available ? (
+                        <div className="text-emerald-600 font-extrabold text-xs flex items-center gap-1 justify-end">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse block" />
+                          <span>Ready Stock</span>
+                        </div>
+                      ) : (
+                        <div className="text-rose-600 font-extrabold text-xs uppercase tracking-wider">
+                          Stok Habis / Limit
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Add to Cart CTA Checkout Action */}
+                  <div className="pt-2 border-t border-neutral-100 space-y-3 font-sans">
+                    <div className="flex justify-between items-center text-[10px] text-neutral-400 font-bold uppercase px-1">
+                      <span>Total Bayar ({buyQty} Box):</span>
+                      <span className="text-base font-black text-slate-950 font-sans">Rp {modalSubtotal.toLocaleString()}</span>
+                    </div>
+
+                    <button
+                      onClick={handleAddToCart}
+                      disabled={!activeStockStatus.available}
+                      className={`w-full py-3.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-[0.98] ${
+                        activeStockStatus.available 
+                          ? 'bg-slate-950 text-white hover:bg-slate-900 shadow-slate-950/10' 
+                          : 'bg-neutral-150 text-neutral-400 border border-neutral-200 cursor-not-allowed shadow-none'
+                      }`}
+                    >
+                      <ShoppingBag className="w-4 h-4" />
+                      <span>Tambah ke Keranjang • Rp {modalSubtotal.toLocaleString()}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Product specific customer reviews section */}
+                <div className="mt-6 border-t border-neutral-150 p-4 text-left font-sans">
+                  <div className="flex items-center justify-between pb-3 border-b border-neutral-100 mb-4">
+                    <h3 className="text-xs font-black text-slate-950 uppercase tracking-wider font-display">
+                      Ulasan Pelanggan ({productReviews.length})
+                    </h3>
+                    {productReviews.length > 0 && (
+                      <div className="flex items-center gap-1">
+                        <Star className="w-3.5 h-3.5 fill-yellow-400 text-yellow-400" />
+                        <span className="text-xs font-black text-slate-950">
+                          {(productReviews.reduce((sum, r) => sum + r.rating, 0) / productReviews.length).toFixed(1)}/5
+                        </span>
+                      </div>
+                    )}
+                  </div>
+
+                  {productReviews.length === 0 ? (
+                    <div className="text-center py-6 bg-neutral-50 rounded-xl border border-neutral-100/60 p-4 space-y-1">
+                      <p className="text-xs text-neutral-500 font-bold">Belum ada ulasan untuk seri ini.</p>
+                      <p className="text-[10px] text-neutral-400">Jadilah yang pertama untuk memberikan ulasan!</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4 max-h-[400px] overflow-y-auto scrollbar-none pr-1">
+                      {productReviews.map((review) => (
+                        <div key={review.id} className="border-b border-neutral-100 pb-3 last:border-0 text-left font-sans font-medium">
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="font-bold text-xs text-slate-900">{review.reviewerName}</span>
+                            <span className="text-[9px] font-bold text-neutral-400">
+                              {new Date(review.createdAt).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-0.5 mb-1.5">
+                            {Array.from({ length: 5 }).map((_, i) => (
+                              <Star 
+                                key={i} 
+                                className={`w-3 h-3 ${i < review.rating ? 'fill-yellow-400 text-yellow-400' : 'text-neutral-200'}`} 
+                              />
+                            ))}
+                          </div>
+                          <p className="text-[11px] text-neutral-600 font-medium leading-relaxed">{review.comment}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Inline Form to Add a Review for this Product */}
+                  <div className="mt-8 bg-neutral-50 border border-neutral-100/80 p-4 rounded-xl space-y-3 text-left">
+                    <h4 className="text-[10px] font-extrabold text-slate-950 uppercase tracking-widest font-display">Tulis Ulasan Baru</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[8.5px] font-bold text-neutral-400 uppercase tracking-wider block">Nama Anda</label>
+                        <input 
+                          type="text" 
+                          placeholder="Contoh: Ranti"
+                          value={newReviewName}
+                          onChange={(e) => setNewReviewName(e.target.value)}
+                          className="w-full bg-white border border-neutral-200 rounded px-2.5 py-1.5 text-[11px] font-bold focus:outline-none focus:ring-1 focus:ring-slate-950"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[8.5px] font-bold text-neutral-400 uppercase tracking-wider block">Rating Bintang</label>
+                        <select 
+                          value={newReviewRating}
+                          onChange={(e) => setNewReviewRating(Number(e.target.value))}
+                          className="w-full bg-white border border-neutral-200 rounded px-2.5 py-1.5 text-[11px] font-bold focus:outline-none focus:ring-1 focus:ring-slate-950"
+                        >
+                          <option value={5}>🌟 5 Bintang</option>
+                          <option value={4}>🌟 4 Bintang</option>
+                          <option value={3}>🌟 3 Bintang</option>
+                          <option value={2}>🌟 2 Bintang</option>
+                          <option value={1}>🌟 1 Bintang</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-[8.5px] font-bold text-neutral-400 uppercase tracking-wider block">Tulis Ulasan Anda</label>
+                      <textarea 
+                        rows={2}
+                        placeholder="Bagikan ulasan Anda mengenai warna dan kenyamanan lensa ini..."
+                        value={newReviewComment}
+                        onChange={(e) => setNewReviewComment(e.target.value)}
+                        className="w-full bg-white border border-neutral-200 rounded p-2.5 text-[11px] font-bold focus:outline-none focus:ring-1 focus:ring-slate-950"
+                      />
+                    </div>
+                    <button
+                      onClick={handleSubmitReview}
+                      disabled={!newReviewName.trim() || !newReviewComment.trim()}
+                      className="w-full py-2 bg-slate-950 text-white hover:bg-slate-900 rounded font-bold text-[10px] uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Kirim Ulasan • Gratis
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })() : (
+            <>
+              {!isFilterVisible && (
             <>
               {/* Shopee-style Home Carousel Banner */}
               <div id="promo-banner-carousel" className="relative w-full aspect-[4/5] bg-neutral-900 overflow-hidden select-none">
@@ -919,22 +1333,20 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                   {filteredSeries.filter(s => s.representativeProduct.isFlashSale).slice(0, 4).map((series, index) => {
                     const imageSrc = series.computedMainImage || `https://picsum.photos/seed/${series.seriesName}/600/600`;
                     return (
-                      <div 
+                      <a 
                         key={index} 
-                        onClick={() => {
+                        href={`${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(series.seriesName)}`}
+                        onClick={(e) => {
+                          e.preventDefault();
                           setSelectedSeries(series);
-                          setModalColor(series.colors[0] || 'Clear');
-                          setModalIsDualPower(false);
-                          setSelectedPowerL('0.00');
-                          setSelectedPowerR('0.00');
-                          setBuyQty(1);
                         }}
-                        className="w-24 shrink-0 bg-neutral-50 p-1.5 border border-dashed border-neutral-200 rounded-md text-left cursor-pointer"
+                        className="w-24 shrink-0 bg-neutral-50 p-1.5 border border-dashed border-neutral-200 rounded-md text-left cursor-pointer hover:border-neutral-400 hover:shadow-xs transition-all block text-neutral-900 leading-normal"
                       >
                         <div className="aspect-square bg-white rounded-md overflow-hidden relative mb-1">
                           <img src={imageSrc} alt="" className="w-full h-full object-cover" />
                           <button
                             onClick={(e) => {
+                              e.preventDefault();
                               e.stopPropagation();
                               handleShare(series.seriesName);
                             }}
@@ -952,7 +1364,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                         </div>
                         <span className="text-[9px] font-black text-neutral-800 line-clamp-1 block">{series.seriesName}</span>
                         <span className="text-[10px] font-extrabold text-slate-950 block">Rp {series.representativeProduct.hargaJual.toLocaleString()}</span>
-                      </div>
+                      </a>
                     );
                   })}
                 </div>
@@ -1105,17 +1517,14 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                   const imageSrc = series.computedMainImage || `https://picsum.photos/seed/${series.seriesName}/600/600`;
 
                   return (
-                    <div 
+                    <a 
                       key={series.seriesName}
-                      onClick={() => {
+                      href={`${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(series.seriesName)}`}
+                      onClick={(e) => {
+                        e.preventDefault();
                         setSelectedSeries(series);
-                        setModalColor(series.colors[0] || 'Clear');
-                        setModalIsDualPower(false);
-                        setSelectedPowerL('0.00');
-                        setSelectedPowerR('0.00');
-                        setBuyQty(1);
                       }}
-                      className="group bg-white rounded-md overflow-hidden hover:shadow-md transition-all border border-neutral-100 relative cursor-pointer flex flex-col justify-between"
+                      className="group bg-white rounded-md overflow-hidden hover:shadow-md transition-all border border-neutral-100 relative cursor-pointer flex flex-col justify-between block text-neutral-900 leading-normal"
                     >
                       {/* Product square thumbnail */}
                       <div className="relative aspect-square bg-[#FAFAFA]">
@@ -1129,6 +1538,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                         {/* Copy/Share Link Alert Overlay Button */}
                         <button
                           onClick={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
                             handleShare(series.seriesName);
                           }}
@@ -1167,6 +1577,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                                   key={col}
                                   className="w-2.5 h-2.5 rounded-full border border-white shadow-inner shrink-0 block"
                                   style={{ backgroundColor: getColorHex(col) }}
+                                  title={col}
                                 />
                               ))}
                             </div>
@@ -1198,7 +1609,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                         </div>
 
                       </div>
-                    </div>
+                    </a>
                   );
                 })}
               </div>
@@ -1293,13 +1704,15 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               </div>
             </div>
           </footer>
-
+            </>
+          )}
 
         </div>
 
         {/* 3. PERSISTENT SHOPEE-STYLE BOTTOM SHEETS VARIANT SELECTOR */}
         <AnimatePresence>
-          {selectedSeries && (() => {
+          {/* Disabled in favor of full inline page view detail route */}
+          {false && selectedSeries && (() => {
             const stats = getSeriesStatistics(selectedSeries);
             const repProduct = selectedSeries.representativeProduct;
             const activeVariantByColor = selectedSeries.variants.find(
