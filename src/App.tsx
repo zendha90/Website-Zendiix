@@ -235,6 +235,27 @@ const parseToDate = (tStr: any): Date | null => {
   return null;
 };
 
+const formatToIndoDateStr = (date: Date): string => {
+  const months = [
+    "Jan", "Feb", "Mar", "Apr", "Mei", "Jun", 
+    "Jul", "Agt", "Sep", "Okt", "Nov", "Des"
+  ];
+  const day = date.getDate();
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  return `${day} ${month} ${year}`;
+};
+
+const normalizeOrderDate = (dateStr: any): string => {
+  if (!dateStr) return "";
+  const d = parseToDate(dateStr);
+  if (d && !isNaN(d.getTime())) {
+    return formatToIndoDateStr(d);
+  }
+  return String(dateStr).trim();
+};
+
+
 interface WeekDef {
   month: number;
   monthName: string;
@@ -1035,6 +1056,17 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       setBranding(sharedBranding);
     }
   }, [sharedBranding]);
+
+  const findSupplierForProduct = (name: string): string => {
+    if (!name) return "";
+    const cleanName = name.trim().toLowerCase();
+    const match = products.find(p => {
+      const pName = (p.namaBarang || "").trim().toLowerCase();
+      const pCode = (p.kodeBarang || "").trim().toLowerCase();
+      return cleanName.includes(pName) || pName.includes(cleanName) || cleanName.includes(pCode);
+    });
+    return match ? (match.supplier || "") : "";
+  };
 
   const [sales, setSales] = useState<Sale[]>([]);
   const [salesDS, setSalesDS] = useState<SaleDS[]>([]);
@@ -2162,7 +2194,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
             idx +
             "-" +
             Math.random().toString(36).substr(2, 5),
-          tanggalOrder: cols[0]?.trim() || "",
+          tanggalOrder: normalizeOrderDate(cols[0]?.trim() || ""),
           channel: cols[1]?.trim() || "",
           noPesanan: cols[2]?.trim() || "",
           noResi: cols[3]?.trim() || "",
@@ -2268,7 +2300,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       if (product) {
         try {
           await processSale(product, Number(draft.qty) || 1, {
-            tanggalOrder: draft.tanggalOrder,
+            tanggalOrder: normalizeOrderDate(draft.tanggalOrder || new Date()),
             channel: draft.channel,
             noPesanan: draft.noPesanan,
             noResi: draft.noResi,
@@ -2288,7 +2320,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
             Number(draft.qty) || 1,
             draft.totalPenjualan,
             {
-              tanggalOrder: draft.tanggalOrder,
+              tanggalOrder: normalizeOrderDate(draft.tanggalOrder || new Date()),
               channel: draft.channel,
               noPesanan: draft.noPesanan,
               noResi: draft.noResi,
@@ -2419,10 +2451,26 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           labaVal = totalPenjualanVal - (hppVal * qtyVal);
         }
 
+        // Auto-detect supplier code
+        let matchedSupplier = "";
+        for (const col of cols) {
+          if (col) {
+            const cleanCol = col.trim().toUpperCase();
+            const found = DROPSHIP_SUPPLIERS.find(s => s.toUpperCase() === cleanCol);
+            if (found) {
+              matchedSupplier = found;
+              break;
+            }
+          }
+        }
+        if (!matchedSupplier) {
+          matchedSupplier = findSupplierForProduct(cols[6] || "");
+        }
+
         newDrafts.push({
           id: Date.now() + "-ds-paste-" + idx + "-" + Math.random().toString(36).substring(2, 7),
-          kodeSupplier: "", // Selected manually from dropdown
-          tanggalOrder: cols[0]?.trim() || "",
+          kodeSupplier: matchedSupplier, // Auto-detected from columns or products catalog
+          tanggalOrder: normalizeOrderDate(cols[0]?.trim() || ""),
           channel: cols[1]?.trim() || "",
           noPesanan: cols[2]?.trim() || "",
           noResi: cols[3]?.trim() || "",
@@ -2554,12 +2602,25 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       return;
     }
 
+    // Auto-detect or validate supplier codes
+    for (const draft of validDrafts) {
+      if (!draft.kodeSupplier) {
+        const detected = findSupplierForProduct(draft.namaProduk);
+        if (detected) {
+          draft.kodeSupplier = detected;
+        } else {
+          alert(`Baris produk "${draft.namaProduk}" belum memilih Kode Supplier. Silakan tentukan supplier terlebih dahulu.`);
+          return;
+        }
+      }
+    }
+
     let successCount = 0;
     for (const draft of validDrafts) {
       try {
         await addSaleDSRecord({
           kodeSupplier: draft.kodeSupplier,
-          tanggalOrder: draft.tanggalOrder,
+          tanggalOrder: normalizeOrderDate(draft.tanggalOrder || new Date()),
           channel: draft.channel,
           noPesanan: draft.noPesanan,
           noResi: draft.noResi,
@@ -2580,7 +2641,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
     alert(`Berhasil menyimpan ${successCount} data penjualan Dropship (DS)!`);
     setDraftSalesDS(() => {
-      return Array.from({ length: 100 }, (_, i) => ({
+      return Array.from({ length: 1 }, (_, i) => ({
         id: Date.now() + "-ds-" + i,
         kodeSupplier: "",
         tanggalOrder: "",
@@ -3419,7 +3480,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
         };
 
         for (const [index, item] of data.entries()) {
-          const kodeSupplier = String(getVal(item, "Kode Supplier", "ID Supplier", "kodeSupplier") || "").trim();
+          const rawSupplier = String(getVal(item, "Kode Supplier", "ID Supplier", "kodeSupplier") || "").trim();
           const tanggalOrder = String(getVal(item, "Tgl. Order", "Tgl Order", "Tanggal Order", "Tanggal", "tanggalOrder") || "").trim();
           const channel = String(getVal(item, "Channel", "Kurir", "channel") || "").trim();
           const noPesanan = String(getVal(item, "No. Pesanan", "No Pesanan", "No. Pesanan / Alamat", "noPesanan") || "").trim();
@@ -3438,13 +3499,22 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
             laba = totalPenjualan - (hpp * qty) - ongkosKirim;
           }
 
+          // Auto-detect supplier code if not provided
+          let kodeSupplier = rawSupplier;
+          if (!kodeSupplier) {
+            kodeSupplier = findSupplierForProduct(namaProduk);
+          }
+          if (!kodeSupplier) {
+            kodeSupplier = "S-LINA"; // Reasonable fallback default
+          }
+
           try {
             const baseDate = parseIndonesianDate(tanggalOrder);
             const offsetDate = new Date(baseDate.getTime() + index * 1000);
             
             await addSaleDSRecord({
               kodeSupplier,
-              tanggalOrder: tanggalOrder || offsetDate.toLocaleDateString("id-ID"),
+              tanggalOrder: normalizeOrderDate(tanggalOrder || offsetDate),
               channel,
               noPesanan,
               noResi,

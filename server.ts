@@ -164,6 +164,9 @@ async function startServer() {
       await db.execute(sql`ALTER TABLE products MODIFY COLUMN image_url MEDIUMTEXT NULL`);
     } catch (e) {}
     try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN series_image_url MEDIUMTEXT NULL`);
+    } catch (e) {}
+    try {
       await db.execute(sql`ALTER TABLE settings MODIFY COLUMN logo_url MEDIUMTEXT NULL`);
     } catch (e) {}
     try {
@@ -179,11 +182,11 @@ async function startServer() {
 
   // Health Check / DB Test
   app.get('/api/health-check', async (req, res) => {
-    if (!isDbOnline) {
+    if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes('dummy_user')) {
       return res.json({
         status: 'error',
         message: 'Database is offline (local fallback active)',
-        details: 'Circuit breaker is active. Bypassing database to maintain high performance.',
+        details: 'DATABASE_URL is not set or is some dummy placeholder.',
         suggestedIp: '34.96.48.15'
       });
     }
@@ -191,8 +194,9 @@ async function startServer() {
       // Simple query to test connection with timeout protection
       await Promise.race([
         db.execute(sql`SELECT 1`),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection check timed out after 1.5 seconds')), 1500))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection check timed out after 3.0 seconds')), 3000))
       ]);
+      isDbOnline = true;
       res.json({ 
         status: 'ok', 
         message: 'Database connection successful!',
@@ -243,7 +247,7 @@ async function startServer() {
     const allowed = [
       'kodeBarang', 'namaBarang', 'supplier', 'hargaBeli', 'hargaJual',
       'stokAwal', 'stokBarang', 'terjual', 'color', 'bc', 'kadarAir',
-      'imageUrl', 'durasi', 'gDia', 'diameter', 'rating', 'reviewsCount',
+      'imageUrl', 'seriesImageUrl', 'durasi', 'gDia', 'diameter', 'rating', 'reviewsCount',
       'allowDualPower', 'groupName', 'customCategory', 'hideSpecs',
       'notSoftlens', 'description', 'isFlashSale'
     ];

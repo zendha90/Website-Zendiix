@@ -25,6 +25,7 @@ async function migrate() {
       bc VARCHAR(255) NOT NULL,
       kadar_air VARCHAR(255) NOT NULL,
       image_url VARCHAR(500),
+      series_image_url VARCHAR(500),
       durasi VARCHAR(255),
       g_dia VARCHAR(255),
       diameter VARCHAR(255),

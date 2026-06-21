@@ -44,6 +44,8 @@ export interface GroupedSeries {
   variants: ProductVariant[];
   colors: string[]; 
   allPowers: string[]; 
+  computedMainImage: string;
+  computedAllMainImages: string[];
 }
 
 interface CartItem {
@@ -295,7 +297,9 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
           representativeProduct: p,
           variants: [],
           colors: [],
-          allPowers: []
+          allPowers: [],
+          computedMainImage: "",
+          computedAllMainImages: []
         };
       }
 
@@ -317,6 +321,50 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
         return numA - numB;
       });
       s.colors.sort();
+      
+      // Compute main image resolving logic
+      let mainImg = "";
+      let allMainImgs: string[] = [];
+      const productWithSeriesImg = s.variants.find(v => v.product.seriesImageUrl !== undefined && splitImageUrls(v.product.seriesImageUrl).length > 0);
+      if (productWithSeriesImg && productWithSeriesImg.product.seriesImageUrl) {
+        allMainImgs = splitImageUrls(productWithSeriesImg.product.seriesImageUrl);
+        mainImg = allMainImgs[0] || "";
+      } else {
+        // Fallback: try to find intersection of unique variant image lists to isolate the common "foto utama seri"
+        const uniqueImageLists: string[][] = [];
+        s.variants.forEach(v => {
+          const list = splitImageUrls(v.product.imageUrl || "");
+          if (list.length > 0) {
+            const alreadyExists = uniqueImageLists.some(
+              existing => existing.length === list.length && existing.every((val, idx) => val === list[idx])
+            );
+            if (!alreadyExists) {
+              uniqueImageLists.push(list);
+            }
+          }
+        });
+
+        if (uniqueImageLists.length > 1) {
+          let commonImages = uniqueImageLists[0];
+          for (let i = 1; i < uniqueImageLists.length; i++) {
+            commonImages = commonImages.filter(img => uniqueImageLists[i].includes(img));
+          }
+          if (commonImages.length > 0) {
+            allMainImgs = commonImages;
+            mainImg = commonImages[0];
+          }
+        } else if (uniqueImageLists.length === 1) {
+          allMainImgs = uniqueImageLists[0];
+          mainImg = allMainImgs[0] || "";
+        }
+        
+        if (!mainImg && s.representativeProduct.imageUrl) {
+          allMainImgs = splitImageUrls(s.representativeProduct.imageUrl);
+          mainImg = allMainImgs[0] || "";
+        }
+      }
+      s.computedMainImage = mainImg;
+      s.computedAllMainImages = allMainImgs;
     });
 
     return Object.values(map);
@@ -771,7 +819,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
 
                 <div className="flex items-center gap-3 overflow-x-auto pb-1.5 scrollbar-none">
                   {filteredSeries.filter(s => s.representativeProduct.isFlashSale).slice(0, 4).map((series, index) => {
-                    const imageSrc = splitImageUrls(series.representativeProduct.seriesImageUrl || series.representativeProduct.imageUrl)[0] || `https://picsum.photos/seed/${series.seriesName}/600/600`;
+                    const imageSrc = series.computedMainImage || `https://picsum.photos/seed/${series.seriesName}/600/600`;
                     return (
                       <div 
                         key={index} 
@@ -946,7 +994,8 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                   const isAvailable = series.variants.some(v => v.stokBarang > 0);
                   const rating = series.representativeProduct.rating !== undefined ? Number(series.representativeProduct.rating) : (4.8 + ((idx % 3) * 0.1));
                   const reviews = series.representativeProduct.reviewsCount !== undefined ? Number(series.representativeProduct.reviewsCount) : (72 + (idx * 14));
-                  const imageSrc = splitImageUrls(series.representativeProduct.seriesImageUrl || series.representativeProduct.imageUrl)[0] || `https://picsum.photos/seed/${series.seriesName}/600/600`;
+                  
+                  const imageSrc = series.computedMainImage || `https://picsum.photos/seed/${series.seriesName}/600/600`;
 
                   return (
                     <div 
@@ -1138,11 +1187,10 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
             
             // If color is selected, show its variations (which includes color images + main images)
             // If no color selected, ONLY show main series images
-            const displayImageStr = (activeVariantByColor && activeVariantByColor.product?.imageUrl)
-              ? activeVariantByColor.product.imageUrl 
-              : (repProduct.seriesImageUrl || repProduct.imageUrl);
+            const displayImageUrls = (activeVariantByColor && activeVariantByColor.product?.imageUrl)
+              ? splitImageUrls(activeVariantByColor.product.imageUrl)
+              : selectedSeries.computedAllMainImages;
             
-            const displayImageUrls = splitImageUrls(displayImageStr || "");
             const currentImageUrl = displayImageUrls[activeImageIdx] || displayImageUrls[0] || `https://picsum.photos/seed/${selectedSeries.seriesName}/600/600`;
 
             const price = repProduct.hargaJual;

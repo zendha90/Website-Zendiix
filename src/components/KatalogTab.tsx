@@ -140,6 +140,8 @@ interface GroupedSeries {
   representativeProduct: Product;
   allProducts: Product[];
   colors: string[];
+  computedMainImage: string;
+  computedAllMainImages: string[];
 }
 
 interface KatalogTabProps {
@@ -196,11 +198,57 @@ export function KatalogTab({ products }: KatalogTabProps) {
         if (p.color) colorsSet.add(p.color);
       });
 
+      // Figure out the best main image for the series
+      let mainImg = "";
+      let allMainImgs: string[] = [];
+      // If any product has a saved seriesImageUrl, trust it as the main image
+      const productWithSeriesImg = groupProducts.find(p => p.seriesImageUrl !== undefined && splitImageUrls(p.seriesImageUrl).length > 0);
+      if (productWithSeriesImg && productWithSeriesImg.seriesImageUrl) {
+        allMainImgs = splitImageUrls(productWithSeriesImg.seriesImageUrl);
+        mainImg = allMainImgs[0] || "";
+      } else {
+        // Fallback: try to find intersection of unique variant image lists to isolate the common "foto utama seri"
+        const uniqueImageLists: string[][] = [];
+        groupProducts.forEach(p => {
+          const list = splitImageUrls(p.imageUrl || "");
+          if (list.length > 0) {
+            const alreadyExists = uniqueImageLists.some(
+              existing => existing.length === list.length && existing.every((val, idx) => val === list[idx])
+            );
+            if (!alreadyExists) {
+              uniqueImageLists.push(list);
+            }
+          }
+        });
+
+        if (uniqueImageLists.length > 1) {
+          let commonImages = uniqueImageLists[0];
+          for (let i = 1; i < uniqueImageLists.length; i++) {
+            commonImages = commonImages.filter(img => uniqueImageLists[i].includes(img));
+          }
+          if (commonImages.length > 0) {
+            allMainImgs = commonImages;
+            mainImg = commonImages[0];
+          }
+        } else if (uniqueImageLists.length === 1) {
+          allMainImgs = uniqueImageLists[0];
+          mainImg = allMainImgs[0] || "";
+        }
+        
+        // Final fallback: just use the representative product's first image
+        if (!mainImg) {
+          allMainImgs = splitImageUrls(rep.imageUrl);
+          mainImg = allMainImgs[0] || "";
+        }
+      }
+
       return {
         seriesName,
         representativeProduct: rep,
         allProducts: groupProducts,
         colors: Array.from(colorsSet),
+        computedMainImage: mainImg,
+        computedAllMainImages: allMainImgs,
       } as GroupedSeries;
     });
   }, [products]);
@@ -239,8 +287,8 @@ export function KatalogTab({ products }: KatalogTabProps) {
     setDurasi(rp.durasi || "");
     setDiameter(rp.diameter || "");
     setGDia(rp.gDia || "");
-    setRating(rp.rating !== undefined ? rp.rating.toString() : "");
-    setReviewsCount(rp.reviewsCount !== undefined ? rp.reviewsCount.toString() : "");
+    setRating(rp.rating != null ? rp.rating.toString() : "");
+    setReviewsCount(rp.reviewsCount != null ? rp.reviewsCount.toString() : "");
     setAllowDualPower(rp.allowDualPower !== false);
     setCustomCategory(rp.customCategory || "");
     setHideSpecs(rp.hideSpecs || false);
@@ -249,21 +297,7 @@ export function KatalogTab({ products }: KatalogTabProps) {
     setIsFlashSale(rp.isFlashSale || false);
 
     // Main series image is explicitly stored now in seriesImageUrl, or fallback to the intersection method for old data
-    let commonImages: string[] = [];
-    if (rp.seriesImageUrl) {
-      commonImages = splitImageUrls(rp.seriesImageUrl);
-    } else {
-      const allProdImages = series.allProducts.map(p => splitImageUrls(p.imageUrl || ""));
-      const productsWithImages = allProdImages.filter(arr => arr.length > 0);
-      
-      if (productsWithImages.length > 0) {
-        // Find intersection of all image arrays to get the main series images
-        commonImages = productsWithImages[0];
-        for (let i = 1; i < productsWithImages.length; i++) {
-          commonImages = commonImages.filter(img => productsWithImages[i].includes(img));
-        }
-      }
-    }
+    const commonImages = series.computedAllMainImages || [];
 
     setImageUrl(commonImages.join(", "));
 
@@ -344,7 +378,7 @@ export function KatalogTab({ products }: KatalogTabProps) {
         return upsertProduct({
           ...prod,
           imageUrl: finalImg || undefined,
-          seriesImageUrl: seriesMainImg || undefined,
+          seriesImageUrl: seriesMainImg,
           durasi: durasi || undefined,
           diameter: diameter || undefined,
           gDia: gDia || undefined,
@@ -455,9 +489,9 @@ export function KatalogTab({ products }: KatalogTabProps) {
                           </div>
                           
                           {/* Image preview */}
-                          {rp.seriesImageUrl || rp.imageUrl ? (
+                          {s.computedMainImage ? (
                             <img 
-                              src={splitImageUrls(rp.seriesImageUrl || rp.imageUrl)[0]} 
+                              src={s.computedMainImage} 
                               alt={s.seriesName} 
                               className="w-12 h-12 rounded-lg border-2 border-slate-900 object-cover shadow-[2px_2px_0px_0px_#0f172a] shrink-0" 
                               referrerPolicy="no-referrer"
