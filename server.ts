@@ -59,6 +59,56 @@ async function startServer() {
         logoUrl: "",
         footerAboutText: "Zendiix hadir memberikan solusi produk softlens premium untuk menunjang keindahan dan kesehatan mata dengan standarisasi kualitas tinggi bagi para pecinta fashion optik."
       }
+    ],
+    reviews: [
+      {
+        id: "rev-1",
+        productId: "Macaron Almond",
+        reviewerName: "Siti Rahma",
+        rating: 5,
+        comment: "Softlens Macaron Almond nya cantik banget! Warnanya natural, gampang dipasang, dan gak ganjel sama sekali buat daily wear. Sangat direkomendasikan!",
+        createdAt: new Date(Date.now() - 2 * 24 * 3600 * 1000).toISOString()
+      },
+      {
+        id: "rev-2",
+        productId: "Newbluk Black",
+        reviewerName: "Andi Wijaya",
+        rating: 5,
+        comment: "Pertama kali beli Newbluk Black di toko ini dan langsung jatuh cinta. Nyaman banget dipakai seharian pas kerja di depan laptop. Pelayanan seller cepat dan ramah!",
+        createdAt: new Date(Date.now() - 4 * 24 * 3600 * 1000).toISOString()
+      },
+      {
+        id: "rev-3",
+        productId: "Avenue Honey Grey",
+        reviewerName: "Chika Amanda",
+        rating: 4,
+        comment: "Suka banget sama Avenue Honey Grey, bikin mata keliatan berdimensi & hidup tapi tetep elegan. Dapet free lenscase juga, makasih Zendiix!",
+        createdAt: new Date(Date.now() - 6 * 24 * 3600 * 1000).toISOString()
+      },
+      {
+        id: "rev-4",
+        productId: "NMD Caramel Brown",
+        reviewerName: "Dewi Lestari",
+        rating: 5,
+        comment: "NMD Caramel Brown emang terbaik! Pas banget di mata akuh yang rada sensitif, gak bikin gampang merah atau kering. Bakal langganan terus di sini.",
+        createdAt: new Date(Date.now() - 8 * 24 * 3600 * 1000).toISOString()
+      },
+      {
+        id: "rev-5",
+        productId: "NMD Galaxy Grey",
+        reviewerName: "Rian Pratama",
+        rating: 5,
+        comment: "Barang sampai dengan aman, packing tebal pake bubble wrap. Beli yang NMD Galaxy Grey buat kado pacar dan dia suka banget. Thank you!",
+        createdAt: new Date(Date.now() - 10 * 24 * 3600 * 1000).toISOString()
+      },
+      {
+        id: "rev-6",
+        productId: "Macaron Berry Blue",
+        reviewerName: "Nabila Putri",
+        rating: 5,
+        comment: "Udah beli berkali-kali di sini, kualitasnya gak pernah mengecewakan. Softlensnya tipis, kadar air seimbang, nyaman dipake seharian penuh tanpa tetes mata.",
+        createdAt: new Date(Date.now() - 12 * 24 * 3600 * 1000).toISOString()
+      }
     ]
   };
 
@@ -75,6 +125,7 @@ async function startServer() {
         if (parsed.weeklySales) fallbackData.weeklySales = parsed.weeklySales;
         if (parsed.storefrontBanners) fallbackData.storefrontBanners = parsed.storefrontBanners;
         if (parsed.settings) fallbackData.settings = parsed.settings;
+        if (parsed.reviews) fallbackData.reviews = parsed.reviews;
       } else {
         saveFallbackData();
       }
@@ -1042,12 +1093,77 @@ async function startServer() {
   // REVIEWS
   app.get('/api/reviews', async (req, res) => {
     try {
-      if (!isDbOnline) return res.json([]);
-      const result = await db.select().from(reviews).orderBy(desc(reviews.createdAt));
+      if (!isDbOnline) {
+        return res.json(fallbackData.reviews || []);
+      }
+      let result = await db.select().from(reviews).orderBy(desc(reviews.createdAt));
+      if (result.length === 0) {
+        // Automatically seed/bootstrap reviews table
+        const initialSeed = [
+          {
+            id: "rev-1",
+            productId: "Macaron Almond",
+            reviewerName: "Siti Rahma",
+            rating: 5,
+            comment: "Softlens Macaron Almond nya cantik banget! Warnanya natural, gampang dipasang, dan gak ganjel sama sekali buat daily wear. Sangat direkomendasikan!"
+          },
+          {
+            id: "rev-2",
+            productId: "Newbluk Black",
+            reviewerName: "Andi Wijaya",
+            rating: 5,
+            comment: "Pertama kali beli Newbluk Black di toko ini dan langsung jatuh cinta. Nyaman banget dipakai seharian pas kerja di depan laptop. Pelayanan seller cepat dan ramah!"
+          },
+          {
+            id: "rev-3",
+            productId: "Avenue Honey Grey",
+            reviewerName: "Chika Amanda",
+            rating: 4,
+            comment: "Suka banget sama Avenue Honey Grey, bikin mata keliatan berdimensi & hidup tapi tetep elegan. Dapet free lenscase juga, makasih Zendiix!"
+          },
+          {
+            id: "rev-4",
+            productId: "NMD Caramel Brown",
+            reviewerName: "Dewi Lestari",
+            rating: 5,
+            comment: "NMD Caramel Brown emang terbaik! Pas banget di mata akuh yang rada sensitif, gak bikin gampang merah atau kering. Bakal langganan terus di sini."
+          },
+          {
+            id: "rev-5",
+            productId: "NMD Galaxy Grey",
+            reviewerName: "Rian Pratama",
+            rating: 5,
+            comment: "Barang sampai dengan aman, packing tebal pake bubble wrap. Beli yang NMD Galaxy Grey buat kado pacar dan dia suka banget. Thank you!"
+          },
+          {
+            id: "rev-6",
+            productId: "Macaron Berry Blue",
+            reviewerName: "Nabila Putri",
+            rating: 5,
+            comment: "Udah beli berkali-kali di sini, kualitasnya gak pernah mengecewakan. Softlensnya tipis, kadar air seimbang, nyaman dipake seharian penuh tanpa tetes mata."
+          }
+        ];
+        
+        for (const item of initialSeed) {
+          try {
+            await db.insert(reviews).values({
+              id: item.id,
+              productId: item.productId,
+              reviewerName: item.reviewerName,
+              rating: item.rating,
+              comment: item.comment,
+              createdAt: new Date()
+            });
+          } catch (e) {
+            console.error('Error seeding single review row:', e);
+          }
+        }
+        result = await db.select().from(reviews).orderBy(desc(reviews.createdAt));
+      }
       res.json(result);
     } catch (error) {
       console.error('Error fetching reviews:', error);
-      res.json([]);
+      res.json(fallbackData.reviews || []);
     }
   });
 
@@ -1055,24 +1171,38 @@ async function startServer() {
     const data = req.body;
     const id = data.id || Math.random().toString(36).substring(2, 15);
     try {
-      if (!isDbOnline) return res.status(503).send('Database offline');
+      if (!isDbOnline) {
+        fallbackData.reviews = fallbackData.reviews || [];
+        fallbackData.reviews.push({ ...data, id, createdAt: new Date().toISOString() });
+        saveFallbackData();
+        return res.json({ id, ...data });
+      }
       await db.insert(reviews).values({...data, id, createdAt: new Date()});
       res.json({ id, ...data });
     } catch (error) {
       console.error('Error creating review:', error);
-      res.status(500).send('Error creating review');
+      fallbackData.reviews = fallbackData.reviews || [];
+      fallbackData.reviews.push({ ...data, id, createdAt: new Date().toISOString() });
+      saveFallbackData();
+      res.json({ id, ...data });
     }
   });
 
   app.delete('/api/reviews/:id', async (req, res) => {
     const { id } = req.params;
     try {
-      if (!isDbOnline) return res.status(503).send('Database offline');
+      if (!isDbOnline) {
+        fallbackData.reviews = (fallbackData.reviews || []).filter((r: any) => r.id !== id);
+        saveFallbackData();
+        return res.json({ success: true });
+      }
       await db.delete(reviews).where(eq(reviews.id, id));
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting review:', error);
-      res.status(500).send('Error deleting review');
+      fallbackData.reviews = (fallbackData.reviews || []).filter((r: any) => r.id !== id);
+      saveFallbackData();
+      res.json({ success: true });
     }
   });
 
@@ -1080,12 +1210,26 @@ async function startServer() {
     const { id } = req.params;
     const data = req.body;
     try {
-      if (!isDbOnline) return res.status(503).send('Database offline');
+      if (!isDbOnline) {
+        fallbackData.reviews = fallbackData.reviews || [];
+        const idx = fallbackData.reviews.findIndex((r: any) => r.id === id);
+        if (idx !== -1) {
+          fallbackData.reviews[idx] = { ...fallbackData.reviews[idx], ...data };
+          saveFallbackData();
+        }
+        return res.json({ success: true });
+      }
       await db.update(reviews).set(data).where(eq(reviews.id, id));
       res.json({ success: true });
     } catch (error) {
       console.error('Error updating review:', error);
-      res.status(500).send('Error updating review');
+      fallbackData.reviews = fallbackData.reviews || [];
+      const idx = fallbackData.reviews.findIndex((r: any) => r.id === id);
+      if (idx !== -1) {
+        fallbackData.reviews[idx] = { ...fallbackData.reviews[idx], ...data };
+        saveFallbackData();
+      }
+      res.json({ success: true });
     }
   });
 

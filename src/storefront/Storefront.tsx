@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
+import { useSearchParams } from 'react-router-dom';
 import { 
   ShoppingBag, 
   Search, 
@@ -173,6 +174,7 @@ const splitImageUrls = (str: string | undefined | null): string[] => {
 };
 
 export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], branding, isLoading = false }) => {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [isCartOpen, setIsCartOpen] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [selectedSeries, setSelectedSeries] = useState<GroupedSeries | null>(null);
@@ -237,14 +239,24 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
 
   // URL query synchronizer: updates "?product=SeriesName" search parameter dynamically
   useEffect(() => {
-    const url = new URL(window.location.href);
+    const currentParam = searchParams.get('product') || searchParams.get('series');
     if (selectedSeries) {
-      url.searchParams.set('product', selectedSeries.seriesName);
+      if (currentParam !== selectedSeries.seriesName) {
+        setSearchParams(prev => {
+          prev.set('product', selectedSeries.seriesName);
+          return prev;
+        }, { replace: true });
+      }
     } else {
-      url.searchParams.delete('product');
+      if (currentParam !== null) {
+        setSearchParams(prev => {
+          prev.delete('product');
+          prev.delete('series');
+          return prev;
+        }, { replace: true });
+      }
     }
-    window.history.replaceState({}, '', url.toString());
-  }, [selectedSeries]);
+  }, [selectedSeries, searchParams, setSearchParams]);
 
   const handleShare = (seriesName: string) => {
     const shareUrl = `${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(seriesName)}`;
@@ -432,22 +444,29 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
   // URL query receiver (auto open product on mount or list load)
   useEffect(() => {
     if (products.length > 0 && !isLoading && groupedSeriesList.length > 0) {
-      const params = new URLSearchParams(window.location.search);
-      const productParam = params.get('product') || params.get('series');
+      const productParam = searchParams.get('product') || searchParams.get('series');
       if (productParam) {
         const decodedName = decodeURIComponent(productParam).trim().toLowerCase();
         const found = groupedSeriesList.find(s => s.seriesName.trim().toLowerCase() === decodedName);
         if (found) {
-          setSelectedSeries(found);
-          setModalColor(found.colors[0] || 'Clear');
-          setModalIsDualPower(false);
-          setSelectedPowerL('0.00'); // Standard default normalization
-          setSelectedPowerR('0.00');
-          setBuyQty(1);
+          // Only update state if it is different than currently selected to prevent looping
+          if (!selectedSeries || selectedSeries.seriesName.trim().toLowerCase() !== decodedName) {
+            setSelectedSeries(found);
+            setModalColor(found.colors[0] || 'Clear');
+            setModalIsDualPower(false);
+            setSelectedPowerL('0.00'); // Standard default normalization
+            setSelectedPowerR('0.00');
+            setBuyQty(1);
+          }
+        }
+      } else {
+        // If query parameters are removed (e.g. user goes back/dismisses), close the modal
+        if (selectedSeries) {
+          setSelectedSeries(null);
         }
       }
     }
-  }, [products, isLoading, groupedSeriesList]);
+  }, [products, isLoading, groupedSeriesList, searchParams, selectedSeries]);
 
   // Dynamic extraction of custom categories from series/representative products
   const availableCustomCategories = useMemo(() => {
