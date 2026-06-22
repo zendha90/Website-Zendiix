@@ -10,7 +10,12 @@ import {
   Settings, 
   Layers,
   Plus,
-  Trash2
+  Trash2,
+  Info,
+  Clock,
+  Flame,
+  Sliders,
+  Star
 } from "lucide-react";
 import { Product, upsertProduct } from "../services";
 
@@ -768,169 +773,251 @@ export function KatalogTab({ products }: KatalogTabProps) {
                      </div>
                    )}
 
-                  {/* Kategori Kustom */}
-                  <div className="space-y-1 bg-indigo-50/50 p-4 border-2 border-dashed border-indigo-200 rounded-xl">
-                    <label className="block text-[10px] font-black text-indigo-950 uppercase tracking-widest leading-none">
-                      Kategori Kustom (Custom Filters)
-                    </label>
-                    <p className="text-[9px] text-indigo-700 font-bold mb-1.5 leading-normal">
-                      Tambahkan kategori sendiri untuk seri ini. Pisahkan dengan koma jika lebih dari satu kategori (contoh: <b>Natural, Best Seller, New</b>). Kategori ini akan langsung muncul sebagai tombol filter di halaman depan toko!
-                    </p>
-                    <input
-                      type="text"
-                      value={customCategory}
-                      onChange={(e) => setCustomCategory(e.target.value)}
-                      className="w-full px-4 py-3 bg-white border-2 border-slate-900 focus:outline-none text-xs font-bold"
-                      placeholder="Contoh: Natural, Best Seller, Glam, Daily"
-                    />
-                  </div>
+                  {/* GORGENOUS NEOPOLISHED FORM FIELDS GRID */}
+                  <div className="space-y-5">
+                    
+                    {/* SECTION 1: KLASIFIKASI & SEGMENTASI */}
+                    <div className="bg-white border-2 border-slate-900 rounded-xl p-5 shadow-[4px_4px_0px_0px_#0f172a] space-y-4 hover:translate-y-[-1px] transition-transform duration-200">
+                      <div className="flex items-center gap-2 border-b-2 border-slate-100 pb-3">
+                        <Sliders className="w-4 h-4 text-indigo-600" />
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                          Klasifikasi & Spesifikasi Seri
+                        </h4>
+                      </div>
 
-                  {/* Deskripsi Khusus */}
-                  <div className="space-y-1 bg-slate-50 p-4 border-2 border-slate-200 rounded-xl">
-                    <label className="block text-[10px] font-black text-slate-800 uppercase tracking-widest leading-none">
-                      Deskripsi Produk / Seri Lensa
-                    </label>
-                    <p className="text-[9px] text-slate-500 font-bold mb-1.5 leading-normal">
-                      Tulis deskripsi detail produk. Jika produk ini diset sebagai <b>Bukan Produk Softlens</b>, deskripsi ini akan tampil menggantikan tabel spesifikasi dan pilihan minus mata di frontend.
-                    </p>
-                    <textarea
-                      rows={4}
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      className="w-full px-4 py-3 bg-white border-2 border-slate-900 focus:outline-none text-xs font-bold font-sans rounded-lg resize-none"
-                      placeholder="Tulis deskripsi detail produk di sini..."
-                    />
-                  </div>
-
-                  {/* Flash Sale Toggle */}
-                  <div className="space-y-1 bg-pink-50/50 p-4 border-2 border-dashed border-pink-200 rounded-xl">
-                    <label className="block text-[10px] font-black text-pink-950 uppercase tracking-widest leading-none">
-                      Flash Sale
-                    </label>
-                    <div className="flex items-center h-12 bg-white border-2 border-slate-900 px-4 rounded-lg">
-                      <label className="flex items-center gap-2 cursor-pointer w-full font-black uppercase text-pink-950">
+                      {/* Kategori Kustom */}
+                      <div className="space-y-1.5">
+                        <div className="flex items-center gap-1.5">
+                          <label className="text-[10px] font-black text-slate-700 uppercase tracking-widest leading-none">
+                            Kategori Kustom (Custom Filters)
+                          </label>
+                          <div className="group relative cursor-help">
+                            <Info className="w-3 h-3 text-indigo-500" />
+                            <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 hidden group-hover:block w-52 bg-slate-950 p-2 text-[8px] text-white font-bold leading-normal rounded shadow-md z-20">
+                              Pisahkan beberapa kategori dengan koma (contoh: Natural, Best Seller, New). Tombol filter akan langsung aktif di toko!
+                            </div>
+                          </div>
+                        </div>
                         <input
-                          type="checkbox"
-                          checked={isFlashSale}
-                          onChange={(e) => setIsFlashSale(e.target.checked)}
-                          className="w-4 h-4 text-pink-600 border-2 border-slate-900 focus:ring-0 cursor-pointer"
+                          type="text"
+                          value={customCategory}
+                          onChange={(e) => setCustomCategory(e.target.value)}
+                          className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none text-xs font-bold rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[3px_3px_0px_0px_rgba(99,102,241,1)] transition-all"
+                          placeholder="e.g. Natural, Best Seller, New, Daily"
                         />
-                        <span>Aktifkan Flash Sale</span>
-                      </label>
+                      </div>
+
+                      {/* Wear Time & Diameter */}
+                      <div className="space-y-3">
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black text-slate-700 uppercase tracking-widest leading-none">
+                            Durasi Seri (Wear Time)
+                          </label>
+                          <div className="relative">
+                            <Clock className="w-3.5 h-3.5 text-slate-400 absolute right-3 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="text"
+                              value={durasi}
+                              onChange={(e) => setDurasi(e.target.value)}
+                              className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border-2 border-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none text-xs font-bold rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[3px_3px_0px_0px_rgba(99,102,241,1)] transition-all"
+                              placeholder="e.g. 1 Month (2p) atau 1 Day (10p)"
+                            />
+                          </div>
+                        </div>
+
+                        {/* DIA & G.DIA */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-700 uppercase tracking-widest leading-none">
+                              Diameter DIA
+                            </label>
+                            <input
+                              type="text"
+                              value={diameter}
+                              onChange={(e) => setDiameter(e.target.value)}
+                              className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none text-xs font-bold rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[3px_3px_0px_0px_rgba(99,102,241,1)] transition-all"
+                              placeholder="e.g. 14.2 mm"
+                            />
+                          </div>
+
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-700 uppercase tracking-widest leading-none">
+                              Graphic Dia (G.DIA)
+                            </label>
+                            <input
+                              type="text"
+                              value={gDia}
+                              onChange={(e) => setGDia(e.target.value)}
+                              className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none text-xs font-bold rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[3px_3px_0px_0px_rgba(99,102,241,1)] transition-all"
+                              placeholder="e.g. 13.1 mm"
+                            />
+                          </div>
+                        </div>
+                      </div>
+
                     </div>
-                  </div>
 
-                  {/* Durasi */}
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                      Durasi Seri (Wear Time)
-                    </label>
-                    <input
-                      type="text"
-                      value={durasi}
-                      onChange={(e) => setDurasi(e.target.value)}
-                      className="w-full px-4 py-3 bg-white border-2 border-slate-900 focus:outline-none text-xs font-bold"
-                      placeholder="e.g. 1 Month (2p) atau 1 Day (10p)"
-                    />
-                  </div>
+                    {/* SECTION 2: DESKRIPSI & FLASH SALE BRUTAL */}
+                    <div className="bg-white border-2 border-slate-900 rounded-xl p-5 shadow-[4px_4px_0px_0px_#0f172a] space-y-4 hover:translate-y-[-1px] transition-transform duration-200">
+                      <div className="flex items-center gap-2 border-b-2 border-slate-100 pb-3">
+                        <Flame className="w-4 h-4 text-pink-600" />
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                          Konten, Deskripsi & Promo
+                        </h4>
+                      </div>
 
-                   {/* Opsi Bukan Produk Softlens */}
-                  <div className="space-y-1.5 bg-rose-50/60 p-4 border-2 border-dashed border-rose-200 rounded-xl">
-                    <label className="block text-[10px] font-black text-rose-950 uppercase tracking-widest leading-none">
-                      Tipe Produk: Bukan Softlens
-                    </label>
-                    <p className="text-[9px] text-rose-700 font-bold mb-2 leading-normal">
-                      Aktifkan opsi ini jika produk ini adalah <b>Aksesori, Air Pembersih, atau Case</b> (bukan lensa kontak). Frontend otomatis akan menyembunyikan spesifikasi lensa kontak (DIA, BC, Water) serta <b>pilihan ukuran SPH minus mata</b>, lalu menggantinya dengan deskripsi produk saja.
-                    </p>
-                    <div className="flex items-center h-12 bg-white border-2 border-slate-900 px-4 rounded-lg">
-                      <label className="flex items-center gap-2 cursor-pointer w-full font-black uppercase text-rose-950">
-                        <input
-                          type="checkbox"
-                          checked={notSoftlens}
-                          onChange={(e) => {
-                            setNotSoftlens(e.target.checked);
-                            setHideSpecs(e.target.checked); // keeps hideSpecs in sync too
-                          }}
-                          className="w-4 h-4 text-rose-600 border-2 border-slate-900 focus:ring-0 cursor-pointer"
+                      {/* Deskripsi Khusus */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-slate-700 uppercase tracking-widest leading-none">
+                          Deskripsi Produk / Seri Lensa
+                        </label>
+                        <p className="text-[9px] text-slate-400 font-bold leading-normal">
+                          Jika diaktifkan opsi <b>Bukan Softlens</b>, teks deksripsi di bawah ini akan menggantikan pilihan minus mata di frontend store.
+                        </p>
+                        <textarea
+                          rows={4}
+                          value={description}
+                          onChange={(e) => setDescription(e.target.value)}
+                          className="w-full px-3.5 py-2.5 bg-slate-50 border-2 border-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none text-xs font-bold font-sans rounded-lg resize-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[3px_3px_0px_0px_rgba(99,102,241,1)] transition-all"
+                          placeholder="Tulis deskripsi detail produk di sini..."
                         />
-                        <span>Bukan Produk Softlens (Aksesori/Cairan)</span>
-                      </label>
-                    </div>
-                  </div>
+                      </div>
 
-                  {/* Diameter */}
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                      Diameter DIA
-                    </label>
-                    <input
-                      type="text"
-                      value={diameter}
-                      onChange={(e) => setDiameter(e.target.value)}
-                      className="w-full px-4 py-3 bg-white border-2 border-slate-900 focus:outline-none text-xs font-bold"
-                      placeholder="e.g. 14.2 mm"
-                    />
-                  </div>
+                      {/* Flash Sale Toggle Card */}
+                      <div className={`p-4 border-2 border-slate-900 rounded-lg transition-all ${
+                        isFlashSale 
+                          ? "bg-pink-50/70 shadow-[3px_3px_0px_0px_#db2777]" 
+                          : "bg-slate-50 shadow-[2px_2px_0px_0px_#475569]"
+                      }`}>
+                        <label className="flex items-center gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={isFlashSale}
+                            onChange={(e) => setIsFlashSale(e.target.checked)}
+                            className="w-5 h-5 rounded text-pink-600 border-2 border-slate-900 focus:ring-0 cursor-pointer transition-transform duration-200 active:scale-90"
+                          />
+                          <div>
+                            <span className="block text-[10px] font-black text-slate-900 uppercase tracking-wider">
+                              Aktifkan Flash Sale
+                            </span>
+                            <span className="block text-[8px] text-pink-700 font-bold uppercase tracking-wider mt-0.5">
+                              {isFlashSale ? "⚡ Sedang Aktif di Etalase Depan!" : "Tambahkan lencana promo petir khusus"}
+                            </span>
+                          </div>
+                        </label>
+                      </div>
 
-                  {/* Allow Dual Power (Same or Dual) */}
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                      Opsi Beda Minus (Untuk Checkout)?
-                    </label>
-                    <div className="flex items-center h-12 bg-white border-2 border-slate-900 px-4">
-                      <label className="flex items-center gap-2 cursor-pointer w-full">
-                        <input
-                          type="checkbox"
-                          checked={allowDualPower}
-                          onChange={(e) => setAllowDualPower(e.target.checked)}
-                          className="w-4 h-4 text-indigo-600 border-2 border-slate-900 focus:ring-0"
-                        />
-                        <span className="text-xs font-black uppercase text-slate-700">Mata Beda SPH Sifatnya Opsional</span>
-                      </label>
                     </div>
-                  </div>
 
-                  {/* Rating & reviews */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                        Rating Manual (1-5)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="1"
-                        max="5"
-                        value={rating}
-                        onChange={(e) => setRating(e.target.value)}
-                        className="w-full px-4 py-3 bg-white border-2 border-slate-900 focus:outline-none text-xs font-bold"
-                        placeholder="e.g. 4.9"
-                      />
+                    {/* SECTION 3: RULES & RATING */}
+                    <div className="bg-white border-2 border-slate-900 rounded-xl p-5 shadow-[4px_4px_0px_0px_#0f172a] space-y-4 hover:translate-y-[-1px] transition-transform duration-200">
+                      <div className="flex items-center gap-2 border-b-2 border-slate-100 pb-3">
+                        <Star className="w-4 h-4 text-emerald-600" />
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                          Aturan Transaksi & Ulasan
+                        </h4>
+                      </div>
+
+                      {/* Opsi Bukan Produk Softlens */}
+                      <div className={`p-4 border-2 border-slate-900 rounded-lg transition-all ${
+                        notSoftlens 
+                          ? "bg-amber-50/70 shadow-[3px_3px_0px_0px_#d97706]" 
+                          : "bg-slate-50 shadow-[2px_2px_0px_0px_#475569]"
+                      }`}>
+                        <label className="flex items-start gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={notSoftlens}
+                            onChange={(e) => {
+                              setNotSoftlens(e.target.checked);
+                              setHideSpecs(e.target.checked);
+                            }}
+                            className="w-5 h-5 rounded text-amber-600 border-2 border-slate-900 focus:ring-0 cursor-pointer mt-0.5 transition-transform duration-200 active:scale-90"
+                          />
+                          <div>
+                            <span className="block text-[10px] font-black text-slate-900 uppercase tracking-wider">
+                              Bukan Produk Softlens (Aksesori/Cairan)
+                            </span>
+                            <p className="text-[8px] text-slate-500 font-bold leading-normal mt-1">
+                              Aktifkan jika produk ini adalah <b>Aksesori, Pembersih, atau Case</b>. Tombol minus mata & spesifikasi lensa kontak (DIA, BC, Water) otomatis disembunyikan.
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+
+                      {/* Allow Dual Power (Same or Dual) */}
+                      <div className={`p-4 border-2 border-slate-900 rounded-lg transition-all ${
+                        allowDualPower 
+                          ? "bg-indigo-50/60 shadow-[3px_3px_0px_0px_#4f46e5]" 
+                          : "bg-slate-50 shadow-[2px_2px_0px_0px_#475569]"
+                      }`}>
+                        <label className="flex items-start gap-3 cursor-pointer select-none">
+                          <input
+                            type="checkbox"
+                            checked={allowDualPower}
+                            onChange={(e) => setAllowDualPower(e.target.checked)}
+                            className="w-5 h-5 rounded text-indigo-600 border-2 border-slate-900 focus:ring-0 cursor-pointer mt-0.5 transition-transform duration-200 active:scale-90"
+                          />
+                          <div>
+                            <span className="block text-[10px] font-black text-slate-900 uppercase tracking-wider">
+                              Mata Beda SPH Sifatnya Opsional
+                            </span>
+                            <p className="text-[8px] text-slate-500 font-bold leading-normal mt-1">
+                              Pembeli diperbolehkan check out dengan ukuran mata kanan & kiri yang berbeda (dual power) di halaman toko.
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+
+                      {/* Rating & reviews */}
+                      <div className="grid grid-cols-2 gap-3 pt-2">
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black text-slate-700 uppercase tracking-widest leading-none">
+                            Rating Manual (1-5)
+                          </label>
+                          <div className="relative">
+                            <Star className="w-3.5 h-3.5 text-amber-400 absolute right-3 top-1/2 -translate-y-1/2 fill-amber-400" />
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="1"
+                              max="5"
+                              value={rating}
+                              onChange={(e) => setRating(e.target.value)}
+                              className="w-full pl-3 pr-9 py-2.5 bg-slate-50 border-2 border-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none text-xs font-bold rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[3px_3px_0px_0px_rgba(99,102,241,1)] transition-all"
+                              placeholder="e.g. 4.9"
+                            />
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black text-slate-700 uppercase tracking-widest leading-none">
+                            Jumlah Ulasan
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={reviewsCount}
+                            onChange={(e) => setReviewsCount(e.target.value)}
+                            className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none text-xs font-bold rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[3px_3px_0px_0px_rgba(99,102,241,1)] transition-all"
+                            placeholder="e.g. 147"
+                          />
+                        </div>
+                      </div>
+
                     </div>
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                        Jumlah Ulasan
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={reviewsCount}
-                        onChange={(e) => setReviewsCount(e.target.value)}
-                        className="w-full px-4 py-3 bg-white border-2 border-slate-900 focus:outline-none text-xs font-bold"
-                        placeholder="e.g. 147"
-                      />
-                    </div>
+
                   </div>
 
                   {/* Error & Success indicators */}
                   {errorMsg && (
-                    <div className="p-3 bg-red-100 border-2 border-red-900 text-red-900 text-[10px] font-bold uppercase tracking-wider">
+                    <div className="p-3 bg-red-100 border-2 border-red-900 text-red-900 text-[10px] font-bold uppercase tracking-wider rounded-lg">
                       {errorMsg}
                     </div>
                   )}
 
                   {successMsg && (
-                    <div className="p-3 bg-emerald-100 border-2 border-emerald-900 text-emerald-900 text-[10px] font-bold uppercase tracking-wider">
+                    <div className="p-3 bg-emerald-100 border-2 border-emerald-900 text-emerald-900 text-[10px] font-bold uppercase tracking-wider rounded-lg">
                       {successMsg}
                     </div>
                   )}
