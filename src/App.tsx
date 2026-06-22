@@ -1571,6 +1571,11 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const [saleForm, setSaleForm] = useState<Partial<Sale>>({});
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
   const [saleDSToDelete, setSaleDSToDelete] = useState<SaleDS | null>(null);
+  
+  // Export last Dropship entry states
+  const [isExportDSModalOpen, setIsExportDSModalOpen] = useState(false);
+  const [exportDSText, setExportDSText] = useState("");
+  const [exportDSToast, setExportDSToast] = useState(false);
 
   const [isIncomingModalOpen, setIsIncomingModalOpen] = useState(false);
   const [incomingForm, setIncomingForm] = useState<Partial<IncomingGood>>({
@@ -2418,6 +2423,59 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
         totalPenjualan: 0,
       }));
     });
+  };
+
+  const handleExportLastDropship = () => {
+    // 1. Get complete items in salesDS
+    const completeDS = salesDS.filter((s) => (
+      s.noResi && s.noResi.trim() &&
+      s.namaPelanggan && s.namaPelanggan.trim() &&
+      s.alamatPelanggan && s.alamatPelanggan.trim() &&
+      s.namaProduk && s.namaProduk.trim()
+    ));
+
+    if (completeDS.length === 0) {
+      alert("Tidak ada baris dengan data lengkap (Resi, Nama, Alamat, Pesanan) di transaksi Dropship.");
+      return;
+    }
+
+    // 2. Sort complete items descending by order date or original date to get the absolute last (newest) record
+    const sortedDS = [...completeDS].sort((a, b) => {
+      const getMs = (item: any) => {
+        if (item.tanggal) {
+          if (typeof item.tanggal.seconds === "number") return item.tanggal.seconds * 1000;
+          const dObj = new Date(item.tanggal);
+          if (!isNaN(dObj.getTime())) return dObj.getTime();
+        }
+        if (item.tanggalOrder) {
+          // If in dd/mm/yyyy format we should convert it or parse it
+          const parts = item.tanggalOrder.split("/");
+          if (parts.length === 3) {
+            // Assume dd/mm/yyyy
+            const dObj = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+            if (!isNaN(dObj.getTime())) return dObj.getTime();
+          }
+          const dObj = new Date(item.tanggalOrder);
+          if (!isNaN(dObj.getTime())) return dObj.getTime();
+        }
+        return 0;
+      };
+      return getMs(b) - getMs(a);
+    });
+
+    // 3. Take the last entry
+    const lastDS = sortedDS[0];
+
+    // 4. Construct formated text:
+    const resi = lastDS.noResi.trim();
+    const nama = lastDS.namaPelanggan.trim();
+    const alamat = lastDS.alamatPelanggan.trim();
+    const pesanan = `${lastDS.namaProduk.trim()}${lastDS.qty > 1 ? ` (${lastDS.qty} pcs)` : ""}`;
+
+    const formatted = `${resi}\nNama: ${nama}\nAlamat: ${alamat}\nPESANAN:\n${pesanan}\nPengirim: Zendiix`;
+
+    setExportDSText(formatted);
+    setIsExportDSModalOpen(true);
   };
 
   // Dropship Sales states and handlers
@@ -5316,42 +5374,52 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 </div>
 
                 {/* Filter and Search Bar */}
-                <div className="p-4 bg-slate-50 border-b-2 border-slate-900 flex flex-col sm:flex-row gap-3 items-center justify-between shrink-0">
-                  <div className="relative w-full sm:max-w-md">
-                    <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
-                      <Search className="w-4 h-4" />
-                    </span>
-                    <input
-                      type="text"
-                      value={databaseSubTab === "regular" ? localSalesSearch : localSalesDSSearch}
-                      onChange={(e) => {
-                        if (databaseSubTab === "regular") {
-                          setLocalSalesSearch(e.target.value);
-                        } else {
-                          setLocalSalesDSSearch(e.target.value);
-                        }
-                      }}
-                      placeholder={
-                        databaseSubTab === "regular"
-                          ? "Cari No. Pesanan, Kode, Nama Barang, Resi, Kurir..."
-                          : "Cari No. Pesanan, Produk, Resi, Pelanggan, Supplier..."
-                      }
-                      className="w-full pl-9 pr-4 py-2 bg-white border-2 border-slate-900 font-bold text-xs placeholder-slate-400 focus:outline-none focus:bg-slate-50 transition-colors"
-                    />
-                    {(databaseSubTab === "regular" ? localSalesSearch : localSalesDSSearch) && (
-                      <button
-                        onClick={() => {
+                <div className="p-4 bg-slate-50 border-b-2 border-slate-900 flex flex-col md:flex-row gap-3 items-center justify-between shrink-0">
+                  <div className="flex flex-col sm:flex-row gap-3 items-center w-full md:max-w-2xl">
+                    <div className="relative w-full sm:max-w-md">
+                      <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                        <Search className="w-4 h-4" />
+                      </span>
+                      <input
+                        type="text"
+                        value={databaseSubTab === "regular" ? localSalesSearch : localSalesDSSearch}
+                        onChange={(e) => {
                           if (databaseSubTab === "regular") {
-                            setLocalSalesSearch("");
-                            setSalesSearch("");
+                            setLocalSalesSearch(e.target.value);
                           } else {
-                            setLocalSalesDSSearch("");
-                            setSalesDSSearch("");
+                            setLocalSalesDSSearch(e.target.value);
                           }
                         }}
-                        className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-900"
+                        placeholder={
+                          databaseSubTab === "regular"
+                            ? "Cari No. Pesanan, Kode, Nama Barang, Resi, Kurir..."
+                            : "Cari No. Pesanan, Produk, Resi, Pelanggan, Supplier..."
+                        }
+                        className="w-full pl-9 pr-4 py-2 bg-white border-2 border-slate-900 font-bold text-xs placeholder-slate-400 focus:outline-none focus:bg-slate-50 transition-colors"
+                      />
+                      {(databaseSubTab === "regular" ? localSalesSearch : localSalesDSSearch) && (
+                        <button
+                          onClick={() => {
+                            if (databaseSubTab === "regular") {
+                              setLocalSalesSearch("");
+                              setSalesSearch("");
+                            } else {
+                              setLocalSalesDSSearch("");
+                              setSalesDSSearch("");
+                            }
+                          }}
+                          className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-900"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    {databaseSubTab === "dropship" && (
+                      <button
+                        onClick={handleExportLastDropship}
+                        className="w-full sm:w-auto h-8 whitespace-nowrap px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center gap-1.5 shrink-0"
                       >
-                        <X className="w-4 h-4" />
+                        <Copy className="w-3.5 h-3.5 text-white" /> Export Data Terakhir
                       </button>
                     )}
                   </div>
@@ -7831,6 +7899,52 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                     </button>
                   </div>
                 </form>
+              </div>
+            </div>
+          )}
+
+          {/* EXPORT DROPSHIP MODAL */}
+          {isExportDSModalOpen && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
+              <div className="bg-white border-4 border-slate-900 w-full max-w-lg p-6 md:p-8 shadow-[16px_16px_0px_0px_#0f172a] flex flex-col gap-6 relative">
+                <div>
+                  <h3 className="text-xl md:text-2xl font-black text-indigo-600 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                    📁 EXPORT DATA DROPSHIP TERAKHIR
+                  </h3>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Format Data Transaksi Dropship Terakhir (DS)
+                  </p>
+                  
+                  <div className="relative bg-slate-50 border-2 border-slate-900 p-4 rounded-none font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed shadow-[inner_0_2px_4px_rgba(0,0,0,0.06)] min-h-[140px] select-all">
+                    {exportDSText}
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t-2 border-slate-900">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(exportDSText);
+                      setExportDSToast(true);
+                      setTimeout(() => setExportDSToast(false), 2500);
+                    }}
+                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#000] active:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all flex items-center justify-center gap-2"
+                  >
+                    <Copy className="w-4 h-4" /> Copy to Clipboard
+                  </button>
+                  <button
+                    onClick={() => setIsExportDSModalOpen(false)}
+                    className="py-3 px-6 bg-white hover:bg-slate-50 text-slate-900 font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#000] active:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all"
+                  >
+                    TUTUP
+                  </button>
+                </div>
+
+                {/* Copied Toast Alert */}
+                {exportDSToast && (
+                  <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 font-black text-xs uppercase tracking-widest border border-white shadow-lg rounded animate-bounce">
+                    ✓ Copied to clipboard!
+                  </div>
+                )}
               </div>
             </div>
           )}
