@@ -36,6 +36,7 @@ import {
   AlertTriangle,
   Database,
   Copy,
+  Save,
   ExternalLink,
   ChevronDown,
   ChevronUp
@@ -4153,7 +4154,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 </div>
 
                 {/* Drafting Area */}
-                <div className="flex-1 overflow-y-auto min-h-[500px]">
+                <div className="flex-1 overflow-y-auto min-h-[180px]">
                   {/* Desktop Spreadsheet View */}
                   <div className="hidden md:block overflow-x-auto">
                     <table className="w-full text-left whitespace-nowrap min-w-[1600px] border-collapse table-auto">
@@ -4176,7 +4177,20 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                         </tr>
                       </thead>
                       <tbody className="bg-white">
-                        {draftSales.map((draft, idx) => {
+                        {draftSales.length === 0 ? (
+                          <tr>
+                            <td colSpan={14} className="p-8 text-center bg-slate-50/50">
+                              <div className="flex flex-col items-center justify-center gap-2 py-4">
+                                <Plus className="w-8 h-8 text-indigo-500 stroke-[3px]" />
+                                <p className="text-xs font-black text-indigo-900 uppercase tracking-widest leading-none">Antrian Transaksi Kosong</p>
+                                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider leading-none">
+                                  Silakan klik "TAMBAH BARIS" atau lakukan paste rincian pesanan untuk mengisi.
+                                </p>
+                              </div>
+                            </td>
+                          </tr>
+                        ) :
+                          draftSales.map((draft, idx) => {
                           const product = findMatchedProduct(draft.jenisBarang, draft.productId);
                           const hpp = product ? product.hargaBeli : 0;
                           let stokSaatIni = 0;
@@ -4351,35 +4365,53 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
               >
                 {/* Header Action Bar */}
                 <div className="p-4 md:p-5 border-b-2 border-slate-900 flex flex-col xl:flex-row xl:items-center justify-between bg-slate-50 gap-4">
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                    <h2 className="text-base md:text-lg font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest leading-none">
-                      <ShoppingBag className="w-5 h-5" /> <span className="hidden sm:inline">Input Penjualan Dropship (DS)</span><span className="sm:hidden">Input DS</span>
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 w-full xl:w-auto">
+                    <h2 className="text-base md:text-lg font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest leading-none shrink-0">
+                      <ShoppingBag className="w-5 h-5 text-indigo-600" /> 
+                      <span className="hidden sm:inline">Input Penjualan Dropship (DS)</span>
+                      <span className="sm:hidden">Input DS</span>
                     </h2>
-                    <div className="flex gap-2 items-center">
+                    
+                    <div className="flex flex-wrap items-center gap-2.5 sm:gap-3">
+                      {/* Simpan DS Button */}
                       <button
                         onClick={handleSaveDraftSalesDS}
-                        className="flex-1 sm:flex-none px-4 md:px-8 py-2 md:py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold uppercase tracking-wider text-[10px] md:text-sm transition-colors flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none"
+                        className="h-10 md:h-11 px-4 md:px-6 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-[10px] md:text-xs transition-all flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] hover:-translate-y-[1px] hover:-translate-x-[1px] hover:shadow-[3px_3px_0px_0px_#0f172a] md:hover:shadow-[5px_5px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none cursor-pointer"
                       >
-                        Simpan DS
+                        <Save className="w-3.5 h-3.5 md:w-4 md:h-4 stroke-[3px]" />
+                        <span>Simpan DS</span>
                       </button>
+
+                      {/* Undo Button */}
                       <button
                         onClick={handleUndoDS}
                         disabled={historyDS.length === 0}
-                        className={`px-3 md:px-4 py-2 md:py-3 font-bold uppercase tracking-wider text-[10px] md:text-sm transition-colors flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] ${historyDS.length === 0 ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border-slate-300" : "bg-white hover:bg-slate-50 text-slate-900 active:translate-y-[1px] active:translate-x-[1px]"}`}
+                        className={`h-10 md:h-11 px-4 md:px-5 font-black uppercase tracking-widest text-[10px] md:text-xs transition-all flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] ${
+                          historyDS.length === 0
+                            ? "bg-slate-100 text-slate-400 cursor-not-allowed shadow-none border-slate-300"
+                            : "bg-white hover:bg-slate-50 text-slate-900 hover:-translate-y-[1px] hover:-translate-x-[1px] hover:shadow-[3px_3px_0px_0px_#0f172a] md:hover:shadow-[5px_5px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none cursor-pointer"
+                        }`}
                       >
-                         Undo
+                        <Undo className="w-3.5 h-3.5 md:w-4 md:h-4 stroke-[3px]" />
+                        <span>Undo</span>
                       </button>
+
+                      {/* Tambah Baris Button */}
                       <button
                         onClick={handleAddRowDS}
-                        className="px-3 md:px-4 py-2 md:py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-bold uppercase tracking-wider text-[10px] md:text-sm transition-colors flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none"
+                        className="h-10 md:h-11 px-4 md:px-5 bg-emerald-500 hover:bg-emerald-600 text-white font-black uppercase tracking-widest text-[10px] md:text-xs transition-all flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] hover:-translate-y-[1px] hover:-translate-x-[1px] hover:shadow-[3px_3px_0px_0px_#0f172a] md:hover:shadow-[5px_5px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none cursor-pointer"
                       >
-                         <Plus className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden sm:inline">Tambah Baris</span>
+                        <Plus className="w-3.5 h-3.5 md:w-4 md:h-4 stroke-[3px]" />
+                        <span>Tambah Baris</span>
                       </button>
+
+                      {/* Reset Button */}
                       <button
                         onClick={handleResetDSTable}
-                        className="px-3 md:px-4 py-2 md:py-3 bg-rose-500 hover:bg-rose-600 text-white font-bold uppercase tracking-wider text-[10px] md:text-sm transition-colors flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none"
+                        className="h-10 md:h-11 px-4 md:px-5 bg-rose-500 hover:bg-rose-600 text-white font-black uppercase tracking-widest text-[10px] md:text-xs transition-all flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] hover:-translate-y-[1px] hover:-translate-x-[1px] hover:shadow-[3px_3px_0px_0px_#0f172a] md:hover:shadow-[5px_5px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none cursor-pointer"
                       >
-                         <RefreshCcw className="w-3 h-3 md:w-4 md:h-4" /> <span className="hidden sm:inline">Reset</span>
+                        <RefreshCcw className="w-3.5 h-3.5 md:w-4 md:h-4 stroke-[3px]" />
+                        <span>Reset</span>
                       </button>
                     </div>
                   </div>
@@ -4416,32 +4448,18 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 </div>
 
                 {/* Drafting Area */}
-                <div className="flex-1 overflow-y-auto min-h-[500px]">
-                  {/* Desktop Spreadsheet View */}
-                  <div className="hidden xl:block overflow-x-auto">
-                    <table className="w-full text-left whitespace-nowrap min-w-[1800px] border-collapse table-auto">
-                      <thead className="bg-slate-900 text-white sticky top-0 z-10 text-xs uppercase tracking-widest font-black">
-                        <tr>
-                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-28">Kode Supplier</th>
-                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-32">Tgl. Order</th>
-                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-28">Channel</th>
-                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-40">No Pesanan</th>
-                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-40">No Resi</th>
-                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-40">Pelanggan</th>
-                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-64">Alamat</th>
-                          <th className="px-4 py-4 border-r border-slate-700 font-semibold w-80">Produk</th>
-                          <th className="px-4 py-4 border-r border-slate-700 font-semibold text-center w-16">Qty</th>
-                          <th className="px-4 py-4 border-r border-slate-700 font-semibold text-right w-28">HPP</th>
-                          <th className="px-4 py-4 border-r border-slate-700 font-semibold text-right w-36">Total Jual</th>
-                          <th className="px-4 py-4 border-r border-slate-700 font-semibold text-right w-28">Ongkir</th>
-                          <th className="px-4 py-4 font-semibold text-right w-32 bg-slate-800">Laba</th>
-                          <th className="px-4 py-4 font-semibold w-10"></th>
-                        </tr>
-                      </thead>
-                      <tbody className="bg-white">
+                <div className="flex-1 overflow-y-auto min-h-[180px]">
+                  {/* Unified Bento Grid Layout */}
+                  <div className="p-4 md:p-6 bg-slate-50">
+                    {draftSalesDS.length === 0 ? (
+                      <div className="p-12 text-center border-4 border-dashed border-slate-300 rounded-xl bg-white flex flex-col items-center justify-center gap-3">
+                        <Plus className="w-8 h-8 text-slate-300" />
+                        <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Antrian DS Kosong</p>
+                        <p className="text-[10px] text-slate-400 font-medium text-center">Paste teks Dropship untuk deteksi otomatis atau klik "Tambah Baris"</p>
+                      </div>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6 animate-fadeIn">
                         {draftSalesDS.map((draft, idx) => {
-                          const bgColor = idx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
-                          const computedBg = idx % 2 === 0 ? "bg-indigo-50/10" : "bg-indigo-50/30";
                           const hppNum = draft.hpp || 0;
                           const qtyNum = Number(draft.qty) || 1;
                           const totalPenjualanNum = draft.totalPenjualan || 0;
@@ -4449,82 +4467,114 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                           const autoLaba = totalPenjualanNum - (hppNum * qtyNum) - okNum;
 
                           return (
-                            <tr key={draft.id} className="border-b border-slate-200 group">
-                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <div className="relative group/select h-full w-full">
-                                  <select 
-                                    className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-[11px] font-black text-indigo-700 appearance-none cursor-pointer pr-8 uppercase tracking-widest leading-none"
-                                    value={draft.kodeSupplier}
-                                    onChange={(e) => handleUpdateDraftDS(draft.id, "kodeSupplier", e.target.value)}
-                                  >
-                                    <option value="" className="text-slate-400">Pilih...</option>
-                                    {DROPSHIP_SUPPLIERS.map(s => (
-                                      <option key={s} value={s}>{s}</option>
-                                    ))}
-                                  </select>
-                                  <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3 h-3 text-indigo-400 pointer-events-none group-hover/select:text-indigo-600 transition-colors" />
+                            <div key={draft.id} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[-2px] transition-transform flex flex-col justify-between">
+                              <div>
+                                <div className="bg-slate-900 p-3 flex justify-between items-center">
+                                  <div className="flex items-center gap-2">
+                                    <div className="bg-indigo-500 text-white w-5 h-5 flex items-center justify-center text-[10px] font-black rounded-sm">
+                                      {idx + 1}
+                                    </div>
+                                    <span className="text-[10px] font-black text-white uppercase tracking-widest">Draft Dropship</span>
+                                  </div>
+                                  <button onClick={() => handleRemoveDraftRowDS(draft.id)} className="p-1.5 bg-rose-500 hover:bg-rose-600 text-white border border-rose-600 rounded active:translate-y-[1px] transition-all cursor-pointer">
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
                                 </div>
-                              </td>
-                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.tanggalOrder} onChange={(e) => handleUpdateDraftDS(draft.id, "tanggalOrder", e.target.value)} />
-                              </td>
-                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.channel} onChange={(e) => handleUpdateDraftDS(draft.id, "channel", e.target.value)} />
-                              </td>
-                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.noPesanan} onChange={(e) => handleUpdateDraftDS(draft.id, "noPesanan", e.target.value)} />
-                              </td>
-                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.noResi} onChange={(e) => handleUpdateDraftDS(draft.id, "noResi", e.target.value)} />
-                              </td>
-                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <input type="text" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm font-medium text-slate-700" value={draft.namaPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "namaPelanggan", e.target.value)} />
-                              </td>
-                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <textarea 
-                                  className="w-full h-full min-h-[60px] px-4 py-2 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-[11px] font-medium text-slate-700 leading-relaxed resize-none" 
-                                  value={draft.alamatPelanggan} 
-                                  rows={2}
-                                  onChange={(e) => handleUpdateDraftDS(draft.id, "alamatPelanggan", e.target.value)} 
-                                />
-                              </td>
-                              <td className={`${bgColor} border-r border-slate-200 p-0 relative min-w-[250px]`}>
-                                <textarea 
-                                  className="w-full h-full min-h-[60px] px-4 py-2 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-[11px] font-bold text-slate-800 whitespace-pre-wrap leading-relaxed resize-none" 
-                                  value={draft.namaProduk} 
-                                  rows={2}
-                                  onChange={(e) => handleUpdateDraftDS(draft.id, "namaProduk", e.target.value)} 
-                                />
-                              </td>
-                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <input type="number" min="1" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-center font-bold text-slate-700" value={draft.qty} onChange={(e) => handleUpdateDraftDS(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} />
-                              </td>
-                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <input type="number" min="0" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-right font-medium text-slate-700" value={draft.hpp} onChange={(e) => handleUpdateDraftDS(draft.id, "hpp", Number(e.target.value))} />
-                              </td>
-                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <input type="number" min="0" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-right font-bold text-indigo-700" value={draft.totalPenjualan} onChange={(e) => handleUpdateDraftDS(draft.id, "totalPenjualan", Number(e.target.value))} />
-                              </td>
-                              <td className={`${bgColor} border-r border-slate-200 p-0 relative`}>
-                                <input type="number" min="0" className="w-full h-full px-4 py-3 bg-transparent border-none focus:outline-none focus:ring-inset focus:ring-2 focus:ring-indigo-500 text-sm text-right font-medium text-slate-700" value={draft.ongkosKirim} onChange={(e) => handleUpdateDraftDS(draft.id, "ongkosKirim", Number(e.target.value))} />
-                              </td>
-                              <td className={`${computedBg} px-4 py-3 text-sm text-right font-bold font-mono ${autoLaba > 0 ? "text-emerald-600" : autoLaba < 0 ? "text-rose-600" : "text-slate-500"}`}>
-                                {autoLaba.toLocaleString("id-ID")}
-                              </td>
-                              <td className={`${bgColor} px-4 py-3 text-center`}>
-                                <button onClick={() => handleRemoveDraftRowDS(draft.id)} className="text-slate-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 rounded transition-colors opacity-0 group-hover:opacity-100">
-                                  &times;
-                                </button>
-                              </td>
-                            </tr>
+                                <div className="p-4 space-y-4">
+                                  <div className="grid grid-cols-3 gap-3">
+                                    <div className="space-y-1 col-span-1">
+                                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Supplier</label>
+                                      <div className="relative group/select">
+                                        <select 
+                                          className="w-full bg-slate-50 border-2 border-slate-300 p-2 text-[10px] sm:text-[11px] font-black text-indigo-700 rounded-md focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 outline-none appearance-none cursor-pointer transition-all shadow-sm pr-7 uppercase tracking-widest"
+                                          value={draft.kodeSupplier}
+                                          onChange={(e) => handleUpdateDraftDS(draft.id, "kodeSupplier", e.target.value)}
+                                        >
+                                          <option value="" className="text-slate-400">Pilih...</option>
+                                          {DROPSHIP_SUPPLIERS.map(s => (
+                                            <option key={s} value={s}>{s}</option>
+                                          ))}
+                                        </select>
+                                        <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-500 pointer-events-none" />
+                                      </div>
+                                    </div>
+                                    <div className="space-y-1 col-span-1">
+                                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Tgl Order</label>
+                                      <input type="text" className="w-full bg-slate-50 border border-slate-300 p-2 text-xs font-black text-slate-900 rounded focus:border-indigo-500 outline-none" value={draft.tanggalOrder} onChange={(e) => handleUpdateDraftDS(draft.id, "tanggalOrder", e.target.value)} />
+                                    </div>
+                                    <div className="space-y-1 col-span-1">
+                                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Channel</label>
+                                      <input type="text" className="w-full bg-slate-50 border border-slate-300 p-2 text-xs font-black text-slate-900 rounded focus:border-indigo-500 outline-none" value={draft.channel} onChange={(e) => handleUpdateDraftDS(draft.id, "channel", e.target.value)} />
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">No Pesanan</label>
+                                      <input type="text" className="w-full bg-slate-50 border border-slate-300 p-2 text-xs font-black text-slate-900 rounded outline-none focus:border-indigo-500" value={draft.noPesanan} onChange={(e) => handleUpdateDraftDS(draft.id, "noPesanan", e.target.value)} />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">No Resi</label>
+                                      <input type="text" className="w-full bg-slate-50 border border-slate-300 p-2 text-xs font-black text-slate-900 rounded outline-none focus:border-indigo-500" value={draft.noResi} onChange={(e) => handleUpdateDraftDS(draft.id, "noResi", e.target.value)} />
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight flex items-center gap-1">
+                                      <FileText className="w-2.5 h-2.5 text-indigo-500" /> Data Pelanggan
+                                    </label>
+                                    <div className="space-y-2">
+                                      <input type="text" placeholder="Nama Pelanggan" className="w-full bg-slate-50 border border-slate-300 p-2 text-xs font-black text-slate-900 rounded outline-none focus:border-indigo-500" value={draft.namaPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "namaPelanggan", e.target.value)} />
+                                      <textarea placeholder="Alamat Lengkap" className="w-full bg-slate-50 border border-slate-300 p-2 text-xs font-black text-slate-900 rounded outline-none resize-none focus:border-indigo-500" rows={2} value={draft.alamatPelanggan} onChange={(e) => handleUpdateDraftDS(draft.id, "alamatPelanggan", e.target.value)} />
+                                    </div>
+                                  </div>
+
+                                  <div className="space-y-1">
+                                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight flex items-center gap-1">
+                                      <Package className="w-2.5 h-2.5 text-indigo-500" /> Nama Produk DS
+                                    </label>
+                                    <textarea className="w-full bg-indigo-50/50 border border-indigo-200 p-2 text-xs font-black text-indigo-900 rounded outline-none resize-none whitespace-pre-wrap focus:border-indigo-500" rows={2} value={draft.namaProduk} onChange={(e) => handleUpdateDraftDS(draft.id, "namaProduk", e.target.value)} />
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Quantity</label>
+                                      <input type="number" className="w-full bg-slate-100 border border-slate-300 p-2 text-xs font-black text-center text-slate-900 rounded focus:border-indigo-500" value={draft.qty} onChange={(e) => handleUpdateDraftDS(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">HPP / Modal (Rp)</label>
+                                      <input type="number" className="w-full bg-slate-50 border border-slate-300 p-2 text-xs font-black text-right text-slate-900 rounded focus:border-indigo-500" value={draft.hpp} onChange={(e) => handleUpdateDraftDS(draft.id, "hpp", Number(e.target.value))} />
+                                    </div>
+                                  </div>
+
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Ongkir Cust (Rp)</label>
+                                      <input type="number" className="w-full bg-slate-50 border border-slate-300 p-2 text-xs font-black text-right text-slate-900 rounded focus:border-indigo-500" value={draft.ongkosKirim} onChange={(e) => handleUpdateDraftDS(draft.id, "ongkosKirim", Number(e.target.value))} />
+                                    </div>
+                                    <div className="space-y-1">
+                                      <label className="text-[10px] font-black text-indigo-500 uppercase tracking-tight">Total Jual (Bersih)</label>
+                                      <input type="number" className="w-full bg-indigo-50/50 border-2 border-indigo-200 p-2 text-xs font-black text-right text-indigo-700 rounded outline-none" value={draft.totalPenjualan} onChange={(e) => handleUpdateDraftDS(draft.id, "totalPenjualan", Number(e.target.value))} />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="p-4 pt-3 flex justify-between items-center border-t-2 border-slate-100 bg-slate-50/50">
+                                <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">Estimasi Laba DS</span>
+                                <div className={`px-4 py-1.5 border-2 font-mono text-xs font-black rounded shadow-[2px_2px_0px_0px_#0f172a] ${autoLaba >= 0 ? "bg-emerald-50 border-emerald-900 text-emerald-950" : "bg-rose-50 border-rose-900 text-rose-955"}`}>
+                                  Rp {autoLaba.toLocaleString("id-ID")}
+                                </div>
+                              </div>
+                            </div>
                           );
                         })}
-                      </tbody>
-                    </table>
+                      </div>
+                    )}
                   </div>
 
                   {/* Mobile Card View */}
-                  <div className="block xl:hidden p-4 space-y-4 bg-slate-50">
+                  <div className="hidden">
                     {draftSalesDS.length === 0 && (
                       <div className="p-12 text-center border-4 border-dashed border-slate-300 rounded-xl bg-white flex flex-col items-center justify-center gap-3">
                         <Plus className="w-8 h-8 text-slate-300" />
