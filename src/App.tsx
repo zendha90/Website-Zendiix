@@ -2806,29 +2806,30 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     ]);
   };
 
-  const handleResetDSTable = () => {
-    if (confirm("Kosongkan semua rincian input DS?")) {
-      pushToHistoryDS(draftSalesDS);
-      const newId = Date.now() + "-ds-reset";
-      setDraftSalesDS([
-        {
-          id: newId,
-          kodeSupplier: "",
-          tanggalOrder: "",
-          channel: "",
-          noPesanan: "",
-          noResi: "",
-          namaPelanggan: "",
-          alamatPelanggan: "",
-          namaProduk: "",
-          qty: "",
-          hpp: 0,
-          totalPenjualan: 0,
-          ongkosKirim: 0,
-          laba: 0,
-        },
-      ]);
-    }
+  const [showResetConfirmDS, setShowResetConfirmDS] = useState(false);
+
+  const confirmResetDS = () => {
+    pushToHistoryDS(draftSalesDS);
+    const newId = Date.now() + "-ds-reset";
+    setDraftSalesDS([
+      {
+        id: newId,
+        kodeSupplier: "",
+        tanggalOrder: "",
+        channel: "",
+        noPesanan: "",
+        noResi: "",
+        namaPelanggan: "",
+        alamatPelanggan: "",
+        namaProduk: "",
+        qty: "",
+        hpp: 0,
+        totalPenjualan: 0,
+        ongkosKirim: 0,
+        laba: 0,
+      },
+    ]);
+    setShowResetConfirmDS(false);
   };
 
   const handleRemoveDraftRowDS = (id: string) => {
@@ -4519,14 +4520,34 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                         <span>Tambah Baris</span>
                       </button>
 
-                      {/* Reset Button */}
-                      <button
-                        onClick={handleResetDSTable}
-                        className="h-10 md:h-11 px-4 md:px-5 bg-rose-500 hover:bg-rose-600 text-white font-black uppercase tracking-widest text-[10px] md:text-xs transition-all flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] hover:-translate-y-[1px] hover:-translate-x-[1px] hover:shadow-[3px_3px_0px_0px_#0f172a] md:hover:shadow-[5px_5px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none cursor-pointer"
-                      >
-                        <RefreshCcw className="w-3.5 h-3.5 md:w-4 md:h-4 stroke-[3px]" />
-                        <span>Reset</span>
-                      </button>
+                      {/* Reset Button (Custom Confirmation UI) */}
+                      {showResetConfirmDS ? (
+                        <div className="flex items-center gap-1.5 md:gap-2 animate-fadeIn">
+                          <button
+                            type="button"
+                            onClick={confirmResetDS}
+                            className="h-10 md:h-11 px-3 md:px-4 bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-wider text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-1 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] cursor-pointer"
+                          >
+                            <span>Ya, Reset!</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setShowResetConfirmDS(false)}
+                            className="h-10 md:h-11 px-3 md:px-4 bg-white text-slate-800 hover:bg-slate-100 font-extrabold uppercase tracking-wider text-[9px] md:text-[10px] transition-all flex items-center justify-center gap-1 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] cursor-pointer"
+                          >
+                            <span>Batal</span>
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setShowResetConfirmDS(true)}
+                          className="h-10 md:h-11 px-4 md:px-5 bg-rose-500 hover:bg-rose-600 text-white font-black uppercase tracking-widest text-[10px] md:text-xs transition-all flex items-center justify-center gap-2 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] md:shadow-[4px_4px_0px_0px_#0f172a] hover:-translate-y-[1px] hover:-translate-x-[1px] hover:shadow-[3px_3px_0px_0px_#0f172a] md:hover:shadow-[5px_5px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none cursor-pointer"
+                        >
+                          <RefreshCcw className="w-3.5 h-3.5 md:w-4 md:h-4 stroke-[3px]" />
+                          <span>Reset</span>
+                        </button>
+                      )}
                     </div>
                   </div>
                   
