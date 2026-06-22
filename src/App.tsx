@@ -1447,6 +1447,14 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const [searchInventory, setSearchInventory] = useState("");
   const [localSearchInventory, setLocalSearchInventory] = useState("");
 
+  // Advanced Inventory Filters
+  const [filterKondisi, setFilterKondisi] = useState<string>("all"); // "all", "in_stock", "low_stock", "out_of_stock", "best_seller"
+  const [filterSuppliers, setFilterSuppliers] = useState<string[]>([]);
+  const [isSupplierDropdownOpen, setIsSupplierDropdownOpen] = useState(false);
+  const [supplierSearch, setSupplierSearch] = useState("");
+  const [filterStockOperator, setFilterStockOperator] = useState<string>("all"); // "all", "=", "<", ">", "<=", ">="
+  const [filterStockQty, setFilterStockQty] = useState<number | "">("");
+
   const [salesPage, setSalesPage] = useState(1);
   const [salesLimit, setSalesLimit] = useState<number | "all">(50);
   const [salesSearch, setSalesSearch] = useState("");
@@ -1968,7 +1976,23 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
   useEffect(() => {
     setInventoryStartIndex(0);
-  }, [searchInventory, sortConfig]);
+  }, [
+    searchInventory,
+    sortConfig,
+    filterKondisi,
+    filterSuppliers,
+    filterStockOperator,
+    filterStockQty
+  ]);
+
+  // Unique lists computed dynamically for dynamic multi-column selects
+  const uniqueSuppliers = React.useMemo(() => {
+    const s = new Set<string>();
+    products.forEach((p) => {
+      if (p.supplier && p.supplier.trim()) s.add(p.supplier.trim());
+    });
+    return Array.from(s).sort((a, b) => a.localeCompare(b));
+  }, [products]);
 
   const sortedAndFilteredProducts = React.useMemo(() => {
     const { incoming, sales: salesMap } = productStats;
@@ -1983,6 +2007,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       };
     });
 
+    // 1. Text Search (spesifik nama/kode)
     if (searchInventory) {
       const q = searchInventory.toLowerCase().trim();
       baseProducts = baseProducts.filter(
@@ -1992,6 +2017,42 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       );
     }
 
+    // 2. Filter Kondisi Stok (Stok Kosong, Menipis, Aman, Terlaris)
+    if (filterKondisi !== "all") {
+      baseProducts = baseProducts.filter((p) => {
+        if (filterKondisi === "kosong") return p.stokSaatIni <= 0;
+        if (filterKondisi === "menipis") return p.stokSaatIni > 0 && p.stokSaatIni <= 2;
+        if (filterKondisi === "aman") return p.stokSaatIni > 2;
+        if (filterKondisi === "terlaris") return p.terjual >= 10;
+        return true;
+      });
+    }
+
+    // 3. Filter Supplier Spesifik (Multi-Select)
+    if (filterSuppliers && filterSuppliers.length > 0) {
+      const lowercasedSelected = filterSuppliers.map((s) => s.toLowerCase().trim());
+      baseProducts = baseProducts.filter((p) => {
+        const prodSup = (p.supplier || "").trim().toLowerCase();
+        return lowercasedSelected.includes(prodSup);
+      });
+    }
+
+    // 4. Filter Angka Stok (dengan perbandingan operator jumlah tertentu)
+    if (filterStockOperator !== "all" && filterStockQty !== "") {
+      const targetQty = Number(filterStockQty);
+      if (!isNaN(targetQty)) {
+        baseProducts = baseProducts.filter((p) => {
+          if (filterStockOperator === "=") return p.stokSaatIni === targetQty;
+          if (filterStockOperator === "<") return p.stokSaatIni < targetQty;
+          if (filterStockOperator === ">") return p.stokSaatIni > targetQty;
+          if (filterStockOperator === "<=") return p.stokSaatIni <= targetQty;
+          if (filterStockOperator === ">=") return p.stokSaatIni >= targetQty;
+          return true;
+        });
+      }
+    }
+
+    // 9. Sort
     if (sortConfig !== null) {
       baseProducts.sort((a: any, b: any) => {
         const aVal = a[sortConfig.key] ?? "";
@@ -2007,7 +2068,16 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       });
     }
     return baseProducts;
-  }, [products, productStats, searchInventory, sortConfig]);
+  }, [
+    products,
+    productStats,
+    searchInventory,
+    sortConfig,
+    filterKondisi,
+    filterSuppliers,
+    filterStockOperator,
+    filterStockQty
+  ]);
 
   const filteredSales = React.useMemo(() => {
     let result = [...sales];
@@ -4821,6 +4891,194 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                     </button>
                   </div>
                 </div>
+
+                {/* Advanced Filter Panel */}
+                <div className="p-6 bg-slate-50 border-b-2 border-slate-900 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-xs font-bold leading-relaxed shrink-0">
+                  {/* Kondisi */}
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">
+                      Kondisi Stok
+                    </label>
+                    <select
+                      value={filterKondisi}
+                      onChange={(e) => setFilterKondisi(e.target.value)}
+                      className="w-full h-10 px-3 bg-white border-2 border-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-600"
+                    >
+                      <option value="all">⚡ SEMUA KONDISI</option>
+                      <option value="kosong">❌ STOK KOSONG (≤ 0)</option>
+                      <option value="menipis">⚠️ STOK MENIPIS (1 - 2)</option>
+                      <option value="aman">✅ STOK AMAN (&gt; 2)</option>
+                      <option value="terlaris">🔥 TERLARIS (TERJUAL ≥ 10)</option>
+                    </select>
+                  </div>
+
+                  {/* Supplier */}
+                  <div className="space-y-1 relative">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">
+                      Supplier
+                    </label>
+                    <div className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setIsSupplierDropdownOpen(!isSupplierDropdownOpen)}
+                        className="w-full h-10 px-3 bg-white border-2 border-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-600 flex items-center justify-between cursor-pointer text-left uppercase text-xs shadow-sm hover:bg-slate-50 transition-colors"
+                      >
+                        <span className="truncate pr-2">
+                          {filterSuppliers.length === 0
+                            ? "📦 SEMUA SUPPLIER"
+                            : filterSuppliers.length === 1
+                            ? `📦 ${filterSuppliers[0]}`
+                            : `📦 TERPILIH (${filterSuppliers.length})`}
+                        </span>
+                        {isSupplierDropdownOpen ? (
+                          <ChevronUp className="w-4 h-4 shrink-0 text-slate-500" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 shrink-0 text-slate-500" />
+                        )}
+                      </button>
+
+                      {isSupplierDropdownOpen && (
+                        <>
+                          {/* Invisible backdrop to dismiss with tap outside */}
+                          <div 
+                            className="fixed inset-0 z-20 cursor-default" 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setIsSupplierDropdownOpen(false);
+                              setSupplierSearch("");
+                            }} 
+                          />
+                          
+                          {/* Dropdown menu */}
+                          <div className="absolute z-30 left-0 right-0 mt-1 bg-white border-2 border-slate-900 shadow-[3px_3px_0px_0px_#0f172a] rounded-none overflow-hidden max-h-72 flex flex-col">
+                            {/* Search */}
+                            <div className="p-2 border-b border-slate-200">
+                              <div className="relative">
+                                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                                <input
+                                  type="text"
+                                  placeholder="Cari supplier..."
+                                  value={supplierSearch}
+                                  onChange={(e) => setSupplierSearch(e.target.value)}
+                                  className="w-full text-[11px] font-bold pl-8 pr-2 py-1.5 bg-slate-50 border-2 border-slate-900 focus:outline-none focus:border-indigo-600 rounded-none uppercase"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Actions Header */}
+                            <div className="flex justify-between items-center px-3 py-1.5 bg-slate-100 text-[10px] font-black border-b border-slate-900 text-slate-600 shrink-0">
+                              <button
+                                type="button"
+                                onClick={() => setFilterSuppliers([...uniqueSuppliers])}
+                                className="hover:text-indigo-600 uppercase cursor-pointer"
+                              >
+                                Pilih Semua
+                              </button>
+                              <span>|</span>
+                              <button
+                                type="button"
+                                onClick={() => setFilterSuppliers([])}
+                                className="hover:text-rose-600 uppercase cursor-pointer"
+                              >
+                                Bersihkan
+                              </button>
+                            </div>
+
+                            {/* Elements List */}
+                            <div className="overflow-y-auto max-h-48 divide-y divide-slate-100">
+                              {uniqueSuppliers.filter(sup => 
+                                sup.toLowerCase().includes(supplierSearch.toLowerCase().trim())
+                              ).length === 0 ? (
+                                <div className="p-3 text-center text-[11px] text-slate-400 font-bold">
+                                  Tidak ada supplier
+                                </div>
+                              ) : (
+                                uniqueSuppliers
+                                  .filter(sup => sup.toLowerCase().includes(supplierSearch.toLowerCase().trim()))
+                                  .map((sup) => {
+                                    const isChecked = filterSuppliers.includes(sup);
+                                    return (
+                                      <button
+                                        key={sup}
+                                        type="button"
+                                        onClick={() => {
+                                          if (isChecked) {
+                                            setFilterSuppliers(filterSuppliers.filter((s) => s !== sup));
+                                          } else {
+                                            setFilterSuppliers([...filterSuppliers, sup]);
+                                          }
+                                        }}
+                                        className="w-full flex items-center justify-between px-3 py-2 text-[11px] font-bold text-left hover:bg-slate-50 transition-colors uppercase outline-none"
+                                      >
+                                        <span className="truncate pr-2">{sup}</span>
+                                        <div className={`w-4 h-4 border-2 border-slate-900 flex items-center justify-center shrink-0 ${isChecked ? "bg-indigo-600" : "bg-white"}`}>
+                                          {isChecked && <Check className="w-3 h-3 text-white stroke-[4px]" />}
+                                        </div>
+                                      </button>
+                                    );
+                                  })
+                              )}
+                            </div>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Stock values filter with operator */}
+                  <div className="space-y-1 sm:col-span-1 md:col-span-2">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none mb-1">
+                      Filter Angka Stok Barang
+                    </label>
+                    <div className="flex gap-2">
+                      <select
+                        value={filterStockOperator}
+                        onChange={(e) => {
+                          setFilterStockOperator(e.target.value);
+                          if (e.target.value === "all") setFilterStockQty("");
+                        }}
+                        className="w-1/2 h-10 px-3 bg-white border-2 border-slate-900 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-600"
+                      >
+                        <option value="all">🔢 SEMUA JUMLAH</option>
+                        <option value="=">= (SAMA DENGAN)</option>
+                        <option value="<">&lt; (KURANG DARI)</option>
+                        <option value=">">&gt; (LEBIH DARI)</option>
+                        <option value="<=">&le; (KURANG / SAMA DENGAN)</option>
+                        <option value=">=">&ge; (LEBIH / SAMA DENGAN)</option>
+                      </select>
+                      <input
+                        type="number"
+                        placeholder="Masukkan angka..."
+                        disabled={filterStockOperator === "all"}
+                        value={filterStockQty}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setFilterStockQty(val === "" ? "" : Number(val));
+                        }}
+                        className="w-1/2 h-10 px-3 bg-white border-2 border-slate-900 font-mono font-black focus:outline-none focus:ring-1 focus:ring-indigo-600 disabled:bg-slate-100 disabled:cursor-not-allowed"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Reset All Filters Button */}
+                  <div className="sm:col-span-2 md:col-span-4 flex justify-end pt-2 border-t border-slate-200 border-dashed">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setFilterKondisi("all");
+                        setFilterSuppliers([]);
+                        setFilterStockOperator("all");
+                        setFilterStockQty("");
+                        setLocalSearchInventory("");
+                        setSearchInventory("");
+                      }}
+                      className="px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black uppercase tracking-widest text-[10px] border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[1px_1px_0px_0px_#0f172a] active:translate-y-[2px] active:translate-x-[2px] active:shadow-none transition-all flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <RefreshCcw className="w-3 h-3" /> RESET SEMUA FILTER
+                    </button>
+                  </div>
+                </div>
+
                 <div 
                   className="flex-1 overflow-x-auto overflow-y-auto min-w-0 max-h-[600px] relative scrollbar-thin"
                   onScroll={handleInventoryScroll}
