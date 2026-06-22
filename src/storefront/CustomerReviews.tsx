@@ -19,14 +19,35 @@ export function CustomerReviews({ branding, dbError }: CustomerReviewsProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
 
+  const [selectedFilter, setSelectedFilter] = useState<string>("all");
+
   useEffect(() => {
     return subscribeToReviews(setReviews);
   }, []);
 
-  const filteredReviews = reviews.filter(r => 
-    r.reviewerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (r.comment?.toLowerCase().includes(searchTerm.toLowerCase()))
-  );
+  const filteredReviews = reviews.filter(r => {
+    // Search term match
+    const matchesSearch = r.reviewerName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (r.comment?.toLowerCase().includes(searchTerm.toLowerCase()));
+    
+    if (!matchesSearch) return false;
+
+    // Filter match
+    if (selectedFilter === "all") return true;
+    if (selectedFilter === "with-photo") return !!r.photoUrl;
+    
+    const ratingNum = parseInt(selectedFilter, 10);
+    return r.rating === ratingNum;
+  });
+
+  // Calculate dynamic review counts for filters
+  const countAll = reviews.length;
+  const countWithPhoto = reviews.filter(r => r.photoUrl).length;
+  const count5 = reviews.filter(r => r.rating === 5).length;
+  const count4 = reviews.filter(r => r.rating === 4).length;
+  const count3 = reviews.filter(r => r.rating === 3).length;
+  const count2 = reviews.filter(r => r.rating === 2).length;
+  const count1 = reviews.filter(r => r.rating === 1).length;
 
   return (
     <div className="min-h-screen w-full bg-neutral-50 font-sans text-neutral-800 antialiased selection:bg-slate-900 selection:text-white flex justify-center items-start">
@@ -81,18 +102,36 @@ export function CustomerReviews({ branding, dbError }: CustomerReviewsProps) {
             </div>
           )}
 
-          {/* Branded Disclaimer Warning Box (Kotak Ikon Peringatan) */}
-          <div className="m-4 p-4 bg-amber-50 border-2 border-amber-100 rounded-xl text-amber-900 space-y-2 font-sans text-left">
-            <div className="flex gap-3 items-start">
-              <div className="p-2 bg-amber-100 rounded-lg text-amber-700 font-bold shrink-0">
-                <AlertTriangle className="w-5 h-5" />
-              </div>
-              <div>
-                <h4 className="font-extrabold text-xs tracking-tight uppercase text-slate-900 font-display">PEMBERITAHUAN KEASLIAN</h4>
-                <p className="text-[10px] text-amber-850 mt-1 leading-relaxed font-sans">
-                  Seluruh ulasan produk di bawah ini dikirimkan langsung oleh pelanggan resmi kami secara sukarela. Kami menjamin <strong>originalitas dan integritas 100%</strong> tanpa manipulasi demi kenyamanan belanja Anda.
-                </p>
-              </div>
+          {/* Dynamic Shopee-Style Review Filter Chips */}
+          <div className="px-4 mb-4">
+            <div className="flex flex-wrap items-center gap-1.5 font-sans">
+              {[
+                { id: "all", label: "Semua", count: countAll },
+                { id: "with-photo", label: "Dengan Foto", count: countWithPhoto },
+                { id: "5", label: "⭐ 5", count: count5 },
+                { id: "4", label: "⭐ 4", count: count4 },
+                { id: "3", label: "⭐ 3", count: count3 },
+                { id: "2", label: "⭐ 2", count: count2 },
+                { id: "1", label: "⭐ 1", count: count1 },
+              ].map((fItem) => {
+                const isActive = selectedFilter === fItem.id;
+                return (
+                  <button
+                    key={fItem.id}
+                    onClick={() => setSelectedFilter(fItem.id)}
+                    className={`flex items-center gap-1 px-3 py-1.5 rounded-full text-[11px] font-bold border transition-all duration-200 shrink-0 select-none cursor-pointer tracking-wide ${
+                      isActive
+                        ? "bg-slate-900 border-slate-900 text-white shadow-sm"
+                        : "bg-neutral-100 border-neutral-200 text-neutral-600 hover:border-neutral-300"
+                    }`}
+                  >
+                    <span>{fItem.label}</span>
+                    <span className={`text-[9px] font-semibold ${isActive ? "text-neutral-300" : "text-neutral-400"}`}>
+                      ({fItem.count})
+                    </span>
+                  </button>
+                );
+              })}
             </div>
           </div>
 
