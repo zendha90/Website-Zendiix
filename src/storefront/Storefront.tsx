@@ -691,7 +691,9 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
       variantR = variantL;
     }
 
-    const price = selectedSeries.representativeProduct.hargaJual;
+    const price = (variantL && variantL.product && variantL.product.hargaJual)
+      ? variantL.product.hargaJual
+      : selectedSeries.representativeProduct.hargaJual;
     const isProductNotSoftlens = !!selectedSeries.representativeProduct.notSoftlens;
     const finalPowerL = isProductNotSoftlens ? '0.00' : selectedPowerL;
     const finalPowerR = finalPowerL;
@@ -802,6 +804,19 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     };
   };
 
+  const getPriceRangeDisplay = (series: GroupedSeries) => {
+    const prices = series.variants.map(v => v.product.hargaJual || 0).filter(p => p > 0);
+    if (prices.length === 0) {
+      const repPrice = series.representativeProduct.hargaJual || 0;
+      return `Rp ${repPrice.toLocaleString()}`;
+    }
+    const minPrice = Math.min(...prices);
+    const maxPrice = Math.max(...prices);
+    return minPrice === maxPrice
+      ? `Rp ${minPrice.toLocaleString()}`
+      : `Rp ${minPrice.toLocaleString()} - Rp ${maxPrice.toLocaleString()}`;
+  };
+
   // STOCK SYNC MONITOR - Checks the live database stock for currently selected parameters
   const activeStockStatus = useMemo(() => {
     if (!selectedSeries) return { available: false, count: 0, variantL: null, variantR: null };
@@ -838,10 +853,16 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
 
   const modalSubtotal = useMemo(() => {
     if (!selectedSeries) return 0;
-    const price = selectedSeries.representativeProduct.hargaJual;
+    const varL = selectedSeries.variants.find(
+      v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === selectedPowerL
+    );
+    const price = (varL && varL.product && varL.product.hargaJual) 
+      ? varL.product.hargaJual 
+      : selectedSeries.representativeProduct.hargaJual;
+
     const multiplier = modalIsDualPower ? 2 : 1;
     return price * buyQty * multiplier;
-  }, [selectedSeries, modalIsDualPower, buyQty]);
+  }, [selectedSeries, modalColor, selectedPowerL, modalIsDualPower, buyQty]);
 
   return (
     <div className="min-h-screen bg-neutral-50 font-sans text-neutral-800 antialiased selection:bg-slate-900 selection:text-white flex justify-center items-start">
@@ -939,7 +960,12 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               : (repProduct.imageUrl ? splitImageUrls(repProduct.imageUrl) : []);
             
             const currentImageUrl = displayImageUrls[activeImageIdx] || repProduct.imageUrl || `https://picsum.photos/seed/${selectedSeries.seriesName}/600/600`;
-            const price = repProduct.hargaJual;
+            const activeVar = selectedSeries.variants.find(
+              v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === selectedPowerL
+            );
+            const price = (activeVar && activeVar.product && activeVar.product.hargaJual) 
+              ? activeVar.product.hargaJual 
+              : repProduct.hargaJual;
 
             return (
               <div className="bg-white text-slate-900 min-h-screen pb-20">
@@ -1389,7 +1415,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                           </div>
                         </div>
                         <span className="text-[9px] font-black text-neutral-800 line-clamp-1 block">{series.seriesName}</span>
-                        <span className="text-[10px] font-extrabold text-slate-950 block">Rp {series.representativeProduct.hargaJual.toLocaleString()}</span>
+                        <span className="text-[10px] font-extrabold text-slate-950 block">{getPriceRangeDisplay(series)}</span>
                       </a>
                     );
                   })}
@@ -1614,19 +1640,12 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                         </div>
 
                         <div>
-                          {/* Rating */}
-                          <div className="flex items-center text-[9px] text-neutral-400 mt-1 mb-2">
-                            <div className="flex items-center gap-0.5 text-amber-500">
-                              <Star className="w-2.5 h-2.5 fill-current shrink-0" />
-                              <span className="font-extrabold text-slate-950">{rating.toFixed(1)}</span>
-                            </div>
-                          </div>
 
                           {/* Cosmetics Price Tag */}
                           <div className="flex items-center justify-between pt-1 border-t border-neutral-50">
                             <div className="flex flex-col text-left">
                               <span className="text-[7.5px] font-bold text-neutral-400 leading-none">HARGA BOX</span>
-                              <span className="text-xs font-black text-slate-900">Rp {series.representativeProduct.hargaJual.toLocaleString()}</span>
+                              <span className="text-xs font-black text-slate-900">{getPriceRangeDisplay(series)}</span>
                             </div>
                             <span className="text-[8.5px] font-bold text-white bg-slate-950 px-1.5 py-0.5 rounded tracking-tighter">
                               Beli

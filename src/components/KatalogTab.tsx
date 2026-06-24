@@ -15,7 +15,8 @@ import {
   Clock,
   Flame,
   Sliders,
-  Star
+  Star,
+  Coins
 } from "lucide-react";
 import { Product, upsertProduct } from "../services";
 
@@ -172,6 +173,9 @@ export function KatalogTab({ products }: KatalogTabProps) {
   const [description, setDescription] = useState("");
   const [isFlashSale, setIsFlashSale] = useState(false);
 
+  const [hargaJualGlobal, setHargaJualGlobal] = useState("");
+  const [hargaJualVarian, setHargaJualVarian] = useState<Record<string, string>>({});
+
   const [saving, setSaving] = useState(false);
   const [successMsg, setSuccessMsg] = useState("");
   const [errorMsg, setErrorMsg] = useState("");
@@ -319,8 +323,29 @@ export function KatalogTab({ products }: KatalogTabProps) {
     });
     setColorImages(initialColorImages);
 
+    // Populate prices
+    setHargaJualGlobal(rp.hargaJual != null ? rp.hargaJual.toString() : "");
+    const initialVarianPrices: Record<string, string> = {};
+    series.allProducts.forEach(prod => {
+      if (prod.id) {
+        initialVarianPrices[prod.id] = prod.hargaJual != null ? prod.hargaJual.toString() : "";
+      }
+    });
+    setHargaJualVarian(initialVarianPrices);
+
     setSuccessMsg("");
     setErrorMsg("");
+  };
+
+  const handleApplyGlobalPrice = () => {
+    if (!editingSeries) return;
+    const updated: Record<string, string> = {};
+    editingSeries.allProducts.forEach(prod => {
+      if (prod.id) {
+        updated[prod.id] = hargaJualGlobal;
+      }
+    });
+    setHargaJualVarian(updated);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, onResult: (url: string) => void) => {
@@ -380,8 +405,13 @@ export function KatalogTab({ products }: KatalogTabProps) {
         
         const seriesMainImg = seriesParts.filter(Boolean).join(", ");
 
+        // Determine price
+        const priceStr = prod.id ? hargaJualVarian[prod.id] : "";
+        const finalHargaJual = priceStr !== "" ? parseFloat(priceStr) : (prod.hargaJual || 0);
+
         return upsertProduct({
           ...prod,
+          hargaJual: isNaN(finalHargaJual) ? 0 : finalHargaJual,
           imageUrl: finalImg || undefined,
           seriesImageUrl: seriesMainImg,
           durasi: durasi || undefined,
@@ -518,6 +548,10 @@ export function KatalogTab({ products }: KatalogTabProps) {
                           <div className="flex justify-between">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Diameter</span>
                             <span className="font-bold text-slate-900 font-mono">{rp.diameter || "-"}</span>
+                          </div>
+                          <div className="flex justify-between items-center bg-indigo-50/50 px-2.5 py-1 rounded-lg border border-indigo-100 mt-1">
+                            <span className="text-[10px] font-black text-indigo-950 uppercase tracking-wide">Harga Jual</span>
+                            <span className="font-extrabold text-indigo-800 font-mono text-xs">Rp {(rp.hargaJual || 0).toLocaleString()}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Tipe Produk</span>
@@ -852,6 +886,90 @@ export function KatalogTab({ products }: KatalogTabProps) {
                               placeholder="e.g. 13.1 mm"
                             />
                           </div>
+                        </div>
+                      </div>
+
+                    </div>
+
+                    {/* SECTION: HARGA JUAL SERI & VARIAN */}
+                    <div className="bg-white border-2 border-slate-900 rounded-xl p-5 shadow-[4px_4px_0px_0px_#0f172a] space-y-4 hover:translate-y-[-1px] transition-transform duration-200">
+                      <div className="flex items-center gap-2 border-b-2 border-slate-100 pb-3">
+                        <Coins className="w-4 h-4 text-emerald-600" />
+                        <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                          Harga Jual Seri & Varian
+                        </h4>
+                      </div>
+
+                      {/* Harga Jual Global Input */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black text-slate-700 uppercase tracking-widest leading-none">
+                          Set Harga Jual Global (Masal)
+                        </label>
+                        <p className="text-[9px] text-slate-400 font-bold leading-normal">
+                          Ketik harga di sini lalu klik tombol untuk menyalin harga ini ke semua varian produk dalam seri ini.
+                        </p>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">
+                              Rp
+                            </span>
+                            <input
+                              type="number"
+                              value={hargaJualGlobal}
+                              onChange={(e) => setHargaJualGlobal(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2.5 bg-slate-50 border-2 border-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none text-xs font-mono font-bold rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[3px_3px_0px_0px_rgba(99,102,241,1)] transition-all"
+                              placeholder="Contoh: 150000"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleApplyGlobalPrice}
+                            className="px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-[10px] uppercase tracking-wider rounded-lg border-2 border-slate-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:-translate-y-[1px] active:translate-y-[1px] transition-all cursor-pointer"
+                          >
+                            Terapkan ke Semua
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Individual Varian Prices List */}
+                      <div className="space-y-2 pt-2 border-t border-slate-100">
+                        <span className="block text-[10px] font-black text-slate-700 uppercase tracking-widest mb-1">
+                          Harga Jual Per Varian Lensa ({editingSeries.allProducts.length})
+                        </span>
+                        <div className="space-y-2 max-h-[220px] overflow-y-auto pr-1">
+                          {editingSeries.allProducts.map((prod) => {
+                            if (!prod.id) return null;
+                            const priceVal = hargaJualVarian[prod.id] || "";
+                            return (
+                              <div key={prod.id} className="flex items-center justify-between p-2.5 bg-slate-50 border border-slate-200 rounded-lg gap-3">
+                                <div className="min-w-0">
+                                  <span className="block text-[10px] font-black text-slate-800 uppercase truncate">
+                                    {prod.namaBarang}
+                                  </span>
+                                  <span className="block text-[8px] font-bold text-slate-400 uppercase tracking-wider mt-0.5">
+                                    SKU: {prod.kodeBarang} | Supplier: {prod.supplier || "-"}
+                                  </span>
+                                </div>
+                                <div className="relative w-36 shrink-0">
+                                  <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-slate-400">
+                                    Rp
+                                  </span>
+                                  <input
+                                    type="number"
+                                    value={priceVal}
+                                    onChange={(e) => {
+                                      setHargaJualVarian(prev => ({
+                                        ...prev,
+                                        [prod.id!]: e.target.value
+                                      }));
+                                    }}
+                                    className="w-full pl-8 pr-2 py-1.5 bg-white border-2 border-slate-300 focus:border-indigo-600 focus:outline-none text-[11px] font-mono font-bold rounded"
+                                    placeholder="0"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
 

@@ -2140,9 +2140,29 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       );
     }
     return result.sort((a, b) => {
-      const d1 = new Date(a.tanggal?.seconds ? a.tanggal.seconds * 1000 : a.tanggal).getTime();
-      const d2 = new Date(b.tanggal?.seconds ? b.tanggal.seconds * 1000 : b.tanggal).getTime();
-      return d2 - d1;
+      const getTimestamp = (val: any) => {
+        if (!val) return 0;
+        if (typeof val === 'object' && val !== null) {
+            if (typeof val.toDate === 'function') return val.toDate().getTime();
+            if ('seconds' in val) return val.seconds * 1000;
+        }
+        const date = new Date(val);
+        const time = date.getTime();
+        return isNaN(time) ? 0 : time;
+      };
+
+      const t1 = Math.floor(getTimestamp(a?.tanggal) / 60000);
+      const t2 = Math.floor(getTimestamp(b?.tanggal) / 60000);
+
+      if (t2 !== t1) {
+        return t2 - t1;
+      }
+      
+      // If same minute, sort by kodeBarang (ascending)
+      const codeA = (a?.kodeBarang || "").toLowerCase();
+      const codeB = (b?.kodeBarang || "").toLowerCase();
+      
+      return codeA.localeCompare(codeB);
     });
   }, [incomingGoods, incomingSearch]);
 
@@ -2426,6 +2446,18 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     });
   };
 
+  const prepareExportTextForDS = (ds: any) => {
+    const resi = (ds.noResi || "").trim();
+    const nama = (ds.namaPelanggan || "").trim();
+    const alamat = (ds.alamatPelanggan || "").trim();
+    const pesanan = `${(ds.namaProduk || "").trim()}${Number(ds.qty || 0) > 1 ? ` (${ds.qty} pcs)` : ""}`;
+
+    const formatted = `${resi}\nNama: ${nama}\nAlamat: ${alamat}\nPESANAN:\n${pesanan}\nPengirim: Zendiix`;
+
+    setExportDSText(formatted);
+    setIsExportDSModalOpen(true);
+  };
+
   const handleExportLastDropship = () => {
     // 1. Get complete items in salesDS
     const completeDS = salesDS.filter((s) => (
@@ -2468,15 +2500,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     const lastDS = sortedDS[0];
 
     // 4. Construct formated text:
-    const resi = lastDS.noResi.trim();
-    const nama = lastDS.namaPelanggan.trim();
-    const alamat = lastDS.alamatPelanggan.trim();
-    const pesanan = `${lastDS.namaProduk.trim()}${lastDS.qty > 1 ? ` (${lastDS.qty} pcs)` : ""}`;
-
-    const formatted = `${resi}\nNama: ${nama}\nAlamat: ${alamat}\nPESANAN:\n${pesanan}\nPengirim: Zendiix`;
-
-    setExportDSText(formatted);
-    setIsExportDSModalOpen(true);
+    prepareExportTextForDS(lastDS);
   };
 
   // Dropship Sales states and handlers
@@ -2884,6 +2908,12 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     }
 
     alert(`Berhasil menyimpan ${successCount} data penjualan Dropship (DS)!`);
+    
+    // Automatically prepare export for the last saved record
+    if (validDrafts.length > 0) {
+      prepareExportTextForDS(validDrafts[validDrafts.length - 1]);
+    }
+
     setDraftSalesDS(() => {
       return Array.from({ length: 1 }, (_, i) => ({
         id: Date.now() + "-ds-" + i,
@@ -3234,7 +3264,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!namaBarang || !kodeBarang || !hargaBeli || !hargaJual || !stokAwal)
+    if (!namaBarang || !kodeBarang || !hargaBeli || !supplier || !stokAwal)
       return;
     // Note: stokBarang (Masuk) is optional, defaults to 0 if not provided
 
@@ -3253,7 +3283,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
         namaBarang,
         supplier,
         hargaBeli: Number(hargaBeli),
-        hargaJual: Number(hargaJual),
+        hargaJual: existingProduct?.hargaJual || 0,
         stokAwal: Number(stokAwal),
         color,
         bc,
@@ -5023,15 +5053,15 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                       </div>
                       <div className="space-y-1">
                         <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                          Harga Jual
+                          Supplier
                         </label>
                         <input
-                          type="number"
+                          type="text"
                           required
-                          min="0"
-                          value={hargaJual}
-                          onChange={(e) => setHargaJual(e.target.value)}
-                          className="w-full px-4 py-3 bg-white border-2 border-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 text-sm font-black font-mono"
+                          value={supplier}
+                          onChange={(e) => setSupplier(e.target.value)}
+                          className="w-full px-4 py-3 bg-white border-2 border-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 text-sm font-black uppercase tracking-tight"
+                          placeholder="e.g. Supplier Utama"
                         />
                       </div>
                     </div>
@@ -8192,6 +8222,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                       navigator.clipboard.writeText(exportDSText);
                       setExportDSToast(true);
                       setTimeout(() => setExportDSToast(false), 2500);
+                      setIsExportDSModalOpen(false);
                     }}
                     className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#000] active:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all flex items-center justify-center gap-2"
                   >
