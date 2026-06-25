@@ -2954,16 +2954,17 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   };
 
   const handlePasteInIklanModal = (e: React.ClipboardEvent) => {
+    e.preventDefault();
     const paste = e.clipboardData.getData("text");
-    const parts = paste.split("\t");
+    const parts = paste.split(/\t+/).map(p => p.trim()).filter(Boolean);
     
     if (parts.length >= 2) {
-      const tanggal = parts[0].trim();
-      const rawPembayaran = parts[1].trim();
+      const tanggal = parts[0];
+      const rawPembayaran = parts[1];
       // Remove 'Rp' and thousand separator dots, and handle comma for decimal if necessary
       const pembayaranStr = rawPembayaran.replace(/Rp|\./g, "").replace(",", ".").trim();
       const pembayaran = Number(pembayaranStr);
-      const noPesanan = parts[2] ? parts[2].trim() : "";
+      const noPesanan = parts[2] ? parts[2] : "";
       
       setEditingIklan(prev => ({
         ...prev,
