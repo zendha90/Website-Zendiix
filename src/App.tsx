@@ -2455,7 +2455,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     const resi = (ds.noResi || "").trim();
     const nama = (ds.namaPelanggan || "").trim();
     const alamat = (ds.alamatPelanggan || "").trim();
-    const pesanan = `${(ds.namaProduk || "").trim()}${Number(ds.qty || 0) > 1 ? ` (${ds.qty} pcs)` : ""}`;
+    const pesanan = `${(ds.namaProduk || "").trim()}`;
 
     const formatted = `${resi}\nNama: ${nama}\nAlamat: ${alamat}\nPESANAN:\n${pesanan}\nPengirim: Zendiix`;
 
@@ -4642,89 +4642,17 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 {/* Drafting Area */}
                 <div className="flex-1 overflow-y-auto min-h-[180px] bg-slate-50">
                   <div className="p-4 md:p-6">
-                    <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
+                    <div className="w-full">
                       
-                      {/* Left Sidebar: Automation & Clipboard Assistant */}
-                      <div className="xl:col-span-4 space-y-5">
-                        <div className="bg-white border-2 border-slate-900 rounded-xl p-5 shadow-[4px_4px_0px_0px_#0f172a] space-y-4">
-                          <div className="flex items-center gap-2 border-b-2 border-slate-100 pb-3">
-                            <Sparkles className="w-4 h-4 text-indigo-600 animate-pulse" />
-                            <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest">
-                              Console Auto-Deteksi DS
-                            </h3>
-                          </div>
-                          
-                          <p className="text-[11px] font-bold text-slate-500 leading-relaxed">
-                            Sistem secara instan mendeteksi format dropship. Anda bisa langsung <strong>melakukan Paste (Ctrl+V)</strong> di mana saja pada halaman ini, atau gunakan opsi input cepat di bawah:
-                          </p>
-
-                          <div className="space-y-2">
-                            <textarea
-                              rows={5}
-                              value={pasteInputText}
-                              onChange={(e) => setPasteInputText(e.target.value)}
-                              placeholder="Tempel rincian pesanan dari supplier atau rincian Shopee/Tokopedia di sini..."
-                              className="w-full p-3 bg-slate-50 border-2 border-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none text-xs font-bold font-sans rounded-xl resize-none shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] transition-all"
-                            />
-                            
-                            <button
-                              onClick={() => handleManualParseDS(pasteInputText)}
-                              className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-black uppercase tracking-wider rounded-lg border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] hover:-translate-y-[1px] transition-all flex items-center justify-center gap-2 cursor-pointer"
-                            >
-                              <Plus className="w-3.5 h-3.5 stroke-[3px]" />
-                              <span>Deteksi & Tambah Baris</span>
-                            </button>
-                          </div>
-
-                          <div className="pt-2 border-t border-slate-100">
-                            <span className="block text-[9px] font-black text-slate-400 uppercase tracking-widest mb-2">
-                              Struktur Kolom yang Didukung
-                            </span>
-                            <div className="grid grid-cols-2 gap-1.5 text-[9px] text-slate-600 font-bold">
-                              <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded">
-                                <span className="text-indigo-600 font-black">1.</span> Tgl Order
-                              </div>
-                              <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded">
-                                <span className="text-indigo-600 font-black">2.</span> Channel
-                              </div>
-                              <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded">
-                                <span className="text-indigo-600 font-black">3.</span> No Pesanan
-                              </div>
-                              <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded">
-                                <span className="text-indigo-600 font-black">4.</span> No Resi
-                              </div>
-                              <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded col-span-2 text-indigo-950">
-                                <span className="text-indigo-600 font-black">5.</span> Penerima & Alamat
-                              </div>
-                              <div className="flex items-center gap-1 bg-slate-100 px-2 py-1 rounded col-span-2 text-indigo-950">
-                                <span className="text-indigo-600 font-black">6.</span> Nama Produk & Qty
-                              </div>
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Quick Tips Box */}
-                        <div className="bg-indigo-50 border-2 border-indigo-950 rounded-xl p-4 shadow-[2px_2px_0px_0px_#000000]">
-                          <h4 className="text-[10px] font-black text-indigo-950 uppercase tracking-widest mb-1.5 flex items-center gap-1">
-                            💡 Tips Efisiensi DS
-                          </h4>
-                          <ul className="list-disc pl-4 text-[10px] font-bold text-indigo-900 space-y-1">
-                            <li>Klik tombol <span className="underline">Undo</span> di bar atas jika ingin membatalkan paste terakhir.</li>
-                            <li>Supplier & HPP akan otomatis disinkronkan berdasarkan baris nama produk yang terdeteksi.</li>
-                            <li>Untuk memasukkan dropship manual satu per satu, klik "+ Tambah Baris" di bar aksi atas.</li>
-                          </ul>
-                        </div>
-                      </div>
-
                       {/* Right Area: Active Draft Items */}
-                      <div className="xl:col-span-8">
+                      <div className="w-full">
                         {draftSalesDS.length === 0 ? (
                           <div className="p-16 text-center border-4 border-dashed border-slate-300 rounded-2xl bg-white flex flex-col items-center justify-center gap-4 min-h-[350px]">
                             <Plus className="w-10 h-10 text-slate-300" />
                             <div>
                               <p className="text-xs font-black text-slate-800 uppercase tracking-widest">Antrian DS Kosong</p>
                               <p className="text-[10px] text-slate-400 font-medium mt-1 max-w-sm text-center">
-                                Silakan gunakan panel auto-deteksi sebelah kiri, paste data secara langsung, atau klik tombol Tambah Baris di bar atas.
+                                Silakan langsung Paste (Ctrl+V) rincian data dropship Anda di mana saja pada halaman ini, atau klik tombol Tambah Baris di bar atas.
                               </p>
                             </div>
                           </div>
