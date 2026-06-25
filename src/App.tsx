@@ -4657,7 +4657,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                             </div>
                           </div>
                         ) : (
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
+                          <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 animate-fadeIn">
                         {draftSalesDS.map((draft, idx) => {
                           const hppNum = draft.hpp || 0;
                           const qtyNum = Number(draft.qty) || 1;
@@ -4680,7 +4680,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                                   </button>
                                 </div>
                                 <div className="p-4 space-y-4">
-                                  <div className="grid grid-cols-3 gap-3">
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                     <div className="space-y-1 col-span-1">
                                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Supplier</label>
                                       <div className="relative group/select">
@@ -4707,7 +4707,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                                     </div>
                                   </div>
                                   
-                                  <div className="grid grid-cols-2 gap-3">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div className="space-y-1">
                                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">No Pesanan</label>
                                       <input type="text" className="w-full bg-slate-50 border border-slate-300 p-2 text-xs font-black text-slate-900 rounded outline-none focus:border-indigo-500" value={draft.noPesanan} onChange={(e) => handleUpdateDraftDS(draft.id, "noPesanan", e.target.value)} />
@@ -4735,7 +4735,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                                     <textarea className="w-full bg-indigo-50/50 border border-indigo-200 p-2 text-xs font-black text-indigo-900 rounded outline-none resize-none whitespace-pre-wrap focus:border-indigo-500" rows={2} value={draft.namaProduk} onChange={(e) => handleUpdateDraftDS(draft.id, "namaProduk", e.target.value)} />
                                   </div>
 
-                                  <div className="grid grid-cols-2 gap-3">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div className="space-y-1">
                                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Quantity</label>
                                       <input type="number" className="w-full bg-slate-100 border border-slate-300 p-2 text-xs font-black text-center text-slate-900 rounded focus:border-indigo-500" value={draft.qty} onChange={(e) => handleUpdateDraftDS(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} />
@@ -4746,7 +4746,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                                     </div>
                                   </div>
 
-                                  <div className="grid grid-cols-2 gap-3">
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div className="space-y-1">
                                       <label className="text-[10px] font-black text-slate-500 uppercase tracking-tight">Ongkir Cust (Rp)</label>
                                       <input type="number" className="w-full bg-slate-50 border border-slate-300 p-2 text-xs font-black text-right text-slate-900 rounded focus:border-indigo-500" value={draft.ongkosKirim} onChange={(e) => handleUpdateDraftDS(draft.id, "ongkosKirim", Number(e.target.value))} />
