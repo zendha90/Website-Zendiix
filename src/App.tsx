@@ -1578,6 +1578,11 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const [exportDSText, setExportDSText] = useState("");
   const [exportDSToast, setExportDSToast] = useState(false);
 
+  // Export Stock states
+  const [isExportStockModalOpen, setIsExportStockModalOpen] = useState(false);
+  const [exportStockText, setExportStockText] = useState("");
+  const [exportStockToast, setExportStockToast] = useState(false);
+
   const [isIncomingModalOpen, setIsIncomingModalOpen] = useState(false);
   const [incomingForm, setIncomingForm] = useState<Partial<IncomingGood>>({
     qty: 1,
@@ -2946,6 +2951,27 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const handleOpenIklanModal = (iklan: Partial<Iklan> = {}) => {
     setEditingIklan(iklan);
     setIsIklanModalOpen(true);
+  };
+
+  const handlePasteInIklanModal = (e: React.ClipboardEvent) => {
+    const paste = e.clipboardData.getData("text");
+    const parts = paste.split("\t");
+    
+    if (parts.length >= 2) {
+      const tanggal = parts[0].trim();
+      const rawPembayaran = parts[1].trim();
+      // Remove 'Rp' and thousand separator dots, and handle comma for decimal if necessary
+      const pembayaranStr = rawPembayaran.replace(/Rp|\./g, "").replace(",", ".").trim();
+      const pembayaran = Number(pembayaranStr);
+      const noPesanan = parts[2] ? parts[2].trim() : "";
+      
+      setEditingIklan(prev => ({
+        ...prev,
+        tanggal,
+        totalPembayaran: isNaN(pembayaran) ? "" : pembayaran,
+        noPesanan
+      }));
+    }
   };
 
   const handleSaveIklan = async (e: React.FormEvent) => {
@@ -5206,20 +5232,20 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           {activeTab === "stok_barang" && (
             <section className="col-span-12 min-h-[500px] pt-8 min-w-0">
               <div className="bg-white border-2 border-slate-900 flex flex-col min-h-[500px] overflow-hidden shadow-[8px_8px_0px_0px_#0f172a]">
-                <div className="p-6 border-b-2 border-slate-900 flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 bg-slate-50">
+                <div className="p-6 border-b-2 border-slate-900 flex flex-col lg:flex-row lg:items-center justify-between gap-4 shrink-0 bg-slate-50">
                   <h2 className="text-xl font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest">
                     <Package className="w-6 h-6 border-2 border-slate-900 bg-indigo-100 p-0.5 shadow-[2px_2px_0px_0px_#0f172a]" />
                     Data Stok & Barang
                   </h2>
-                  <div className="flex flex-wrap gap-4">
-                    <div className="relative">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto lg:flex lg:items-center">
+                    <div className="relative w-full lg:w-64">
                       <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
                         placeholder="CARI KODE / NAMA..."
                         value={localSearchInventory}
                         onChange={(e) => setLocalSearchInventory(e.target.value)}
-                        className="pl-10 pr-8 py-2 bg-white border-2 border-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-xs font-bold uppercase tracking-widest w-64 shadow-[2px_2px_0px_0px_#0f172a]"
+                        className="pl-10 pr-8 py-2 w-full h-10 bg-white border-2 border-slate-900 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-xs font-bold uppercase tracking-widest shadow-[2px_2px_0px_0px_#0f172a]"
                       />
                       {localSearchInventory && (
                         <button
@@ -5235,13 +5261,25 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                     </div>
                     <button
                       onClick={() => {
+                        const text = sortedAndFilteredProducts
+                          .map((p) => `${p.stokSaatIni}\t${p.kodeBarang}`)
+                          .join("\n");
+                        setExportStockText(text);
+                        setIsExportStockModalOpen(true);
+                      }}
+                      className="h-10 px-4 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center justify-center gap-2 w-full lg:w-auto"
+                    >
+                      <Download className="w-4 h-4 shrink-0" /> EXPORT STOK TEXT
+                    </button>
+                    <button
+                      onClick={() => {
                         setEditProductId(null);
                         handleCancelEdit();
                         setIsProductModalOpen(true);
                       }}
-                      className="px-6 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center gap-2"
+                      className="h-10 px-4 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center justify-center gap-2 w-full lg:w-auto"
                     >
-                      <Plus className="w-4 h-4" /> TAMBAH BARANG
+                      <Plus className="w-4 h-4 shrink-0" /> TAMBAH BARANG
                     </button>
                   </div>
                 </div>
@@ -8124,7 +8162,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                     <X className="w-6 h-6" />
                   </button>
                 </div>
-                <form onSubmit={handleSaveIklan} className="p-8 space-y-6">
+                <form onPaste={handlePasteInIklanModal} onSubmit={handleSaveIklan} className="p-8 space-y-6">
                   <div className="space-y-1">
                     <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
                       Tanggal (DD/MM/YYYY)
@@ -8238,6 +8276,52 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
                 {/* Copied Toast Alert */}
                 {exportDSToast && (
+                  <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 font-black text-xs uppercase tracking-widest border border-white shadow-lg rounded animate-bounce">
+                    ✓ Copied to clipboard!
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* EXPORT STOCK TEXT MODAL */}
+          {isExportStockModalOpen && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
+              <div className="bg-white border-4 border-slate-900 w-full max-w-lg p-6 md:p-8 shadow-[16px_16px_0px_0px_#0f172a] flex flex-col gap-6 relative">
+                <div>
+                  <h3 className="text-xl md:text-2xl font-black text-emerald-600 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                    📦 EXPORT DATA STOK & BARANG (TEXT)
+                  </h3>
+                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
+                    Hanya menampilkan stok sekarang dan kode barang (sesuai filter aktif)
+                  </p>
+                  
+                  <div className="relative bg-slate-50 border-2 border-slate-900 p-4 rounded-none font-mono text-xs text-slate-800 whitespace-pre leading-relaxed shadow-[inner_0_2px_4px_rgba(0,0,0,0.06)] max-h-72 overflow-y-auto select-all">
+                    {exportStockText || "Tidak ada data produk yang sesuai filter."}
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t-2 border-slate-900">
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(exportStockText);
+                      setExportStockToast(true);
+                      setTimeout(() => setExportStockToast(false), 2500);
+                    }}
+                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#000] active:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all flex items-center justify-center gap-2"
+                  >
+                    <Copy className="w-4 h-4" /> Copy to Clipboard
+                  </button>
+                  <button
+                    onClick={() => setIsExportStockModalOpen(false)}
+                    className="py-3 px-6 bg-white hover:bg-slate-50 text-slate-900 font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#000] active:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all"
+                  >
+                    TUTUP
+                  </button>
+                </div>
+
+                {/* Copied Toast Alert */}
+                {exportStockToast && (
                   <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 font-black text-xs uppercase tracking-widest border border-white shadow-lg rounded animate-bounce">
                     ✓ Copied to clipboard!
                   </div>
