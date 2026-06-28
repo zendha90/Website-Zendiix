@@ -859,33 +859,18 @@ export function KatalogTab({ products }: KatalogTabProps) {
                           </div>
                         </div>
 
-                        {/* DIA & G.DIA */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black text-slate-700 uppercase tracking-widest leading-none">
-                              Diameter DIA
-                            </label>
-                            <input
-                              type="text"
-                              value={diameter}
-                              onChange={(e) => setDiameter(e.target.value)}
-                              className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none text-xs font-bold rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[3px_3px_0px_0px_rgba(99,102,241,1)] transition-all"
-                              placeholder="e.g. 14.2 mm"
-                            />
-                          </div>
-
-                          <div className="space-y-1.5">
-                            <label className="block text-[10px] font-black text-slate-700 uppercase tracking-widest leading-none">
-                              Graphic Dia (G.DIA)
-                            </label>
-                            <input
-                              type="text"
-                              value={gDia}
-                              onChange={(e) => setGDia(e.target.value)}
-                              className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none text-xs font-bold rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[3px_3px_0px_0px_rgba(99,102,241,1)] transition-all"
-                              placeholder="e.g. 13.1 mm"
-                            />
-                          </div>
+                        {/* DIA Only (Graphic Dia / G.DIA Removed) */}
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-black text-slate-700 uppercase tracking-widest leading-none">
+                            Diameter DIA
+                          </label>
+                          <input
+                            type="text"
+                            value={diameter}
+                            onChange={(e) => setDiameter(e.target.value)}
+                            className="w-full px-3 py-2.5 bg-slate-50 border-2 border-slate-900 focus:border-indigo-600 focus:bg-white focus:outline-none text-xs font-bold rounded-lg shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] focus:shadow-[3px_3px_0px_0px_rgba(99,102,241,1)] transition-all"
+                            placeholder="e.g. 14.2 mm"
+                          />
                         </div>
                       </div>
 

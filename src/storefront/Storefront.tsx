@@ -258,6 +258,17 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     setActiveImageIdx(0);
   }, [selectedSeries, modalColor]);
 
+  // Reset select parameters when selectedSeries changes
+  useEffect(() => {
+    if (selectedSeries) {
+      setModalColor(selectedSeries.colors[0] || 'Clear');
+      setModalIsDualPower(false);
+      setSelectedPowerL('0.00');
+      setSelectedPowerR('0.00');
+      setBuyQty(1);
+    }
+  }, [selectedSeries]);
+
   // Toast message notification state & automatic clear
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -675,12 +686,14 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
   const handleAddToCart = () => {
     if (!selectedSeries) return;
 
+    const isProductNotSoftlens = !!selectedSeries.representativeProduct.notSoftlens;
+
     // Retrieve active variants matching color & power
     let variantL = selectedSeries.variants.find(
-      v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === selectedPowerL
+      v => v.color.toLowerCase() === modalColor.toLowerCase() && (isProductNotSoftlens || v.power === selectedPowerL)
     );
     let variantR = selectedSeries.variants.find(
-      v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === selectedPowerR
+      v => v.color.toLowerCase() === modalColor.toLowerCase() && (isProductNotSoftlens || v.power === selectedPowerR)
     );
 
     // Fallback if exact matching variant key isn't in db yet (plano fallback)
@@ -694,7 +707,6 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     const price = (variantL && variantL.product && variantL.product.hargaJual)
       ? variantL.product.hargaJual
       : selectedSeries.representativeProduct.hargaJual;
-    const isProductNotSoftlens = !!selectedSeries.representativeProduct.notSoftlens;
     const finalPowerL = isProductNotSoftlens ? '0.00' : selectedPowerL;
     const finalPowerR = finalPowerL;
     const finalIsDual = false;
@@ -820,12 +832,13 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
   // STOCK SYNC MONITOR - Checks the live database stock for currently selected parameters
   const activeStockStatus = useMemo(() => {
     if (!selectedSeries) return { available: false, count: 0, variantL: null, variantR: null };
+    const isNotSoftlens = !!selectedSeries.representativeProduct.notSoftlens;
 
     const varL = selectedSeries.variants.find(
-      v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === selectedPowerL
+      v => v.color.toLowerCase() === modalColor.toLowerCase() && (isNotSoftlens || v.power === selectedPowerL)
     );
 
-    if (modalIsDualPower) {
+    if (modalIsDualPower && !isNotSoftlens) {
       const varR = selectedSeries.variants.find(
         v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === selectedPowerR
       );
@@ -853,14 +866,15 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
 
   const modalSubtotal = useMemo(() => {
     if (!selectedSeries) return 0;
+    const isNotSoftlens = !!selectedSeries.representativeProduct.notSoftlens;
     const varL = selectedSeries.variants.find(
-      v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === selectedPowerL
+      v => v.color.toLowerCase() === modalColor.toLowerCase() && (isNotSoftlens || v.power === selectedPowerL)
     );
     const price = (varL && varL.product && varL.product.hargaJual) 
       ? varL.product.hargaJual 
       : selectedSeries.representativeProduct.hargaJual;
 
-    const multiplier = modalIsDualPower ? 2 : 1;
+    const multiplier = (modalIsDualPower && !isNotSoftlens) ? 2 : 1;
     return price * buyQty * multiplier;
   }, [selectedSeries, modalColor, selectedPowerL, modalIsDualPower, buyQty]);
 
@@ -960,8 +974,9 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               : (repProduct.imageUrl ? splitImageUrls(repProduct.imageUrl) : []);
             
             const currentImageUrl = displayImageUrls[activeImageIdx] || repProduct.imageUrl || `https://picsum.photos/seed/${selectedSeries.seriesName}/600/600`;
+            const isNotSoftlens = !!repProduct.notSoftlens;
             const activeVar = selectedSeries.variants.find(
-              v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === selectedPowerL
+              v => v.color.toLowerCase() === modalColor.toLowerCase() && (isNotSoftlens || v.power === selectedPowerL)
             );
             const price = (activeVar && activeVar.product && activeVar.product.hargaJual) 
               ? activeVar.product.hargaJual 
