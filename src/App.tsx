@@ -46,6 +46,7 @@ import {
   subscribeToSales,
   subscribeToIncomingGoods,
   upsertProduct,
+  deleteProduct,
   processSale,
   addSaleRecord,
   deleteAllProducts,
@@ -1353,6 +1354,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const [showFullIklan, setShowFullIklan] = useState(false);
   const [iklanDisplayLimit, setIklanDisplayLimit] = useState(5);
   const [selectedReportYear, setSelectedReportYear] = useState<number>(() => new Date().getFullYear());
+  const [expandedMonths, setExpandedMonths] = useState<Record<number, boolean>>(() => {
+    const currentMonthNum = new Date().getMonth() + 1;
+    return { [currentMonthNum]: true };
+  });
   const [isIklanModalOpen, setIsIklanModalOpen] = useState(false);
   const [editingIklan, setEditingIklan] = useState<Partial<Iklan>>({});
   const [isWeeklyModalOpen, setIsWeeklyModalOpen] = useState(false);
@@ -1566,6 +1571,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   };
 
   const [editProductId, setEditProductId] = useState<string | null>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
   const [editSaleId, setEditSaleId] = useState<string | null>(null);
@@ -1950,6 +1956,29 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     setEditProductId(product.id || null);
     setNamaBarang(product.namaBarang);
     setKodeBarang(product.kodeBarang);
+    setSupplier(product.supplier || "");
+    setHargaBeli((product.hargaBeli || 0).toString());
+    setHargaJual((product.hargaJual || 0).toString());
+    setStokAwal((product.stokAwal || 0).toString());
+    setStokBarang((product.stokBarang || 0).toString());
+    setColor(product.color || "");
+    setBc(product.bc || "");
+    setKadarAir(product.kadarAir || "");
+    setImageUrl(product.imageUrl || "");
+    setDurasi(product.durasi || "");
+    setGDia(product.gDia || "");
+    setDiameter(product.diameter || "");
+    setRating(product.rating !== undefined && product.rating !== null ? product.rating.toString() : "");
+    setReviewsCount(product.reviewsCount !== undefined && product.reviewsCount !== null ? product.reviewsCount.toString() : "");
+    setAllowDualPower(product.allowDualPower !== undefined ? product.allowDualPower : true);
+    setGroupName(product.groupName || "");
+    setIsProductModalOpen(true);
+  };
+
+  const handleDuplicateProduct = (product: Product) => {
+    setEditProductId(null); // Create as new product
+    setNamaBarang(`${product.namaBarang} (Copy)`);
+    setKodeBarang(`${product.kodeBarang}-COPY`);
     setSupplier(product.supplier || "");
     setHargaBeli((product.hargaBeli || 0).toString());
     setHargaJual((product.hargaJual || 0).toString());
@@ -5427,7 +5456,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                   <table className="w-full text-left whitespace-nowrap min-w-[1200px] border-collapse table-auto">
                     <thead className="bg-slate-900 text-white sticky top-0 z-10 text-xs uppercase tracking-widest font-black">
                       <tr>
-                        <th className="px-6 py-4 text-xs font-black text-slate-100 uppercase tracking-widest text-center border-r border-slate-700 w-[80px]">
+                        <th className="px-6 py-4 text-xs font-black text-slate-100 uppercase tracking-widest text-center border-r border-slate-700 w-[140px]">
                           AKSI
                         </th>
                         <SortableHeader
@@ -5541,13 +5570,30 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                                 key={p.id}
                                 className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}
                               >
-                                <td className="px-6 py-4 text-center border-r border-slate-200">
-                                  <button
-                                    onClick={() => handleEditProduct(p)}
-                                    className="p-2 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border-2 border-transparent hover:border-slate-900 transition-all sm:opacity-80 group-hover:opacity-100 shadow-none hover:shadow-[2px_2px_0px_0px_#0f172a]"
-                                  >
-                                    <Pencil className="w-4 h-4" />
-                                  </button>
+                                <td className="px-3 py-3 text-center border-r border-slate-200 w-[140px]">
+                                  <div className="flex items-center justify-center gap-1.5">
+                                    <button
+                                      onClick={() => handleEditProduct(p)}
+                                      title="Edit"
+                                      className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border-2 border-transparent hover:border-slate-900 transition-all sm:opacity-80 group-hover:opacity-100 shadow-none hover:shadow-[2px_2px_0px_0px_#0f172a]"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDuplicateProduct(p)}
+                                      title="Duplicate"
+                                      className="p-1.5 text-slate-500 hover:text-emerald-600 hover:bg-emerald-50 border-2 border-transparent hover:border-slate-900 transition-all sm:opacity-80 group-hover:opacity-100 shadow-none hover:shadow-[2px_2px_0px_0px_#0f172a]"
+                                    >
+                                      <Copy className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => setProductToDelete(p)}
+                                      title="Hapus"
+                                      className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 border-2 border-transparent hover:border-slate-900 transition-all sm:opacity-80 group-hover:opacity-100 shadow-none hover:shadow-[2px_2px_0px_0px_#0f172a]"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
                                 </td>
                                 <td className="px-6 py-4 text-sm font-bold text-slate-800 border-r border-slate-200">
                                   {p.namaBarang}
@@ -6524,7 +6570,32 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                       EVALUASI MINGGUAN: HARGA POKOK PRODUKSI, LABA KOTOR, BIAYA IKLAN, ROI & NET PROFITS
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <button
+                      onClick={() => {
+                        const allExpanded: Record<number, boolean> = {};
+                        for (let i = 1; i <= 12; i++) {
+                          allExpanded[i] = true;
+                        }
+                        setExpandedMonths(allExpanded);
+                      }}
+                      className="px-3 py-2.5 bg-indigo-50 border-2 border-slate-900 font-black text-[11px] uppercase tracking-wider text-indigo-900 shadow-[4px_4px_0px_0px_#0f172a] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all cursor-pointer"
+                    >
+                      👁️ Buka Semua
+                    </button>
+                    <button
+                      onClick={() => {
+                        const allCollapsed: Record<number, boolean> = {};
+                        for (let i = 1; i <= 12; i++) {
+                          allCollapsed[i] = false;
+                        }
+                        setExpandedMonths(allCollapsed);
+                      }}
+                      className="px-3 py-2.5 bg-slate-100 border-2 border-slate-900 font-black text-[11px] uppercase tracking-wider text-slate-700 shadow-[4px_4px_0px_0px_#0f172a] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all cursor-pointer"
+                    >
+                      📁 Tutup Semua
+                    </button>
+                    <div className="h-6 w-[2px] bg-slate-300 hidden sm:block mx-1"></div>
                     <span className="text-xs font-black uppercase text-slate-500 tracking-widest whitespace-nowrap">PILIH TAHUN:</span>
                     <select
                       value={selectedReportYear}
@@ -6553,6 +6624,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
                     return indoMonths.map((mName, mIdx) => {
                       const mNum = mIdx + 1; // 1-12
+                      const currentMonthNum = new Date().getMonth() + 1;
+                      const isExpanded = expandedMonths[mNum] ?? (mNum === currentMonthNum);
                       const monthWeeks = WEEKS_DEFINITION.filter((w) => w.month === mNum);
 
                       // Arrays to save values for month sub-totals calculates
@@ -6618,17 +6691,32 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                       return (
                         <div key={mIdx} className="bg-white border-4 border-slate-900 shadow-[8px_8px_0px_0px_#0f172a] overflow-hidden">
                           {/* Month Title Header */}
-                          <div className="px-6 py-4 bg-slate-900 border-b-2 border-slate-950 text-white flex justify-between items-center">
-                            <h3 className="text-sm font-black tracking-widest uppercase">
-                              📊 BULAN {mName} {selectedReportYear}
-                            </h3>
-                            <span className="font-mono text-xs font-bold bg-indigo-500 text-white px-3 py-1 border-2 border-slate-950">
-                              PROFIT: Rp {monthNett.toLocaleString("id-ID")}
-                            </span>
+                          <div className={`px-6 py-4 bg-slate-900 text-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 ${isExpanded ? "border-b-2 border-slate-950" : ""}`}>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-lg leading-none">{isExpanded ? "📊" : "📁"}</span>
+                              <h3 className="text-sm font-black tracking-widest uppercase font-sans">
+                                BULAN {mName} {selectedReportYear}
+                              </h3>
+                              <button
+                                onClick={() => setExpandedMonths(prev => ({ ...prev, [mNum]: !isExpanded }))}
+                                className={`px-2.5 py-1 text-[10px] font-black uppercase tracking-wider border-2 border-slate-950 shadow-[2px_2px_0px_0px_#000] hover:translate-x-[0.5px] hover:translate-y-[0.5px] hover:shadow-[1px_1px_0px_0px_#000] active:translate-x-[1px] active:translate-y-[1px] active:shadow-none transition-all cursor-pointer ${
+                                  isExpanded ? "bg-rose-500 text-white" : "bg-emerald-500 text-white"
+                                }`}
+                              >
+                                {isExpanded ? "Sembunyikan" : "Tampilkan"}
+                              </button>
+                            </div>
+                            <div className="flex items-center gap-2 font-mono">
+                              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">NET PROFIT:</span>
+                              <span className={`text-xs font-bold px-3 py-1 border-2 border-slate-950 ${monthNett >= 0 ? "bg-emerald-600 text-white" : "bg-rose-600 text-white"}`}>
+                                Rp {monthNett.toLocaleString("id-ID")}
+                              </span>
+                            </div>
                           </div>
 
                           {/* Table Detail */}
-                          <div className="overflow-x-auto">
+                          {isExpanded && (
+                            <div className="overflow-x-auto">
                             <table className="w-full text-left whitespace-nowrap min-w-[900px] border-collapse table-auto text-xs">
                               <thead>
                                 <tr className="bg-slate-800 text-white font-black uppercase text-[10px] tracking-wider border-b-2 border-slate-900">
@@ -6820,6 +6908,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                               </tbody>
                             </table>
                           </div>
+                          )}
                         </div>
                       );
                     });
@@ -7224,6 +7313,64 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
             <section className="col-span-12 max-w-7xl mx-auto w-full pt-8 pb-12">
               <BrandingTab branding={branding} banners={banners} />
             </section>
+          )}
+
+          {/* PRODUCT DELETE CONFIRM MODAL */}
+          {productToDelete && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
+              <div className="bg-white border-4 border-slate-900 w-full max-w-md p-8 shadow-[16px_16px_0px_0px_#0f172a] flex flex-col gap-8">
+                <div>
+                  <h3 className="text-2xl font-black text-rose-600 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                    HAPUS BARANG?
+                  </h3>
+                  <div className="p-4 bg-rose-50 border-2 border-rose-200 text-slate-900 font-bold text-sm space-y-4">
+                    <p>Apakah Anda yakin ingin menghapus barang ini?</p>
+                    <p className="text-xs font-medium text-slate-600">
+                      Nama Barang:{" "}
+                      <span className="font-black text-slate-900">
+                        {productToDelete.namaBarang}
+                      </span>
+                      <br />
+                      Kode Barang:{" "}
+                      <span className="font-black text-slate-900">
+                        {productToDelete.kodeBarang}
+                      </span>
+                      <br />
+                      Supplier:{" "}
+                      <span className="font-black text-slate-900">
+                        {productToDelete.supplier || "-"}
+                      </span>
+                    </p>
+                    <p className="text-xs italic text-rose-500 font-bold">
+                      ⚠️ Peringatan: Tindakan ini tidak dapat dibatalkan.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-4 pt-4 border-t-2 border-slate-900">
+                  <button
+                    onClick={() => setProductToDelete(null)}
+                    className="flex-1 py-4 bg-white border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
+                  >
+                    BATAL
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (productToDelete) {
+                        try {
+                          await deleteProduct(productToDelete);
+                          setProductToDelete(null);
+                        } catch (err) {
+                          console.error("Gagal menghapus produk:", err);
+                        }
+                      }
+                    }}
+                    className="flex-1 py-4 bg-rose-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
+                  >
+                    YA, HAPUS
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* SALE DELETE CONFIRM MODAL */}

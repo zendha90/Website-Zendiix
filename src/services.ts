@@ -338,6 +338,14 @@ export async function deleteAllProducts() {
   triggerFetch('/api/products');
 }
 
+export async function deleteProduct(product: Product) {
+  if (product.id) {
+    await fetchApi(`/api/products/${product.id}`, { method: 'DELETE' });
+    queryClient.invalidateQueries({ queryKey: ["products"] });
+    triggerFetch('/api/products');
+  }
+}
+
 export async function deleteAllSales() {
   await fetchApi('/api/sales', { method: 'DELETE' });
   queryClient.invalidateQueries({ queryKey: ["sales"] });
