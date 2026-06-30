@@ -328,6 +328,27 @@ const WEEKS_DEFINITION: WeekDef[] = [
   { month: 12, monthName: "DECEMBER", week: 4, startDay: 22, endDay: 31 },
 ];
 
+function parseProductName(name: string) {
+  const clean = name.trim();
+  const powerRegex = /\s+([-+]?\d+([.,]\d+)?|normal|plano)$/i;
+  const match = clean.match(powerRegex);
+  
+  if (match) {
+    const powerStr = match[1].toLowerCase();
+    const baseName = clean.substring(0, clean.length - match[0].length).trim();
+    
+    let power = 0;
+    if (powerStr === "normal" || powerStr === "plano") {
+      power = 0;
+    } else {
+      power = parseFloat(powerStr.replace(",", "."));
+    }
+    return { baseName, power };
+  }
+  
+  return { baseName: clean, power: 0 };
+}
+
 function CatalogPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center p-8 font-sans">
@@ -2097,6 +2118,22 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       baseProducts.sort((a: any, b: any) => {
         const aVal = a[sortConfig.key] ?? "";
         const bVal = b[sortConfig.key] ?? "";
+        if (sortConfig.key === "namaBarang") {
+          const sA = String(aVal);
+          const sB = String(bVal);
+          const pA = parseProductName(sA);
+          const pB = parseProductName(sB);
+          
+          const baseCompare = pA.baseName.localeCompare(pB.baseName, "id", { sensitivity: "base" });
+          if (baseCompare !== 0) {
+            return sortConfig.direction === "asc" ? baseCompare : -baseCompare;
+          }
+          
+          // Natural softlens ordering (0 is Normal, then minus powers -0.50, -1.00 down to -10.00).
+          // Ascending sort puts Normal first, then -0.50, then -1.00 down to -10.00 (descending numerically).
+          return sortConfig.direction === "asc" ? pB.power - pA.power : pA.power - pB.power;
+        }
+
         if (typeof aVal === "number" && typeof bVal === "number") {
           return sortConfig.direction === "asc" ? aVal - bVal : bVal - aVal;
         }
