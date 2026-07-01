@@ -93,6 +93,51 @@ import { BrandingTab } from "./components/BrandingTab";
 
 const DROPSHIP_SUPPLIERS = ["S-KIM", "S-akumaucantik", "S-LINA"];
 
+export interface SupplierConfig {
+  doubleUnits: string[];
+  doubleKeywords: string[];
+  unwantedWords?: string[];
+}
+
+export interface AllSupplierConfigs {
+  akumaucantik: SupplierConfig;
+  anna: SupplierConfig;
+  shopee: SupplierConfig;
+  sisse: SupplierConfig;
+  kim: SupplierConfig;
+}
+
+export const DEFAULT_SUPPLIER_CONFIGS: AllSupplierConfigs = {
+  akumaucantik: {
+    doubleUnits: ["pasang", "psg"],
+    doubleKeywords: ["maki", "matake", "emma", "veronica", "clear"],
+  },
+  anna: {
+    doubleUnits: ["pasang"],
+    doubleKeywords: [],
+  },
+  shopee: {
+    doubleUnits: [],
+    doubleKeywords: ["Matake", "Maki", "Mini Emma", "Trapezium"],
+    unwantedWords: [
+      "-1 LENS/BTL/BOX",
+      "-1 LENS/BTL/BO",
+      "|",
+      "X2 CLEAR 12 BULAN,",
+      "( ½ Pasang )",
+      "( ½ pasang )",
+    ],
+  },
+  sisse: {
+    doubleUnits: [],
+    doubleKeywords: [],
+  },
+  kim: {
+    doubleUnits: [],
+    doubleKeywords: ["TRAPZ"],
+  },
+};
+
 const compressImageFile = (file: File, maxWidth = 800, maxHeight = 800, quality = 0.7): Promise<string> => {
   return new Promise((resolve) => {
     const reader = new FileReader();
@@ -425,10 +470,9 @@ function applyGlobalReplacements(name: string, replacements: { old: string; new:
   return result.trim();
 }
 
-function parseFormatAkumaucantik(text: string, replacements: { old: string; new: string }[]) {
+function parseFormatAkumaucantik(text: string, replacements: { old: string; new: string }[], config: SupplierConfig) {
   const lines = text.split(/\r?\n/);
-  const multiplierKeywords = /(maki|matake|emma|veronica|clear)/i;
-  const list: { rawName: string; qty: number }[] = [];
+  const list: { rawName: string; qty: number; detectedUnit?: string; isAlreadyDoubled?: boolean }[] = [];
 
   for (let line of lines) {
     let cleanLine = line.trim();
@@ -446,32 +490,39 @@ function parseFormatAkumaucantik(text: string, replacements: { old: string; new:
     if (!cleanLine) continue;
 
     // 5. Cocokkan format: 1psg NAMA-BARANG (misal: 1 psg maki, 2 botol serum)
-    const match = cleanLine.match(/^(\d+)\s*(pasang|psg|botol)\s*(.+)$/i);
+    const match = cleanLine.match(/^(\d+)\s*(pasang|psg|botol|btl)?\s*(.+)$/i);
     if (!match) continue;
 
     let qty = parseInt(match[1], 10);
-    const unit = match[2].toLowerCase();
+    const unit = match[2] ? match[2].toLowerCase() : "";
     let name = match[3].trim();
 
-    // 6. Multiplier 2x KHUSUS pasang/psg + keyword tertentu
-    if (
-      (unit === "pasang" || unit === "psg") &&
-      multiplierKeywords.test(name)
-    ) {
+    let isAlreadyDoubled = false;
+    
+    // Check dynamic unit and dynamic keyword double trigger
+    const isDoubleUnit = config.doubleUnits.some(
+      (u) => u.toLowerCase().trim() === unit
+    );
+    const hasDoubleKeyword = config.doubleKeywords.some(
+      (kw) => name.toLowerCase().includes(kw.toLowerCase().trim())
+    );
+
+    if (isDoubleUnit && hasDoubleKeyword) {
       qty *= 2;
+      isAlreadyDoubled = true;
     }
 
     // Apply replacements
     name = applyGlobalReplacements(name, replacements);
 
-    list.push({ rawName: name, qty });
+    list.push({ rawName: name, qty, detectedUnit: unit, isAlreadyDoubled });
   }
   return list;
 }
 
-function parseFormatKim(text: string, replacementsKim: { old: string; new: string }[], replacementsGlobal: { old: string; new: string }[]) {
+function parseFormatKim(text: string, replacementsKim: { old: string; new: string }[], replacementsGlobal: { old: string; new: string }[], config: SupplierConfig) {
   const lines = text.split(/\r?\n/);
-  const list: { rawName: string; qty: number }[] = [];
+  const list: { rawName: string; qty: number; detectedUnit?: string; isAlreadyDoubled?: boolean }[] = [];
   let currentProductName = "";
 
   for (let line of lines) {
@@ -486,9 +537,15 @@ function parseFormatKim(text: string, replacementsKim: { old: string; new: strin
       if (currentProductName !== "") {
         let finalName = currentProductName.trim();
         
-        // Apply multipliers
-        if (finalName.toUpperCase().includes("TRAPZ")) {
+        let isAlreadyDoubled = false;
+        // Check dynamic doubling keywords for KIM
+        const shouldDouble = config.doubleKeywords.some(
+          (kw) => finalName.toUpperCase().includes(kw.toUpperCase().trim())
+        );
+
+        if (shouldDouble) {
           qty *= 2;
+          isAlreadyDoubled = true;
         }
 
         // Apply KIM replacements first
@@ -496,7 +553,7 @@ function parseFormatKim(text: string, replacementsKim: { old: string; new: strin
         // Apply Global replacements second
         finalName = applyGlobalReplacements(finalName, replacementsGlobal);
 
-        list.push({ rawName: finalName, qty });
+        list.push({ rawName: finalName, qty, isAlreadyDoubled });
         currentProductName = "";
       }
     } else if (/^-?\d+(\.\d+)?$/.test(row)) {
@@ -524,22 +581,16 @@ function parseFormatKim(text: string, replacementsKim: { old: string; new: strin
   return list;
 }
 
-function parseFormatShopee(text: string, replacements: { old: string; new: string }[]) {
+function parseFormatShopee(text: string, replacements: { old: string; new: string }[], config: SupplierConfig) {
   const lines = text.split(/\r?\n/);
-  const list: { rawName: string; qty: number }[] = [];
+  const list: { rawName: string; qty: number; detectedUnit?: string; isAlreadyDoubled?: boolean }[] = [];
 
   let productName = "";
   let variation = "";
   let quantity = "";
 
-  const specialProducts = ["Matake", "Maki", "Mini Emma", "Trapezium"];
-  const unwantedWords = [
-    "-1 LENS/BTL/BOX",
-    "-1 LENS/BTL/BO",
-    "|",
-    "X2 CLEAR 12 BULAN,",
-    "( ½ Pasang )",
-  ];
+  const specialProducts = config.doubleKeywords;
+  const unwantedWords = config.unwantedWords || [];
 
   function isProductLine(line: string) {
     const keywords = [
@@ -561,7 +612,7 @@ function parseFormatShopee(text: string, replacements: { old: string; new: strin
       if (isNaN(finalQty)) finalQty = 1;
 
       const hasSpecial = specialProducts.some((sp) =>
-        productName.toLowerCase().includes(sp.toLowerCase()),
+        productName.toLowerCase().includes(sp.toLowerCase().trim()),
       );
       if (hasSpecial) {
         finalQty *= 2;
@@ -573,6 +624,7 @@ function parseFormatShopee(text: string, replacements: { old: string; new: strin
       list.push({
         rawName: rawName,
         qty: finalQty,
+        isAlreadyDoubled: hasSpecial,
       });
 
       productName = "";
@@ -586,7 +638,9 @@ function parseFormatShopee(text: string, replacements: { old: string; new: strin
     if (!cleanLine) continue;
 
     unwantedWords.forEach((word) => {
-      cleanLine = cleanLine.replace(word, "").trim();
+      // Replace all occurrences of word
+      const escaped = word.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+      cleanLine = cleanLine.replace(new RegExp(escaped, 'gi'), "").trim();
     });
 
     if (/^\[Grosir\]/i.test(cleanLine)) {
@@ -622,9 +676,9 @@ function parseFormatShopee(text: string, replacements: { old: string; new: strin
   return list;
 }
 
-function parseFormatSisse(text: string, replacements: { old: string; new: string }[]) {
+function parseFormatSisse(text: string, replacements: { old: string; new: string }[], config: SupplierConfig) {
   const lines = text.split(/\r?\n/);
-  const list: { rawName: string; qty: number }[] = [];
+  const list: { rawName: string; qty: number; detectedUnit?: string; isAlreadyDoubled?: boolean }[] = [];
 
   for (let line of lines) {
     const trimLine = line.trim();
@@ -638,11 +692,22 @@ function parseFormatSisse(text: string, replacements: { old: string; new: string
           .toLowerCase()
           .replace(/\b\w/g, (l) => l.toUpperCase());
         const power = parseInt(match[2], 10);
-        const qty = parseInt(match[3], 10);
+        let qty = parseInt(match[3], 10);
         const minusValue = "-" + (power / 100).toFixed(2);
         let finalName = `${name} ${minusValue}`;
         finalName = applyGlobalReplacements(finalName, replacements);
-        list.push({ rawName: finalName, qty });
+
+        let isAlreadyDoubled = false;
+        // Check dynamic doubling keywords for Sisse
+        const shouldDouble = config.doubleKeywords.some(
+          (kw) => finalName.toLowerCase().includes(kw.toLowerCase().trim())
+        );
+        if (shouldDouble) {
+          qty *= 2;
+          isAlreadyDoubled = true;
+        }
+
+        list.push({ rawName: finalName, qty, isAlreadyDoubled });
       }
     } else if (/^NORMAL/i.test(trimLine)) {
       const match = trimLine.match(/^NORMAL\s+([\s\S]*?)\s+(\d+)\s*Rp/i);
@@ -651,19 +716,30 @@ function parseFormatSisse(text: string, replacements: { old: string; new: string
           .trim()
           .toLowerCase()
           .replace(/\b\w/g, (l) => l.toUpperCase());
-        const qty = parseInt(match[2], 10);
+        let qty = parseInt(match[2], 10);
         let finalName = `${name} -0.00`;
         finalName = applyGlobalReplacements(finalName, replacements);
-        list.push({ rawName: finalName, qty });
+
+        let isAlreadyDoubled = false;
+        // Check dynamic doubling keywords for Sisse
+        const shouldDouble = config.doubleKeywords.some(
+          (kw) => finalName.toLowerCase().includes(kw.toLowerCase().trim())
+        );
+        if (shouldDouble) {
+          qty *= 2;
+          isAlreadyDoubled = true;
+        }
+
+        list.push({ rawName: finalName, qty, isAlreadyDoubled });
       }
     }
   }
   return list;
 }
 
-function parseFormatAnna(text: string, replacements: { old: string; new: string }[]) {
+function parseFormatAnna(text: string, replacements: { old: string; new: string }[], config: SupplierConfig) {
   const lines = text.split(/\r?\n/);
-  const list: { rawName: string; qty: number }[] = [];
+  const list: { rawName: string; qty: number; detectedUnit?: string; isAlreadyDoubled?: boolean }[] = [];
 
   for (let line of lines) {
     let cleanLine = line.trim();
@@ -689,9 +765,19 @@ function parseFormatAnna(text: string, replacements: { old: string; new: string 
     const unit = match[2] ? match[2].toLowerCase() : "";
     let name = match[3].trim();
 
+    let isAlreadyDoubled = false;
+    const shouldDouble = config.doubleUnits.some(
+      (u) => u.toLowerCase().trim() === unit
+    );
+
+    if (shouldDouble) {
+      qty *= 2;
+      isAlreadyDoubled = true;
+    }
+
     name = applyGlobalReplacements(name, replacements);
 
-    list.push({ rawName: name, qty });
+    list.push({ rawName: name, qty, detectedUnit: unit, isAlreadyDoubled });
   }
 
   return list;
@@ -1623,6 +1709,34 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const [selectedFormat, setSelectedFormat] = useState<
     "akumaucantik" | "anna" | "shopee" | "sisse" | "kim"
   >("akumaucantik");
+  
+  const [supplierConfigs, setSupplierConfigs] = useState<AllSupplierConfigs>(() => {
+    const saved = localStorage.getItem("supplierDoubleConfigs");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return {
+          ...DEFAULT_SUPPLIER_CONFIGS,
+          ...parsed,
+          akumaucantik: { ...DEFAULT_SUPPLIER_CONFIGS.akumaucantik, ...parsed.akumaucantik },
+          anna: { ...DEFAULT_SUPPLIER_CONFIGS.anna, ...parsed.anna },
+          shopee: { ...DEFAULT_SUPPLIER_CONFIGS.shopee, ...parsed.shopee },
+          sisse: { ...DEFAULT_SUPPLIER_CONFIGS.sisse, ...parsed.sisse },
+          kim: { ...DEFAULT_SUPPLIER_CONFIGS.kim, ...parsed.kim },
+        };
+      } catch (e) {
+        return DEFAULT_SUPPLIER_CONFIGS;
+      }
+    }
+    return DEFAULT_SUPPLIER_CONFIGS;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("supplierDoubleConfigs", JSON.stringify(supplierConfigs));
+  }, [supplierConfigs]);
+
+  const [isConfigPanelOpen, setIsConfigPanelOpen] = useState(false);
+
   const [parsedItems, setParsedItems] = useState<
     {
       rawName: string;
@@ -1640,6 +1754,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
         bc?: string;
         kadarAir?: string;
       };
+      detectedUnit?: string;
+      isAlreadyDoubled?: boolean;
     }[]
   >([]);
 
@@ -1704,20 +1820,102 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   };
 
   const handleProcessText = () => {
-    let newList: { rawName: string; qty: number }[] = [];
+    let newList: { rawName: string; qty: number; detectedUnit?: string; isAlreadyDoubled?: boolean }[] = [];
     if (selectedFormat === "akumaucantik") {
-      newList = parseFormatAkumaucantik(rawText, replacementGlobal);
+      newList = parseFormatAkumaucantik(rawText, replacementGlobal, supplierConfigs.akumaucantik);
     } else if (selectedFormat === "kim") {
-      newList = parseFormatKim(rawText, replacementKim, replacementGlobal);
+      newList = parseFormatKim(rawText, replacementKim, replacementGlobal, supplierConfigs.kim);
     } else if (selectedFormat === "shopee") {
-      newList = parseFormatShopee(rawText, replacementGlobal);
+      newList = parseFormatShopee(rawText, replacementGlobal, supplierConfigs.shopee);
     } else if (selectedFormat === "sisse") {
-      newList = parseFormatSisse(rawText, replacementGlobal);
+      newList = parseFormatSisse(rawText, replacementGlobal, supplierConfigs.sisse);
     } else if (selectedFormat === "anna") {
-      newList = parseFormatAnna(rawText, replacementGlobal);
+      newList = parseFormatAnna(rawText, replacementGlobal, supplierConfigs.anna);
     }
 
-    setParsedItems(newList);
+    // Smart double quantity detection based on dynamic supplier & brand keywords
+    const processedList = newList.map((item) => {
+      if (item.isAlreadyDoubled) {
+        return item;
+      }
+
+      const cleanName = item.rawName.trim();
+      const matched = findAutoMatch(cleanName, products);
+
+      // Check if unit is a pair (defined in supplierConfigs or standard default)
+      const unit = (item.detectedUnit || "").toLowerCase().trim();
+      
+      // Collect all double units configured across suppliers
+      const allDoubleUnits = Array.from(new Set([
+        ...supplierConfigs.akumaucantik.doubleUnits,
+        ...supplierConfigs.anna.doubleUnits,
+        ...supplierConfigs.shopee.doubleUnits,
+        ...supplierConfigs.sisse.doubleUnits,
+        ...supplierConfigs.kim.doubleUnits,
+        "pasang", "psg", "ps", "pair", "pairs", "set" // defaults
+      ])).map(u => u.toLowerCase().trim());
+
+      const isPairUnit = allDoubleUnits.includes(unit);
+      
+      // Check if name contains pair indicators
+      const hasPairInName = allDoubleUnits.some(u => {
+        if (!u) return false;
+        const regex = new RegExp(`\\b${u}\\b|${u}`, 'i');
+        return regex.test(cleanName);
+      }) || /pasang|psg|\bps\b|pair/i.test(cleanName);
+
+      let shouldDouble = false;
+
+      // Extract all double keywords configured across suppliers for brand matching
+      const allDoubleKeywords = Array.from(new Set([
+        ...supplierConfigs.akumaucantik.doubleKeywords,
+        ...supplierConfigs.anna.doubleKeywords,
+        ...supplierConfigs.shopee.doubleKeywords,
+        ...supplierConfigs.sisse.doubleKeywords,
+        ...supplierConfigs.kim.doubleKeywords,
+        "maki", "matake", "emma", "veronica", "clear", "anna", "sisse", "avenue", "trapz" // defaults
+      ])).map(k => k.toLowerCase().trim());
+
+      if (matched) {
+        const supplier = (matched.supplier || "").toLowerCase().trim();
+        // Check if supplier is one of our configs or contains "akumaucantik", "lina", "sisse", "anna"
+        const isBottleSupplier =
+          supplier.includes("akumaucantik") ||
+          supplier.includes("lina") ||
+          supplier.includes("sisse") ||
+          supplier.includes("anna");
+
+        // Or if matched product name contains any of our dynamic double keywords
+        const hasDoubleKeyword = allDoubleKeywords.some(
+          (kw) => kw && cleanName.toLowerCase().includes(kw)
+        );
+
+        if ((isBottleSupplier || hasDoubleKeyword) && (isPairUnit || hasPairInName)) {
+          shouldDouble = true;
+        }
+      } else {
+        // Fallback for new products not yet in the catalog: check brand keywords dynamically from supplier configs
+        const hasDoubleKeyword = allDoubleKeywords.some(
+          (kw) => kw && cleanName.toLowerCase().includes(kw)
+        );
+
+        if (hasDoubleKeyword && (isPairUnit || hasPairInName)) {
+          shouldDouble = true;
+        }
+      }
+
+      if (shouldDouble) {
+        return {
+          ...item,
+          qty: item.qty * 2,
+          isAlreadyDoubled: true,
+        };
+      }
+
+      return item;
+    });
+
+    setParsedItems(processedList);
   };
 
   const handleSaveBulkIncoming = async () => {
@@ -7652,9 +7850,18 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 <div className="p-6 md:p-8 overflow-y-auto flex-1 space-y-6">
                   {/* Format Selector */}
                   <div className="space-y-2">
-                    <label className="block text-xs font-black text-slate-700 uppercase tracking-widest">
-                      Pilih Format Paste Teks
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className="block text-xs font-black text-slate-700 uppercase tracking-widest">
+                        Pilih Format Paste Teks
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => setIsConfigPanelOpen(!isConfigPanelOpen)}
+                        className={`px-3 py-1.5 border-2 border-slate-900 text-xs font-black uppercase tracking-wider transition-all shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[1px] active:translate-x-[1px] active:shadow-none flex items-center gap-1.5 ${isConfigPanelOpen ? 'bg-amber-300 text-slate-900' : 'bg-white text-slate-800 hover:bg-slate-50'}`}
+                      >
+                        ⚙️ {isConfigPanelOpen ? "Sembunyikan Aturan" : "Atur Aturan Double Qty"}
+                      </button>
+                    </div>
                     <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
                       {[
                         {
@@ -7695,6 +7902,605 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                       ))}
                     </div>
                   </div>
+
+                  {/* Supplier Dynamic Double Qty Configurations */}
+                  {isConfigPanelOpen && (
+                    <div className="p-5 bg-amber-50/70 border-4 border-dashed border-slate-900 space-y-5 rounded-none animate-fadeIn">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-slate-900 pb-3">
+                        <div>
+                          <h4 className="text-sm font-black text-slate-900 uppercase tracking-widest flex items-center gap-1.5">
+                            ⚙️ Konfigurasi Aturan Tiap Supplier
+                          </h4>
+                          <p className="text-[10px] font-bold text-amber-800 uppercase mt-0.5">
+                            Anda bisa menambah, menghapus, atau mengubah opsi kata kunci & satuan secara dinamis.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm("Apakah Anda yakin ingin meriset aturan seluruh supplier ke default awal?")) {
+                              setSupplierConfigs(DEFAULT_SUPPLIER_CONFIGS);
+                            }
+                          }}
+                          className="px-3 py-1 bg-rose-100 hover:bg-rose-200 text-rose-800 border-2 border-rose-900 text-[10px] font-black uppercase tracking-wider transition-all self-start sm:self-auto"
+                        >
+                          Reset ke Default
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* 1. AKUMAUCANTIK */}
+                        <div className="p-4 bg-white border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] space-y-3">
+                          <div className="flex items-center justify-between border-b-2 border-slate-100 pb-2">
+                            <span className="px-2 py-0.5 bg-emerald-100 border border-emerald-900 text-emerald-900 text-[10px] font-black uppercase tracking-wider">
+                              Supplier: akumaucantik
+                            </span>
+                          </div>
+                          
+                          {/* Keywords */}
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider leading-none">
+                              Kata Kunci Lensa (Double Qty)
+                            </label>
+                            <div className="flex flex-wrap gap-1 border-2 border-slate-200 p-2 min-h-[40px] bg-slate-50">
+                              {supplierConfigs.akumaucantik.doubleKeywords.map((kw, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-900 text-white text-[10px] font-bold uppercase">
+                                  {kw}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = [...supplierConfigs.akumaucantik.doubleKeywords];
+                                      next.splice(idx, 1);
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        akumaucantik: { ...supplierConfigs.akumaucantik, doubleKeywords: next }
+                                      });
+                                    }}
+                                    className="text-rose-400 hover:text-rose-600 font-black ml-1 text-[9px]"
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ))}
+                              {supplierConfigs.akumaucantik.doubleKeywords.length === 0 && (
+                                <span className="text-[10px] text-slate-400 italic">Belum ada kata kunci</span>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5">
+                              <input
+                                id="add-kw-akumaucantik"
+                                type="text"
+                                placeholder="Ketik lalu tekan Tambah"
+                                className="flex-1 px-2 py-1 border-2 border-slate-900 text-xs font-bold focus:outline-none"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = e.currentTarget.value.trim();
+                                    if (val && !supplierConfigs.akumaucantik.doubleKeywords.includes(val)) {
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        akumaucantik: {
+                                          ...supplierConfigs.akumaucantik,
+                                          doubleKeywords: [...supplierConfigs.akumaucantik.doubleKeywords, val]
+                                        }
+                                      });
+                                      e.currentTarget.value = '';
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const input = document.getElementById('add-kw-akumaucantik') as HTMLInputElement;
+                                  const val = input?.value.trim();
+                                  if (val && !supplierConfigs.akumaucantik.doubleKeywords.includes(val)) {
+                                    setSupplierConfigs({
+                                      ...supplierConfigs,
+                                      akumaucantik: {
+                                        ...supplierConfigs.akumaucantik,
+                                        doubleKeywords: [...supplierConfigs.akumaucantik.doubleKeywords, val]
+                                      }
+                                    });
+                                    input.value = '';
+                                  }
+                                }}
+                                className="px-3 py-1 bg-slate-900 text-white font-black text-xs uppercase"
+                              >
+                                Tambah
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Units */}
+                          <div className="space-y-1.5 pt-2">
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider leading-none">
+                              Satuan Yang Di-double (e.g. pasang, psg)
+                            </label>
+                            <div className="flex flex-wrap gap-1 border-2 border-slate-200 p-2 min-h-[40px] bg-slate-50">
+                              {supplierConfigs.akumaucantik.doubleUnits.map((unit, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-emerald-600 text-white text-[10px] font-bold uppercase">
+                                  {unit}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = [...supplierConfigs.akumaucantik.doubleUnits];
+                                      next.splice(idx, 1);
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        akumaucantik: { ...supplierConfigs.akumaucantik, doubleUnits: next }
+                                      });
+                                    }}
+                                    className="text-white hover:text-rose-200 font-black ml-1 text-[9px]"
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ))}
+                              {supplierConfigs.akumaucantik.doubleUnits.length === 0 && (
+                                <span className="text-[10px] text-slate-400 italic">Belum ada satuan</span>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5">
+                              <input
+                                id="add-unit-akumaucantik"
+                                type="text"
+                                placeholder="Ketik lalu tekan Tambah"
+                                className="flex-1 px-2 py-1 border-2 border-slate-900 text-xs font-bold focus:outline-none"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = e.currentTarget.value.trim();
+                                    if (val && !supplierConfigs.akumaucantik.doubleUnits.includes(val)) {
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        akumaucantik: {
+                                          ...supplierConfigs.akumaucantik,
+                                          doubleUnits: [...supplierConfigs.akumaucantik.doubleUnits, val]
+                                        }
+                                      });
+                                      e.currentTarget.value = '';
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const input = document.getElementById('add-unit-akumaucantik') as HTMLInputElement;
+                                  const val = input?.value.trim();
+                                  if (val && !supplierConfigs.akumaucantik.doubleUnits.includes(val)) {
+                                    setSupplierConfigs({
+                                      ...supplierConfigs,
+                                      akumaucantik: {
+                                        ...supplierConfigs.akumaucantik,
+                                        doubleUnits: [...supplierConfigs.akumaucantik.doubleUnits, val]
+                                      }
+                                    });
+                                    input.value = '';
+                                  }
+                                }}
+                                className="px-3 py-1 bg-slate-900 text-white font-black text-xs uppercase"
+                              >
+                                Tambah
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 2. ANA */}
+                        <div className="p-4 bg-white border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] space-y-3">
+                          <div className="flex items-center justify-between border-b-2 border-slate-100 pb-2">
+                            <span className="px-2 py-0.5 bg-blue-100 border border-blue-900 text-blue-900 text-[10px] font-black uppercase tracking-wider">
+                              Supplier: anna (ANA)
+                            </span>
+                          </div>
+                          
+                          {/* Units */}
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider leading-none">
+                              Satuan Yang Di-double (e.g. pasang, psg)
+                            </label>
+                            <div className="flex flex-wrap gap-1 border-2 border-slate-200 p-2 min-h-[40px] bg-slate-50">
+                              {supplierConfigs.anna.doubleUnits.map((unit, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-blue-600 text-white text-[10px] font-bold uppercase">
+                                  {unit}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = [...supplierConfigs.anna.doubleUnits];
+                                      next.splice(idx, 1);
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        anna: { ...supplierConfigs.anna, doubleUnits: next }
+                                      });
+                                    }}
+                                    className="text-white hover:text-rose-200 font-black ml-1 text-[9px]"
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ))}
+                              {supplierConfigs.anna.doubleUnits.length === 0 && (
+                                <span className="text-[10px] text-slate-400 italic">Belum ada satuan</span>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5">
+                              <input
+                                id="add-unit-anna"
+                                type="text"
+                                placeholder="Ketik lalu tekan Tambah"
+                                className="flex-1 px-2 py-1 border-2 border-slate-900 text-xs font-bold focus:outline-none"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = e.currentTarget.value.trim();
+                                    if (val && !supplierConfigs.anna.doubleUnits.includes(val)) {
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        anna: {
+                                          ...supplierConfigs.anna,
+                                          doubleUnits: [...supplierConfigs.anna.doubleUnits, val]
+                                        }
+                                      });
+                                      e.currentTarget.value = '';
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const input = document.getElementById('add-unit-anna') as HTMLInputElement;
+                                  const val = input?.value.trim();
+                                  if (val && !supplierConfigs.anna.doubleUnits.includes(val)) {
+                                    setSupplierConfigs({
+                                      ...supplierConfigs,
+                                      anna: {
+                                        ...supplierConfigs.anna,
+                                        doubleUnits: [...supplierConfigs.anna.doubleUnits, val]
+                                      }
+                                    });
+                                    input.value = '';
+                                  }
+                                }}
+                                className="px-3 py-1 bg-slate-900 text-white font-black text-xs uppercase"
+                              >
+                                Tambah
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 3. SHOPEE */}
+                        <div className="p-4 bg-white border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] space-y-3">
+                          <div className="flex items-center justify-between border-b-2 border-slate-100 pb-2">
+                            <span className="px-2 py-0.5 bg-orange-100 border border-orange-900 text-orange-900 text-[10px] font-black uppercase tracking-wider">
+                              Format: Shopee
+                            </span>
+                          </div>
+                          
+                          {/* Keywords */}
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider leading-none">
+                              Produk Khusus (Double Qty)
+                            </label>
+                            <div className="flex flex-wrap gap-1 border-2 border-slate-200 p-2 min-h-[40px] bg-slate-50">
+                              {supplierConfigs.shopee.doubleKeywords.map((kw, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-900 text-white text-[10px] font-bold uppercase">
+                                  {kw}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = [...supplierConfigs.shopee.doubleKeywords];
+                                      next.splice(idx, 1);
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        shopee: { ...supplierConfigs.shopee, doubleKeywords: next }
+                                      });
+                                    }}
+                                    className="text-rose-400 hover:text-rose-600 font-black ml-1 text-[9px]"
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ))}
+                              {supplierConfigs.shopee.doubleKeywords.length === 0 && (
+                                <span className="text-[10px] text-slate-400 italic">Belum ada produk</span>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5">
+                              <input
+                                id="add-kw-shopee"
+                                type="text"
+                                placeholder="Ketik lalu tekan Tambah"
+                                className="flex-1 px-2 py-1 border-2 border-slate-900 text-xs font-bold focus:outline-none"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = e.currentTarget.value.trim();
+                                    if (val && !supplierConfigs.shopee.doubleKeywords.includes(val)) {
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        shopee: {
+                                          ...supplierConfigs.shopee,
+                                          doubleKeywords: [...supplierConfigs.shopee.doubleKeywords, val]
+                                        }
+                                      });
+                                      e.currentTarget.value = '';
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const input = document.getElementById('add-kw-shopee') as HTMLInputElement;
+                                  const val = input?.value.trim();
+                                  if (val && !supplierConfigs.shopee.doubleKeywords.includes(val)) {
+                                    setSupplierConfigs({
+                                      ...supplierConfigs,
+                                      shopee: {
+                                        ...supplierConfigs.shopee,
+                                        doubleKeywords: [...supplierConfigs.shopee.doubleKeywords, val]
+                                      }
+                                    });
+                                    input.value = '';
+                                  }
+                                }}
+                                className="px-3 py-1 bg-slate-900 text-white font-black text-xs uppercase"
+                              >
+                                Tambah
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Unwanted Words */}
+                          <div className="space-y-1.5 pt-2">
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider leading-none">
+                              Kata Yang Dihapus Dari Teks (Unwanted Words)
+                            </label>
+                            <div className="flex flex-wrap gap-1 border-2 border-slate-200 p-2 min-h-[50px] bg-slate-50 max-h-[120px] overflow-y-auto">
+                              {(supplierConfigs.shopee.unwantedWords || []).map((word, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-600 text-white text-[10px] font-bold">
+                                  {word}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = [...(supplierConfigs.shopee.unwantedWords || [])];
+                                      next.splice(idx, 1);
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        shopee: { ...supplierConfigs.shopee, unwantedWords: next }
+                                      });
+                                    }}
+                                    className="text-white hover:text-rose-200 font-black ml-1 text-[9px]"
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ))}
+                              {(supplierConfigs.shopee.unwantedWords || []).length === 0 && (
+                                <span className="text-[10px] text-slate-400 italic">Belum ada kata terdaftar</span>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5">
+                              <input
+                                id="add-word-shopee"
+                                type="text"
+                                placeholder="Contoh: ( ½ Pasang )"
+                                className="flex-1 px-2 py-1 border-2 border-slate-900 text-xs font-bold focus:outline-none"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = e.currentTarget.value.trim();
+                                    if (val && !(supplierConfigs.shopee.unwantedWords || []).includes(val)) {
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        shopee: {
+                                          ...supplierConfigs.shopee,
+                                          unwantedWords: [...(supplierConfigs.shopee.unwantedWords || []), val]
+                                        }
+                                      });
+                                      e.currentTarget.value = '';
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const input = document.getElementById('add-word-shopee') as HTMLInputElement;
+                                  const val = input?.value.trim();
+                                  if (val && !(supplierConfigs.shopee.unwantedWords || []).includes(val)) {
+                                    setSupplierConfigs({
+                                      ...supplierConfigs,
+                                      shopee: {
+                                        ...supplierConfigs.shopee,
+                                        unwantedWords: [...(supplierConfigs.shopee.unwantedWords || []), val]
+                                      }
+                                    });
+                                    input.value = '';
+                                  }
+                                }}
+                                className="px-3 py-1 bg-slate-900 text-white font-black text-xs uppercase"
+                              >
+                                Tambah
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 4. KIM */}
+                        <div className="p-4 bg-white border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] space-y-3">
+                          <div className="flex items-center justify-between border-b-2 border-slate-100 pb-2">
+                            <span className="px-2 py-0.5 bg-purple-100 border border-purple-900 text-purple-900 text-[10px] font-black uppercase tracking-wider">
+                              Supplier: KIM
+                            </span>
+                          </div>
+                          
+                          {/* Keywords */}
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider leading-none">
+                              Kata Kunci Lensa (Double Qty)
+                            </label>
+                            <div className="flex flex-wrap gap-1 border-2 border-slate-200 p-2 min-h-[40px] bg-slate-50">
+                              {supplierConfigs.kim.doubleKeywords.map((kw, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-900 text-white text-[10px] font-bold uppercase">
+                                  {kw}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = [...supplierConfigs.kim.doubleKeywords];
+                                      next.splice(idx, 1);
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        kim: { ...supplierConfigs.kim, doubleKeywords: next }
+                                      });
+                                    }}
+                                    className="text-rose-400 hover:text-rose-600 font-black ml-1 text-[9px]"
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ))}
+                              {supplierConfigs.kim.doubleKeywords.length === 0 && (
+                                <span className="text-[10px] text-slate-400 italic">Belum ada kata kunci</span>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5">
+                              <input
+                                id="add-kw-kim"
+                                type="text"
+                                placeholder="Ketik lalu tekan Tambah"
+                                className="flex-1 px-2 py-1 border-2 border-slate-900 text-xs font-bold focus:outline-none"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = e.currentTarget.value.trim();
+                                    if (val && !supplierConfigs.kim.doubleKeywords.includes(val)) {
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        kim: {
+                                          ...supplierConfigs.kim,
+                                          doubleKeywords: [...supplierConfigs.kim.doubleKeywords, val]
+                                        }
+                                      });
+                                      e.currentTarget.value = '';
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const input = document.getElementById('add-kw-kim') as HTMLInputElement;
+                                  const val = input?.value.trim();
+                                  if (val && !supplierConfigs.kim.doubleKeywords.includes(val)) {
+                                    setSupplierConfigs({
+                                      ...supplierConfigs,
+                                      kim: {
+                                        ...supplierConfigs.kim,
+                                        doubleKeywords: [...supplierConfigs.kim.doubleKeywords, val]
+                                      }
+                                    });
+                                    input.value = '';
+                                  }
+                                }}
+                                className="px-3 py-1 bg-slate-900 text-white font-black text-xs uppercase"
+                              >
+                                Tambah
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 5. SISSE */}
+                        <div className="p-4 bg-white border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] space-y-3">
+                          <div className="flex items-center justify-between border-b-2 border-slate-100 pb-2">
+                            <span className="px-2 py-0.5 bg-rose-100 border border-rose-900 text-rose-900 text-[10px] font-black uppercase tracking-wider">
+                              Supplier: Sisse
+                            </span>
+                          </div>
+                          
+                          {/* Keywords */}
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider leading-none">
+                              Kata Kunci Lensa (Double Qty)
+                            </label>
+                            <div className="flex flex-wrap gap-1 border-2 border-slate-200 p-2 min-h-[40px] bg-slate-50">
+                              {supplierConfigs.sisse.doubleKeywords.map((kw, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-900 text-white text-[10px] font-bold uppercase">
+                                  {kw}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = [...supplierConfigs.sisse.doubleKeywords];
+                                      next.splice(idx, 1);
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        sisse: { ...supplierConfigs.sisse, doubleKeywords: next }
+                                      });
+                                    }}
+                                    className="text-rose-400 hover:text-rose-600 font-black ml-1 text-[9px]"
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ))}
+                              {supplierConfigs.sisse.doubleKeywords.length === 0 && (
+                                <span className="text-[10px] text-slate-400 italic">Belum ada kata kunci</span>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5">
+                              <input
+                                id="add-kw-sisse"
+                                type="text"
+                                placeholder="Ketik lalu tekan Tambah"
+                                className="flex-1 px-2 py-1 border-2 border-slate-900 text-xs font-bold focus:outline-none"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = e.currentTarget.value.trim();
+                                    if (val && !supplierConfigs.sisse.doubleKeywords.includes(val)) {
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        sisse: {
+                                          ...supplierConfigs.sisse,
+                                          doubleKeywords: [...supplierConfigs.sisse.doubleKeywords, val]
+                                        }
+                                      });
+                                      e.currentTarget.value = '';
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const input = document.getElementById('add-kw-sisse') as HTMLInputElement;
+                                  const val = input?.value.trim();
+                                  if (val && !supplierConfigs.sisse.doubleKeywords.includes(val)) {
+                                    setSupplierConfigs({
+                                      ...supplierConfigs,
+                                      sisse: {
+                                        ...supplierConfigs.sisse,
+                                        doubleKeywords: [...supplierConfigs.sisse.doubleKeywords, val]
+                                      }
+                                    });
+                                    input.value = '';
+                                  }
+                                }}
+                                className="px-3 py-1 bg-slate-900 text-white font-black text-xs uppercase"
+                              >
+                                Tambah
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
 
                   {/* Raw Text Input */}
                   <div className="space-y-2">
