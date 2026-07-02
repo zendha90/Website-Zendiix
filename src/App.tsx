@@ -375,18 +375,29 @@ const WEEKS_DEFINITION: WeekDef[] = [
 
 function parseProductName(name: string) {
   const clean = name.trim();
-  const powerRegex = /\s+([-+]?\d+([.,]\d+)?|normal|plano)$/i;
+  
+  // Match the power suffix at the end of the string:
+  // e.g. "-10,00", "Plano", "-1.50", "+2.00", etc.
+  const powerRegex = /([-+–—−]?\s*\d+(?:[.,]\d+)?|normal|plano)$/i;
   const match = clean.match(powerRegex);
   
   if (match) {
-    const powerStr = match[1].toLowerCase();
-    const baseName = clean.substring(0, clean.length - match[0].length).trim();
+    const powerStr = match[1].toLowerCase().trim();
+    // Strip the matched power from the end of the string
+    let baseName = clean.substring(0, clean.length - match[0].length).trim();
+    
+    // Also strip any trailing separators from baseName (like space, hyphen, plus)
+    baseName = baseName.replace(/[-+–—−\s]+$/, "").trim();
     
     let power = 0;
     if (powerStr === "normal" || powerStr === "plano") {
       power = 0;
     } else {
-      power = parseFloat(powerStr.replace(",", "."));
+      const cleanPowerStr = powerStr
+        .replace(/\s+/g, "")
+        .replace(/[–—−]/g, "-")
+        .replace(",", ".");
+      power = parseFloat(cleanPowerStr);
     }
     return { baseName, power };
   }
@@ -2337,7 +2348,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       baseProducts.sort((a: any, b: any) => {
         const aVal = a[sortConfig.key] ?? "";
         const bVal = b[sortConfig.key] ?? "";
-        if (sortConfig.key === "namaBarang") {
+        if (sortConfig.key === "namaBarang" || sortConfig.key === "kodeBarang") {
           const sA = String(aVal);
           const sB = String(bVal);
           const pA = parseProductName(sA);
