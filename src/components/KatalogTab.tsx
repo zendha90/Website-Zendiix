@@ -16,8 +16,7 @@ import {
   Flame,
   Sliders,
   Star,
-  Coins,
-  ExternalLink
+  Coins
 } from "lucide-react";
 import { Product, upsertProduct } from "../services";
 
@@ -642,24 +641,12 @@ export function KatalogTab({ products }: KatalogTabProps) {
                       Edit {editingSeries.seriesName}
                     </h3>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <a
-                      href={`/?product=${encodeURIComponent(editingSeries.seriesName)}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 border-2 border-slate-900 bg-white hover:bg-indigo-50 text-indigo-600 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all cursor-pointer flex items-center justify-center"
-                      title="Lihat Produk di Web (New Tab)"
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                    <button
-                      onClick={() => setEditingSeries(null)}
-                      className="p-1.5 border-2 border-slate-900 bg-white hover:bg-red-50 text-slate-900 shadow-[2px_2px_0px_0px_rgba(0,0,0,1)] hover:shadow-[1px_1px_0px_0px_rgba(0,0,0,1)] hover:translate-x-[1px] hover:translate-y-[1px] transition-all cursor-pointer flex items-center justify-center"
-                      title="Tutup"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
+                  <button
+                    onClick={() => setEditingSeries(null)}
+                    className="p-1.5 border-2 border-slate-900 hover:bg-red-100 text-slate-900 transition-colors"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
 
                 <form onSubmit={handleSaveSpesifikasi} className="space-y-4">

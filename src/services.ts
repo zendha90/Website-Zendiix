@@ -282,25 +282,6 @@ export async function addSaleDSRecord(sale: Omit<SaleDS, 'id' | 'tanggal'>) {
   triggerFetch('/api/sales-ds');
 }
 
-export async function processSalesBulk(salesToSave: any[]) {
-  await fetchApi('/api/sales/bulk', {
-    method: 'POST',
-    body: JSON.stringify(salesToSave),
-  });
-  queryClient.invalidateQueries({ queryKey: ["sales"] });
-  triggerFetch('/api/sales');
-  triggerFetch('/api/products');
-}
-
-export async function processSalesDSBulk(salesDSToSave: any[]) {
-  await fetchApi('/api/sales-ds/bulk', {
-    method: 'POST',
-    body: JSON.stringify(salesDSToSave),
-  });
-  queryClient.invalidateQueries({ queryKey: ["salesDS"] });
-  triggerFetch('/api/sales-ds');
-}
-
 export function subscribeToIklan(callback: (iklanList: Iklan[]) => void) {
   return createSmartSubscriber<Iklan[]>('/api/iklan', callback, 60000);
 }
