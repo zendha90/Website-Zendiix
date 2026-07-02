@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { createServer as createViteServer } from 'vite';
 import { db } from './src/db';
 import { products, incomingGoods, sales, salesDs, iklan, weeklySales, storefrontBanners, settings, reviews } from './src/db/schema';
-import { eq, desc, sql } from 'drizzle-orm';
+import { eq, desc, sql, and, ne } from 'drizzle-orm';
 
 // Global process listeners to prevent unhandled rejection crashes (essential for low max_user_connections database issues)
 process.on('unhandledRejection', (reason, promise) => {
