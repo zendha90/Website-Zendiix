@@ -366,33 +366,67 @@ async function startServer() {
 
   // Resilient caching layer to handle DB load spikes and cPanel's 5 max_user_connections constraints.
   // When a database read fails due to connections, we serve the latest stale cached data or defaults.
+  // We use Stale-While-Revalidate and Request Coalescing to make reads sub-millisecond and protect the pool from concurrent spikes.
   const serverCache = new Map<string, { data: any; expires: number }>();
+  const pendingQueries = new Map<string, Promise<any>>();
   const CACHE_STALE_MS = 15000; // Cache database reads for 15 seconds
 
   async function getCached<T>(key: string, fetchFn: () => Promise<T>): Promise<T> {
     const cached = serverCache.get(key);
     const now = Date.now();
     
-    // If we have verified cached data within expiry, return it immediately
+    // 1. If we have verified cached data within expiry, return it immediately
     if (cached && cached.expires > now) {
       return cached.data;
     }
     
+    // 2. If we have cached data but it is stale, return stale data immediately and refresh in background (Stale-While-Revalidate)
+    if (cached) {
+      // Trigger background update if there isn't one already running
+      if (!pendingQueries.has(key)) {
+        const backgroundPromise = (async () => {
+          try {
+            const fresh = await Promise.race([
+              fetchFn(),
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 5000))
+            ]);
+            serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
+            console.log(`Background SWR cache refresh successful for key "${key}"`);
+          } catch (err: any) {
+            console.error(`Background SWR cache refresh failed or timed out for key "${key}":`, err?.message || err);
+            tripDbCircuit(`Background read error or timeout on key "${key}": ${err?.message || err}`);
+          } finally {
+            pendingQueries.delete(key);
+          }
+        })();
+        pendingQueries.set(key, backgroundPromise);
+      }
+      return cached.data;
+    }
+    
+    // 3. No cached data at all, must do a blocking read. Use coalescing to avoid redundant concurrent DB queries.
+    let pending = pendingQueries.get(key);
+    if (!pending) {
+      pending = (async () => {
+        try {
+          const fresh = await Promise.race([
+            fetchFn(),
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 5000))
+          ]);
+          serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
+          return fresh;
+        } finally {
+          pendingQueries.delete(key);
+        }
+      })();
+      pendingQueries.set(key, pending);
+    }
+    
     try {
-      // Timeout database read after 5 seconds to protect request/response loop
-      const fresh = await Promise.race([
-        fetchFn(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 5000))
-      ]);
-      serverCache.set(key, { data: fresh, expires: now + CACHE_STALE_MS });
-      return fresh;
+      return await pending;
     } catch (err: any) {
       console.error(`Database read error or timeout in getCached for key "${key}":`, err?.message || err);
       tripDbCircuit(`Read error or timeout on key "${key}": ${err?.message || err}`);
-      if (cached) {
-        console.warn(`Serving stale database backup cache for key "${key}"`);
-        return cached.data;
-      }
       throw err;
     }
   }
@@ -638,6 +672,49 @@ async function startServer() {
     }
   });
 
+  app.post('/api/sales/bulk', async (req, res) => {
+    const items = req.body;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: "Body must be an array" });
+    }
+    try {
+      const saved: any[] = [];
+      if (!isDbOnline) {
+        for (const data of items) {
+          const id = data.id || Math.random().toString(36).substring(2, 15);
+          fallbackData.sales.push({ ...data, id, tanggal: data.tanggal || new Date().toISOString() });
+          saved.push({ id, ...data });
+        }
+        saveFallbackData();
+        return res.json(saved);
+      }
+      
+      const insertData = items.map(data => {
+        const id = data.id || Math.random().toString(36).substring(2, 15);
+        const finalTanggal = data.tanggal ? new Date(data.tanggal) : new Date();
+        return {
+          ...data,
+          id,
+          tanggal: finalTanggal
+        };
+      });
+      
+      await db.insert(sales).values(insertData);
+      clearCache('sales');
+      res.json(insertData);
+    } catch (error) {
+      console.error('Error in bulk sales insert, falling back:', error);
+      const saved: any[] = [];
+      for (const data of items) {
+        const id = data.id || Math.random().toString(36).substring(2, 15);
+        fallbackData.sales.push({ ...data, id, tanggal: data.tanggal || new Date().toISOString() });
+        saved.push({ id, ...data });
+      }
+      saveFallbackData();
+      res.json(saved);
+    }
+  });
+
   // Sales DS
   app.get('/api/sales-ds', async (req, res) => {
     try {
@@ -671,6 +748,48 @@ async function startServer() {
       fallbackData.salesDs.push({ ...data, id, tanggal: new Date().toISOString() });
       saveFallbackData();
       res.json({ id, ...data });
+    }
+  });
+
+  app.post('/api/sales-ds/bulk', async (req, res) => {
+    const items = req.body;
+    if (!Array.isArray(items)) {
+      return res.status(400).json({ error: "Body must be an array" });
+    }
+    try {
+      const saved: any[] = [];
+      if (!isDbOnline) {
+        for (const data of items) {
+          const id = data.id || Math.random().toString(36).substring(2, 15);
+          fallbackData.salesDs.push({ ...data, id, tanggal: new Date().toISOString() });
+          saved.push({ id, ...data });
+        }
+        saveFallbackData();
+        return res.json(saved);
+      }
+      
+      const insertData = items.map(data => {
+        const id = data.id || Math.random().toString(36).substring(2, 15);
+        return {
+          ...data,
+          id,
+          tanggal: new Date()
+        };
+      });
+      
+      await db.insert(salesDs).values(insertData);
+      clearCache('sales-ds');
+      res.json(insertData);
+    } catch (error) {
+      console.error('Error in bulk sales-ds insert, falling back:', error);
+      const saved: any[] = [];
+      for (const data of items) {
+        const id = data.id || Math.random().toString(36).substring(2, 15);
+        fallbackData.salesDs.push({ ...data, id, tanggal: new Date().toISOString() });
+        saved.push({ id, ...data });
+      }
+      saveFallbackData();
+      res.json(saved);
     }
   });
 
@@ -1149,70 +1268,73 @@ async function startServer() {
       if (!isDbOnline) {
         return res.json(fallbackData.reviews || []);
       }
-      let result = await db.select().from(reviews).orderBy(desc(reviews.createdAt));
-      if (result.length === 0) {
-        // Automatically seed/bootstrap reviews table
-        const initialSeed = [
-          {
-            id: "rev-1",
-            productId: "Macaron Almond",
-            reviewerName: "Siti Rahma",
-            rating: 5,
-            comment: "Softlens Macaron Almond nya cantik banget! Warnanya natural, gampang dipasang, dan gak ganjel sama sekali buat daily wear. Sangat direkomendasikan!"
-          },
-          {
-            id: "rev-2",
-            productId: "Newbluk Black",
-            reviewerName: "Andi Wijaya",
-            rating: 5,
-            comment: "Pertama kali beli Newbluk Black di toko ini dan langsung jatuh cinta. Nyaman banget dipakai seharian pas kerja di depan laptop. Pelayanan seller cepat dan ramah!"
-          },
-          {
-            id: "rev-3",
-            productId: "Avenue Honey Grey",
-            reviewerName: "Chika Amanda",
-            rating: 4,
-            comment: "Suka banget sama Avenue Honey Grey, bikin mata keliatan berdimensi & hidup tapi tetep elegan. Dapet free lenscase juga, makasih Zendiix!"
-          },
-          {
-            id: "rev-4",
-            productId: "NMD Caramel Brown",
-            reviewerName: "Dewi Lestari",
-            rating: 5,
-            comment: "NMD Caramel Brown emang terbaik! Pas banget di mata akuh yang rada sensitif, gak bikin gampang merah atau kering. Bakal langganan terus di sini."
-          },
-          {
-            id: "rev-5",
-            productId: "NMD Galaxy Grey",
-            reviewerName: "Rian Pratama",
-            rating: 5,
-            comment: "Barang sampai dengan aman, packing tebal pake bubble wrap. Beli yang NMD Galaxy Grey buat kado pacar dan dia suka banget. Thank you!"
-          },
-          {
-            id: "rev-6",
-            productId: "Macaron Berry Blue",
-            reviewerName: "Nabila Putri",
-            rating: 5,
-            comment: "Udah beli berkali-kali di sini, kualitasnya gak pernah mengecewakan. Softlensnya tipis, kadar air seimbang, nyaman dipake seharian penuh tanpa tetes mata."
+      let result = await getCached('reviews', async () => {
+        let rows = await db.select().from(reviews).orderBy(desc(reviews.createdAt));
+        if (rows.length === 0) {
+          // Automatically seed/bootstrap reviews table
+          const initialSeed = [
+            {
+              id: "rev-1",
+              productId: "Macaron Almond",
+              reviewerName: "Siti Rahma",
+              rating: 5,
+              comment: "Softlens Macaron Almond nya cantik banget! Warnanya natural, gampang dipasang, dan gak ganjel sama sekali buat daily wear. Sangat direkomendasikan!"
+            },
+            {
+              id: "rev-2",
+              productId: "Newbluk Black",
+              reviewerName: "Andi Wijaya",
+              rating: 5,
+              comment: "Pertama kali beli Newbluk Black di toko ini dan langsung jatuh cinta. Nyaman banget dipakai seharian pas kerja di depan laptop. Pelayanan seller cepat dan ramah!"
+            },
+            {
+              id: "rev-3",
+              productId: "Avenue Honey Grey",
+              reviewerName: "Chika Amanda",
+              rating: 4,
+              comment: "Suka banget sama Avenue Honey Grey, bikin mata keliatan berdimensi & hidup tapi tetep elegan. Dapet free lenscase juga, makasih Zendiix!"
+            },
+            {
+              id: "rev-4",
+              productId: "NMD Caramel Brown",
+              reviewerName: "Dewi Lestari",
+              rating: 5,
+              comment: "NMD Caramel Brown emang terbaik! Pas banget di mata akuh yang rada sensitif, gak bikin gampang merah atau kering. Bakal langganan terus di sini."
+            },
+            {
+              id: "rev-5",
+              productId: "NMD Galaxy Grey",
+              reviewerName: "Rian Pratama",
+              rating: 5,
+              comment: "Barang sampai dengan aman, packing tebal pake bubble wrap. Beli yang NMD Galaxy Grey buat kado pacar dan dia suka banget. Thank you!"
+            },
+            {
+              id: "rev-6",
+              productId: "Macaron Berry Blue",
+              reviewerName: "Nabila Putri",
+              rating: 5,
+              comment: "Udah beli berkali-kali di sini, kualitasnya gak pernah mengecewakan. Softlensnya tipis, kadar air seimbang, nyaman dipake seharian penuh tanpa tetes mata."
+            }
+          ];
+          
+          for (const item of initialSeed) {
+            try {
+              await db.insert(reviews).values({
+                id: item.id,
+                productId: item.productId,
+                reviewerName: item.reviewerName,
+                rating: item.rating,
+                comment: item.comment,
+                createdAt: new Date()
+              });
+            } catch (e) {
+              console.error('Error seeding single review row:', e);
+            }
           }
-        ];
-        
-        for (const item of initialSeed) {
-          try {
-            await db.insert(reviews).values({
-              id: item.id,
-              productId: item.productId,
-              reviewerName: item.reviewerName,
-              rating: item.rating,
-              comment: item.comment,
-              createdAt: new Date()
-            });
-          } catch (e) {
-            console.error('Error seeding single review row:', e);
-          }
+          rows = await db.select().from(reviews).orderBy(desc(reviews.createdAt));
         }
-        result = await db.select().from(reviews).orderBy(desc(reviews.createdAt));
-      }
+        return rows;
+      });
       res.json(result);
     } catch (error) {
       console.error('Error fetching reviews:', error);
@@ -1231,6 +1353,7 @@ async function startServer() {
         return res.json({ id, ...data });
       }
       await db.insert(reviews).values({...data, id, createdAt: new Date()});
+      clearCache('reviews');
       res.json({ id, ...data });
     } catch (error) {
       console.error('Error creating review:', error);
@@ -1250,6 +1373,7 @@ async function startServer() {
         return res.json({ success: true });
       }
       await db.delete(reviews).where(eq(reviews.id, id));
+      clearCache('reviews');
       res.json({ success: true });
     } catch (error) {
       console.error('Error deleting review:', error);
@@ -1273,6 +1397,7 @@ async function startServer() {
         return res.json({ success: true });
       }
       await db.update(reviews).set(data).where(eq(reviews.id, id));
+      clearCache('reviews');
       res.json({ success: true });
     } catch (error) {
       console.error('Error updating review:', error);
