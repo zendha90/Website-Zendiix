@@ -49,6 +49,8 @@ import {
   deleteProduct,
   processSale,
   addSaleRecord,
+  processSalesBulk,
+  processSalesDSBulk,
   deleteAllProducts,
   deleteAllSales,
   deleteAllIncomingGoods,
@@ -375,18 +377,29 @@ const WEEKS_DEFINITION: WeekDef[] = [
 
 function parseProductName(name: string) {
   const clean = name.trim();
-  const powerRegex = /\s+([-+]?\d+([.,]\d+)?|normal|plano)$/i;
+  
+  // Match the power suffix at the end of the string:
+  // e.g. "-10,00", "Plano", "-1.50", "+2.00", etc.
+  const powerRegex = /([-+–—−]?\s*\d+(?:[.,]\d+)?|normal|plano)$/i;
   const match = clean.match(powerRegex);
   
   if (match) {
-    const powerStr = match[1].toLowerCase();
-    const baseName = clean.substring(0, clean.length - match[0].length).trim();
+    const powerStr = match[1].toLowerCase().trim();
+    // Strip the matched power from the end of the string
+    let baseName = clean.substring(0, clean.length - match[0].length).trim();
+    
+    // Also strip any trailing separators from baseName (like space, hyphen, plus)
+    baseName = baseName.replace(/[-+–—−\s]+$/, "").trim();
     
     let power = 0;
     if (powerStr === "normal" || powerStr === "plano") {
       power = 0;
     } else {
-      power = parseFloat(powerStr.replace(",", "."));
+      const cleanPowerStr = powerStr
+        .replace(/\s+/g, "")
+        .replace(/[–—−]/g, "-")
+        .replace(",", ".");
+      power = parseFloat(cleanPowerStr);
     }
     return { baseName, power };
   }
@@ -1479,6 +1492,12 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     total: number;
   } | null>(null);
 
+  const [savingProgress, setSavingProgress] = useState<{
+    current: number;
+    total: number;
+    title?: string;
+  } | null>(null);
+
   // Product Form state
   const [namaBarang, setNamaBarang] = useState("");
   const [kodeBarang, setKodeBarang] = useState("");
@@ -1793,6 +1812,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     const prod = products.find((p) => p.id === incomingForm.productId);
     if (!prod) return;
 
+    setSavingProgress({ current: 0, total: 1, title: "Menyimpan Data Barang Masuk" });
+
     try {
       await addIncomingGood({
         productId: prod.id!,
@@ -1806,6 +1827,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       setIncomingForm({ qty: 1 });
     } catch (err) {
       alert("Gagal menambah barang masuk");
+    } finally {
+      setSavingProgress(null);
     }
   };
 
@@ -1929,7 +1952,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       return;
     }
 
-    for (const item of itemsToSave) {
+    setSavingProgress({ current: 0, total: itemsToSave.length, title: "Menyinkronkan Data Barang Masuk" });
+
+    for (let i = 0; i < itemsToSave.length; i++) {
+      const item = itemsToSave[i];
       const cleanName = item.rawName.trim();
       let matched: Product | undefined = undefined;
 
@@ -2011,6 +2037,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           prodSupplier = item.customProductDetails?.supplier || "";
         } catch (err) {
           console.error("Gagal membuat produk otomatis:", cleanName, err);
+          setSavingProgress({ current: i + 1, total: itemsToSave.length, title: "Menyinkronkan Data Barang Masuk" });
           continue;
         }
       }
@@ -2028,8 +2055,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       } catch (e) {
         console.error("Error adding incoming good", e);
       }
+      setSavingProgress({ current: i + 1, total: itemsToSave.length, title: "Menyinkronkan Data Barang Masuk" });
     }
 
+    setSavingProgress(null);
     alert(`Berhasil menyinkronkan ${successCount} data barang masuk!`);
     setIsIncomingTextModalOpen(false);
     setRawText("");
@@ -2138,6 +2167,9 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const handleUpdateSaleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editSaleId) return;
+
+    setSavingProgress({ current: 0, total: 1, title: "Mengupdate Data Penjualan" });
+
     try {
       let hppValue = saleForm.hpp || 0;
       let totalHppValue = saleForm.totalHpp || 0;
@@ -2168,6 +2200,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       setSaleForm({});
     } catch (err) {
       alert("Gagal mengupdate transaksi");
+    } finally {
+      setSavingProgress(null);
     }
   };
 
@@ -2316,7 +2350,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       baseProducts.sort((a: any, b: any) => {
         const aVal = a[sortConfig.key] ?? "";
         const bVal = b[sortConfig.key] ?? "";
-        if (sortConfig.key === "namaBarang") {
+        if (sortConfig.key === "namaBarang" || sortConfig.key === "kodeBarang") {
           const sA = String(aVal);
           const sB = String(bVal);
           const pA = parseProductName(sA);
@@ -2354,21 +2388,106 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     filterStockQty
   ]);
 
+  const groupedSales = React.useMemo(() => {
+    const groups: { [key: string]: any } = {};
+    const orderedKeys: string[] = [];
+
+    const sortedSales = [...sales].sort((a, b) => {
+      const getTimestamp = (val: any) => {
+        if (!val) return 0;
+        if (typeof val === 'object' && val !== null) {
+          if (typeof val.toDate === 'function') return val.toDate().getTime();
+          if ('seconds' in val) return val.seconds * 1000;
+        }
+        const date = new Date(val);
+        const time = date.getTime();
+        return isNaN(time) ? 0 : time;
+      };
+      const tA = getTimestamp(a.tanggalOrder || a.tanggal);
+      const tB = getTimestamp(b.tanggalOrder || b.tanggal);
+      return tB - tA;
+    });
+
+    sortedSales.forEach((s) => {
+      const resi = (s.noResi || "").trim();
+      const pesanan = (s.noPesanan || "").trim();
+      let key = "";
+      if (resi && resi !== "-") {
+        key = `resi_${resi}`;
+      } else if (pesanan && pesanan !== "-") {
+        key = `pesanan_${pesanan}`;
+      } else {
+        key = `single_${s.id || Math.random().toString()}`;
+      }
+
+      if (!groups[key]) {
+        groups[key] = {
+          id: s.id || key,
+          groupKey: key,
+          tanggalOrder: s.tanggalOrder || "",
+          tanggal: s.tanggal,
+          channel: s.channel || "",
+          noPesanan: s.noPesanan || "",
+          noResi: s.noResi || "",
+          namaEkspedisi: s.namaEkspedisi || "",
+          items: [],
+          qty: 0,
+          totalHarga: 0,
+          totalHpp: 0,
+          laba: 0,
+        };
+        orderedKeys.push(key);
+      }
+
+      const qtyVal = Number(s.qty) || 0;
+      const hppVal = Number(s.hpp) || 0;
+      const totalHargaVal = Number(s.totalHarga) || 0;
+      const itemTotalHpp = (s.totalHpp !== undefined && s.totalHpp !== null) ? Number(s.totalHpp) : (hppVal * qtyVal);
+      const itemLaba = totalHargaVal - itemTotalHpp;
+
+      groups[key].items.push({
+        id: s.id,
+        namaBarang: s.namaBarang || "",
+        kodeBarang: s.kodeBarang || "",
+        qty: qtyVal,
+        hpp: hppVal,
+        totalHpp: itemTotalHpp,
+        totalHarga: totalHargaVal,
+        laba: itemLaba,
+        productId: s.productId,
+        originalSale: s,
+      });
+
+      groups[key].qty += qtyVal;
+      groups[key].totalHarga += totalHargaVal;
+      groups[key].totalHpp += itemTotalHpp;
+      groups[key].laba += itemLaba;
+      
+      if (resi && resi !== "-") {
+        groups[key].noResi = s.noResi;
+      }
+    });
+
+    return orderedKeys.map(k => groups[k]);
+  }, [sales]);
+
   const filteredSales = React.useMemo(() => {
-    let result = [...sales];
+    let result = [...groupedSales];
     if (salesSearch) {
       const q = salesSearch.toLowerCase().trim();
-      result = result.filter(s => 
-        (s.namaBarang && s.namaBarang.toLowerCase().includes(q)) ||
-        (s.kodeBarang && s.kodeBarang.toLowerCase().includes(q)) ||
-        (s.noPesanan && s.noPesanan.toLowerCase().includes(q)) ||
-        (s.noResi && s.noResi.toLowerCase().includes(q)) ||
-        (s.channel && s.channel.toLowerCase().includes(q)) ||
-        (s.namaEkspedisi && s.namaEkspedisi.toLowerCase().includes(q))
+      result = result.filter(g => 
+        (g.noPesanan && g.noPesanan.toLowerCase().includes(q)) ||
+        (g.noResi && g.noResi.toLowerCase().includes(q)) ||
+        (g.channel && g.channel.toLowerCase().includes(q)) ||
+        (g.namaEkspedisi && g.namaEkspedisi.toLowerCase().includes(q)) ||
+        g.items.some((item: any) => 
+          (item.namaBarang && item.namaBarang.toLowerCase().includes(q)) ||
+          (item.kodeBarang && item.kodeBarang.toLowerCase().includes(q))
+        )
       );
     }
     return result;
-  }, [sales, salesSearch]);
+  }, [groupedSales, salesSearch]);
 
   const paginatedSales = React.useMemo(() => {
     if (salesLimit === "all") return filteredSales;
@@ -2656,50 +2775,71 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       }
     }
 
-    let successCount = 0;
-    for (const draft of draftSales) {
-      if (!draft.jenisBarang) continue;
-
-      const product = findMatchedProduct(draft.jenisBarang, draft.productId);
-
-      if (product) {
-        try {
-          await processSale(product, Number(draft.qty) || 1, {
-            tanggalOrder: normalizeOrderDate(draft.tanggalOrder || new Date()),
-            channel: draft.channel,
-            noPesanan: draft.noPesanan,
-            noResi: draft.noResi,
-            namaEkspedisi: draft.namaEkspedisi,
-            totalHarga: draft.totalPenjualan,
-          });
-          successCount++;
-        } catch (e) {
-          console.error("Sale error", e);
-        }
-      } else {
-        // imported record without matching product
-        try {
-          await addSaleRecord(
-            "UNKNOWN",
-            draft.jenisBarang,
-            Number(draft.qty) || 1,
-            draft.totalPenjualan,
-            {
-              tanggalOrder: normalizeOrderDate(draft.tanggalOrder || new Date()),
-              channel: draft.channel,
-              noPesanan: draft.noPesanan,
-              noResi: draft.noResi,
-              namaEkspedisi: draft.namaEkspedisi,
-            },
-          );
-          successCount++;
-        } catch (e) {
-          console.error("Sale error", e);
-        }
-      }
+    const itemsToSave = draftSales.filter((d) => d.jenisBarang);
+    if (itemsToSave.length === 0) {
+      alert("Tidak ada baris valid untuk disimpan. Pastikan nama barang terisi.");
+      return;
     }
 
-    alert(`Berhasil menyimpan ${successCount} data penjualan!`);
+    setSavingProgress({ current: 0, total: 1, title: "Menyimpan Transaksi Penjualan" });
+
+    try {
+      const payloads = itemsToSave.map((draft) => {
+        const product = findMatchedProduct(draft.jenisBarang, draft.productId);
+        const qty = Number(draft.qty) || 1;
+        const totalHarga = Number(draft.totalPenjualan) || 0;
+        const tanggalOrder = normalizeOrderDate(draft.tanggalOrder || new Date());
+        
+        if (product) {
+          const hpp = product.hargaBeli || 0;
+          const totalHpp = hpp * qty;
+          const laba = totalHarga - totalHpp;
+          return {
+            productId: product.id,
+            kodeBarang: product.kodeBarang,
+            namaBarang: product.namaBarang,
+            qty,
+            totalHarga,
+            hpp,
+            totalHpp,
+            laba,
+            tanggalOrder,
+            channel: draft.channel || "",
+            noPesanan: draft.noPesanan || "",
+            noResi: draft.noResi || "",
+            namaEkspedisi: draft.namaEkspedisi || "",
+          };
+        } else {
+          const hpp = 0;
+          const totalHpp = 0;
+          const laba = totalHarga;
+          return {
+            kodeBarang: "UNKNOWN",
+            namaBarang: draft.jenisBarang,
+            qty,
+            totalHarga,
+            hpp,
+            totalHpp,
+            laba,
+            tanggalOrder,
+            channel: draft.channel || "",
+            noPesanan: draft.noPesanan || "",
+            noResi: draft.noResi || "",
+            namaEkspedisi: draft.namaEkspedisi || "",
+          };
+        }
+      });
+
+      setSavingProgress({ current: 1, total: 1, title: "Menyimpan Transaksi Penjualan" });
+      await processSalesBulk(payloads);
+      alert(`Berhasil menyimpan ${payloads.length} data penjualan!`);
+    } catch (err) {
+      console.error("Failed to bulk save sales", err);
+      alert("Gagal menyimpan transaksi penjualan.");
+    } finally {
+      setSavingProgress(null);
+    }
+
     setDraftSales(() => {
       return Array.from({ length: 100 }, (_, i) => ({
         id: Date.now() + "-" + i,
@@ -3152,31 +3292,34 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       }
     }
 
-    let successCount = 0;
-    for (const draft of validDrafts) {
-      try {
-        await addSaleDSRecord({
-          kodeSupplier: draft.kodeSupplier,
-          tanggalOrder: normalizeOrderDate(draft.tanggalOrder || new Date()),
-          channel: draft.channel,
-          noPesanan: draft.noPesanan,
-          noResi: draft.noResi,
-          namaPelanggan: draft.namaPelanggan,
-          alamatPelanggan: draft.alamatPelanggan,
-          namaProduk: draft.namaProduk,
-          qty: Number(draft.qty) || 1,
-          hpp: Number(draft.hpp) || 0,
-          totalPenjualan: Number(draft.totalPenjualan) || 0,
-          ongkosKirim: Number(draft.ongkosKirim) || 0,
-          laba: Number(draft.laba) || 0,
-        });
-        successCount++;
-      } catch (e) {
-        console.error("Failed to add dropship sale record", e);
-      }
-    }
+    setSavingProgress({ current: 0, total: 1, title: "Menyimpan Penjualan Dropship (DS)" });
 
-    alert(`Berhasil menyimpan ${successCount} data penjualan Dropship (DS)!`);
+    try {
+      const payloads = validDrafts.map((draft) => ({
+        kodeSupplier: draft.kodeSupplier,
+        tanggalOrder: normalizeOrderDate(draft.tanggalOrder || new Date()),
+        channel: draft.channel,
+        noPesanan: draft.noPesanan,
+        noResi: draft.noResi,
+        namaPelanggan: draft.namaPelanggan,
+        alamatPelanggan: draft.alamatPelanggan,
+        namaProduk: draft.namaProduk,
+        qty: Number(draft.qty) || 1,
+        hpp: Number(draft.hpp) || 0,
+        totalPenjualan: Number(draft.totalPenjualan) || 0,
+        ongkosKirim: Number(draft.ongkosKirim) || 0,
+        laba: Number(draft.laba) || 0,
+      }));
+
+      setSavingProgress({ current: 1, total: 1, title: "Menyimpan Penjualan Dropship (DS)" });
+      await processSalesDSBulk(payloads);
+      alert(`Berhasil menyimpan ${payloads.length} data penjualan Dropship (DS)!`);
+    } catch (err) {
+      console.error("Failed to bulk save dropship sales", err);
+      alert("Gagal menyimpan transaksi dropship.");
+    } finally {
+      setSavingProgress(null);
+    }
     
     // Automatically prepare export for the last saved record
     if (validDrafts.length > 0) {
@@ -3243,19 +3386,28 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     e.preventDefault();
     if (!editingIklan.tanggal || !editingIklan.totalPembayaran) return;
 
+    setSavingProgress({ current: 0, total: 1, title: "Menyimpan Data Pengeluaran Iklan" });
+
     const data = {
       tanggal: editingIklan.tanggal,
       totalPembayaran: Number(editingIklan.totalPembayaran),
       noPesanan: editingIklan.noPesanan || "",
     };
 
-    if (editingIklan.id) {
-      await updateIklan({ id: editingIklan.id, ...data });
-    } else {
-      await addIklanRecord(data);
+    try {
+      if (editingIklan.id) {
+        await updateIklan({ id: editingIklan.id, ...data });
+      } else {
+        await addIklanRecord(data);
+      }
+      setIsIklanModalOpen(false);
+      setEditingIklan({});
+    } catch (err) {
+      console.error("Gagal menyimpan data iklan", err);
+      alert("Gagal menyimpan data pengeluaran iklan.");
+    } finally {
+      setSavingProgress(null);
     }
-    setIsIklanModalOpen(false);
-    setEditingIklan({});
   };
 
   const [iklanToDelete, setIklanToDelete] = useState<Iklan | null>(null);
@@ -3275,6 +3427,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     e.preventDefault();
     if (editingWeekly.tahun === undefined || editingWeekly.bulan === undefined || editingWeekly.minggu === undefined) return;
 
+    setSavingProgress({ current: 0, total: 1, title: "Menyimpan Perubahan Penjualan" });
+
     const data: Omit<WeeklySale, "id" | "createdAt"> = {
       tahun: Number(editingWeekly.tahun),
       bulan: Number(editingWeekly.bulan),
@@ -3289,13 +3443,20 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       hpp: Number(editingWeekly.hpp) || 0,
     };
 
-    if (editingWeekly.id) {
-      await updateWeeklySale({ id: editingWeekly.id, ...data } as WeeklySale);
-    } else {
-      await addWeeklySaleRecord(data);
+    try {
+      if (editingWeekly.id) {
+        await updateWeeklySale({ id: editingWeekly.id, ...data } as WeeklySale);
+      } else {
+        await addWeeklySaleRecord(data);
+      }
+      setIsWeeklyModalOpen(false);
+      setEditingWeekly({});
+    } catch (err) {
+      console.error("Gagal menyimpan data mingguan", err);
+      alert("Gagal menyimpan perubahan.");
+    } finally {
+      setSavingProgress(null);
     }
-    setIsWeeklyModalOpen(false);
-    setEditingWeekly({});
   };
 
   const [draftIklan, setDraftIklan] = useState<DraftIklan[]>(() => []); // Initially empty now
@@ -3402,8 +3563,11 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       return;
     }
 
+    setSavingProgress({ current: 0, total: validDrafts.length, title: "Menyimpan Pengeluaran Iklan" });
+
     let successCount = 0;
-    for (const draft of validDrafts) {
+    for (let i = 0; i < validDrafts.length; i++) {
+      const draft = validDrafts[i];
       try {
         await addIklanRecord({
           tanggal: draft.tanggal,
@@ -3414,8 +3578,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       } catch (e) {
         console.error("Failed to add iklan record", e);
       }
+      setSavingProgress({ current: i + 1, total: validDrafts.length, title: "Menyimpan Pengeluaran Iklan" });
     }
 
+    setSavingProgress(null);
     alert(`Berhasil menyimpan ${successCount} data iklan!`);
     setDraftIklan(() => {
       return Array.from({ length: 100 }, (_, i) => ({
@@ -3433,8 +3599,15 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const getWeeklyCalculations = () => {
     const parsedSales = sales.map((s) => {
       const d = s.tanggalOrder ? parseToDate(s.tanggalOrder) : parseToDate(s.tanggal);
+      const qtyVal = Number(s.qty) || 0;
+      const hppVal = Number(s.hpp) || 0;
+      const totalHargaVal = Number(s.totalHarga) || 0;
+      const totalHppVal = (s.totalHpp !== undefined && s.totalHpp !== null) ? Number(s.totalHpp) : (hppVal * qtyVal);
+      const labaVal = totalHargaVal - totalHppVal;
       return {
         ...s,
+        totalHpp: totalHppVal,
+        laba: labaVal,
         parsedDate: d,
         year: d ? d.getFullYear() : 0,
         month: d ? d.getMonth() + 1 : 0, // 1-12
@@ -3444,8 +3617,14 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
     const parsedSalesDS = salesDS.map((s) => {
       const d = s.tanggalOrder ? parseToDate(s.tanggalOrder) : parseToDate(s.tanggal);
+      const qtyVal = Number(s.qty) || 0;
+      const hppVal = Number(s.hpp) || 0;
+      const totalPenjualanVal = Number(s.totalPenjualan) || 0;
+      const okVal = Number(s.ongkosKirim) || 0;
+      const labaVal = totalPenjualanVal - (hppVal * qtyVal) - okVal;
       return {
         ...s,
+        laba: labaVal,
         parsedDate: d,
         year: d ? d.getFullYear() : 0,
         month: d ? d.getMonth() + 1 : 0, // 1-12
@@ -3579,6 +3758,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       return;
     // Note: stokBarang (Masuk) is optional, defaults to 0 if not provided
 
+    setSavingProgress({ current: 0, total: 1, title: editProductId ? "Mengupdate Data Barang" : "Menyimpan Data Barang" });
+
     const existingProduct = editProductId
       ? products.find((p) => p.id === editProductId)
       : products.find(
@@ -3637,6 +3818,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       handleCancelEdit();
     } catch (e) {
       console.error("Failed to save product", e);
+    } finally {
+      setSavingProgress(null);
     }
   };
 
@@ -4318,15 +4501,17 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
         <nav className="flex-1 overflow-y-auto scrollbar-none px-4 py-2 space-y-4">
           {/* Main Quick Links */}
           <div className="space-y-1.5">
-            <Link
-              to="/"
+            <a
+              href="/"
+              target="_blank"
+              rel="noopener noreferrer"
               className="w-full flex items-center gap-3 px-4 py-3 border-2 border-slate-900 bg-amber-50 text-slate-800 hover:bg-amber-100 transition-all shadow-[2px_2px_0px_0px_#0f172a]"
             >
               <Eye className="w-5 h-5 text-[#B62A53]" />
               <span className="text-xs font-black uppercase tracking-widest text-left">
                 Lihat Toko Utama
               </span>
-            </Link>
+            </a>
           </div>
 
           {/* Group 1: Transaksi & Finansial */}
@@ -6065,21 +6250,16 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                                 <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSales.topSpacerHeight}px` }} />
                               </tr>
                             )}
-                            {virtualizedSales.slice.map((s, idx) => {
+                            {virtualizedSales.slice.map((s: any, idx) => {
                               const absoluteIdx = salesStartIndex + idx;
                               const bgColor =
                                 absoluteIdx % 2 === 0 ? "bg-white" : "bg-slate-50/50";
-                              const product = products.find(
-                                (p) =>
-                                  p.kodeBarang === s.kodeBarang ||
-                                  p.id === s.productId,
-                              );
                               return (
                                 <tr
                                   key={s.id || idx}
                                   className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}
                                 >
-                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
+                                  <td className="px-3 pt-3 text-[11px] font-medium text-slate-800 border-r border-slate-200 align-top">
                                     {s.tanggalOrder ||
                                       (s.tanggal
                                         ? new Date(
@@ -6087,138 +6267,231 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                                           ).toLocaleDateString("id-ID")
                                         : "-")}
                                   </td>
-                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
+                                  <td className="px-3 pt-3 text-[11px] font-medium text-slate-800 border-r border-slate-200 align-top">
                                     {s.channel || "-"}
                                   </td>
                                   <td
-                                    className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200 truncate max-w-[150px]"
+                                    className="px-3 pt-3 text-[11px] font-medium text-slate-800 border-r border-slate-200 truncate max-w-[150px] align-top"
                                     title={s.noPesanan}
                                   >
                                     {s.noPesanan || "-"}
                                   </td>
-                                  <td className="px-3 py-4 text-[11px] font-mono text-slate-500 border-r border-slate-200">
+                                  <td className="px-3 pt-3 text-[11px] font-mono text-slate-500 border-r border-slate-200 align-top">
                                     {s.noResi || "-"}
                                   </td>
-                                  <td className="px-3 py-4 text-[11px] font-medium text-slate-800 border-r border-slate-200">
+                                  <td className="px-3 pt-3 text-[11px] font-medium text-slate-800 border-r border-slate-200 align-top">
                                     {s.namaEkspedisi || "-"}
                                   </td>
-                                  <td
-                                    className="px-3 py-4 text-[11px] font-bold text-slate-900 border-r border-slate-200 truncate max-w-[200px]"
-                                    title={s.namaBarang}
-                                  >
-                                    {s.namaBarang}
+                                  
+                                  {/* Multi-item columns with p-0 to let them align perfectly */}
+                                  <td className="p-0 border-r border-slate-200 align-top">
+                                    <div className="flex flex-col w-full">
+                                      {s.items.map((item: any, i: number) => (
+                                        <div key={item.id || i} className="h-9 px-3 flex items-center border-b border-slate-100 last:border-0 w-full text-[11px] font-bold text-slate-900 truncate" title={item.namaBarang}>
+                                          {item.namaBarang}
+                                        </div>
+                                      ))}
+                                    </div>
                                   </td>
-                                  <td className="px-3 py-4 text-[11px] text-center font-bold text-slate-900 border-r border-slate-200">
-                                    {s.qty}
+                                  <td className="p-0 border-r border-slate-200 align-top">
+                                    <div className="flex flex-col w-full items-center">
+                                      {s.items.map((item: any, i: number) => (
+                                        <div key={item.id || i} className="h-9 px-2 flex items-center justify-center border-b border-slate-100 last:border-0 w-full text-[11px] font-bold text-slate-900">
+                                          {item.qty}
+                                        </div>
+                                      ))}
+                                      {s.items.length > 1 && (
+                                        <div className="text-[10px] text-indigo-600 font-extrabold py-1 border-t-2 border-dashed border-slate-300 w-full text-center bg-slate-50/50">
+                                          {s.qty}
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
-                                  <td className="px-3 py-4 text-[11px] font-bold text-slate-900 text-right border-r border-slate-200">
-                                    {(s.totalHarga || 0).toLocaleString("id-ID")}
+                                  <td className="p-0 border-r border-slate-200 align-top">
+                                    <div className="flex flex-col w-full items-end">
+                                      {s.items.map((item: any, i: number) => (
+                                        <div key={item.id || i} className="h-9 px-3 flex items-center justify-end border-b border-slate-100 last:border-0 w-full text-[11px] font-medium text-slate-500">
+                                          {item.totalHarga.toLocaleString("id-ID")}
+                                        </div>
+                                      ))}
+                                      {s.items.length > 1 && (
+                                        <div className="text-[11px] text-indigo-600 font-extrabold py-1 border-t-2 border-dashed border-slate-300 w-full text-right pr-3 bg-slate-50/50">
+                                          Rp {s.totalHarga.toLocaleString("id-ID")}
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
-                                  <td className="px-3 py-4 text-[11px] font-mono text-slate-500 border-r border-slate-200">
-                                    {s.kodeBarang || "-"}
+                                  <td className="p-0 border-r border-slate-200 align-top">
+                                    <div className="flex flex-col w-full">
+                                      {s.items.map((item: any, i: number) => (
+                                        <div key={item.id || i} className="h-9 px-3 flex items-center border-b border-slate-100 last:border-0 w-full text-[11px] font-mono text-slate-500 truncate" title={item.kodeBarang}>
+                                          {item.kodeBarang || "-"}
+                                        </div>
+                                      ))}
+                                    </div>
                                   </td>
-                                  <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">
-                                    {(s.hpp || 0).toLocaleString("id-ID")}
+                                  <td className="p-0 border-r border-slate-200 align-top">
+                                    <div className="flex flex-col w-full items-end">
+                                      {s.items.map((item: any, i: number) => (
+                                        <div key={item.id || i} className="h-9 px-3 flex items-center justify-end border-b border-slate-100 last:border-0 w-full text-[11px] font-mono text-slate-500">
+                                          {item.hpp.toLocaleString("id-ID")}
+                                        </div>
+                                      ))}
+                                    </div>
                                   </td>
-                                  <td className="px-3 py-4 text-[11px] text-center font-black border-r border-slate-200 text-slate-600">
-                                    {product 
-                                      ? (productStockMap[product.id || ""] ?? (product.kodeBarang ? productStockMap[product.kodeBarang.trim().toLowerCase()] : undefined) ?? product.stokAwal)
-                                      : "-"}
+                                  <td className="p-0 border-r border-slate-200 align-top">
+                                    <div className="flex flex-col w-full items-center">
+                                      {s.items.map((item: any, i: number) => {
+                                        const prod = products.find(p => p.id === item.productId || (p.kodeBarang && p.kodeBarang === item.kodeBarang));
+                                        const stock = prod ? (productStockMap[prod.id || ""] ?? (prod.kodeBarang ? productStockMap[prod.kodeBarang.trim().toLowerCase()] : undefined) ?? prod.stokAwal) : "-";
+                                        return (
+                                          <div key={item.id || i} className="h-9 px-2 flex items-center justify-center border-b border-slate-100 last:border-0 w-full text-[11px] text-slate-600 font-black">
+                                            {stock}
+                                          </div>
+                                        );
+                                      })}
+                                    </div>
                                   </td>
-                                  <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">
-                                    {(s.totalHpp || 0).toLocaleString("id-ID")}
+                                  <td className="p-0 border-r border-slate-200 align-top">
+                                    <div className="flex flex-col w-full items-end">
+                                      {s.items.map((item: any, i: number) => (
+                                        <div key={item.id || i} className="h-9 px-3 flex items-center justify-end border-b border-slate-100 last:border-0 w-full text-[11px] font-mono text-slate-500">
+                                          {item.totalHpp.toLocaleString("id-ID")}
+                                        </div>
+                                      ))}
+                                      {s.items.length > 1 && (
+                                        <div className="text-[11px] text-indigo-600 font-extrabold py-1 border-t-2 border-dashed border-slate-300 w-full text-right pr-3 bg-slate-50/50">
+                                          Rp {s.totalHpp.toLocaleString("id-ID")}
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
-                                  <td
-                                    className={`px-3 py-4 text-[11px] font-black text-right border-r border-slate-200 ${s.laba && s.laba > 0 ? "text-green-700" : "text-slate-900"}`}
-                                  >
-                                    {(s.laba || 0).toLocaleString("id-ID")}
+                                  <td className="p-0 border-r border-slate-200 align-top">
+                                    <div className="flex flex-col w-full items-end">
+                                      {s.items.map((item: any, i: number) => (
+                                        <div key={item.id || i} className={`h-9 px-3 flex items-center justify-end border-b border-slate-100 last:border-0 w-full text-[11px] font-black ${item.laba > 0 ? "text-green-700" : "text-slate-900"}`}>
+                                          {item.laba.toLocaleString("id-ID")}
+                                        </div>
+                                      ))}
+                                      {s.items.length > 1 && (
+                                        <div className={`text-[11px] font-black py-1 border-t-2 border-dashed border-slate-300 w-full text-right pr-3 bg-slate-50/50 ${s.laba > 0 ? "text-green-700" : "text-slate-900"}`}>
+                                          Rp {s.laba.toLocaleString("id-ID")}
+                                        </div>
+                                      )}
+                                    </div>
                                   </td>
-                                  <td className="px-3 py-4 text-center">
-                                    <div className="flex items-center justify-center gap-1">
-                                      <button
-                                        onClick={() => handleEditSale(s)}
-                                        className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-white border border-transparent hover:border-slate-900 shadow-none transition-all"
-                                      >
-                                        <Pencil className="w-3.5 h-3.5" />
-                                      </button>
-                                      <button
-                                        onClick={() => {
-                                          console.log("Setting sale to delete:", s);
-                                          setSaleToDelete(s);
-                                        }}
-                                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-white border border-transparent hover:border-slate-900 shadow-none transition-all pointer-events-auto"
-                                        title="Hapus Transaksi"
-                                      >
-                                        <Trash2 className="w-3.5 h-3.5" />
-                                      </button>
+                                  <td className="p-0 align-top">
+                                    <div className="flex flex-col w-full items-center justify-center">
+                                      {s.items.map((item: any, i: number) => (
+                                        <div key={item.id || i} className="h-9 px-2 flex items-center justify-center border-b border-slate-100 last:border-0 w-full gap-1">
+                                          <button
+                                            onClick={() => handleEditSale(item.originalSale)}
+                                            className="p-1 text-slate-400 hover:text-indigo-600 hover:bg-white border border-transparent hover:border-slate-900 shadow-none transition-all"
+                                            title="Edit Item Ini"
+                                          >
+                                            <Pencil className="w-3.5 h-3.5" />
+                                          </button>
+                                          <button
+                                            onClick={() => {
+                                              console.log("Setting sale to delete:", item.originalSale);
+                                              setSaleToDelete(item.originalSale);
+                                            }}
+                                            className="p-1 text-slate-400 hover:text-rose-600 hover:bg-white border border-transparent hover:border-slate-900 shadow-none transition-all pointer-events-auto"
+                                            title="Hapus Item Ini"
+                                          >
+                                            <Trash2 className="w-3.5 h-3.5" />
+                                          </button>
+                                        </div>
+                                      ))}
+                                      {s.items.length > 1 && (
+                                        <div className="text-[9px] font-extrabold py-1 border-t-2 border-dashed border-slate-300 w-full text-center text-slate-400 bg-slate-50/50 leading-tight">
+                                          {s.items.length} Items
+                                        </div>
+                                      )}
                                     </div>
                                   </td>
                                 </tr>
                               );
                             })}
-                              {virtualizedSales.bottomSpacerHeight > 0 && (
-                                <tr style={{ height: `${virtualizedSales.bottomSpacerHeight}px` }}>
-                                  <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSales.bottomSpacerHeight}px` }} />
-                                </tr>
-                              )}
-                            </>
-                          )}
-                        </tbody>
-                      </table>
-                    </div>
+                            {virtualizedSales.bottomSpacerHeight > 0 && (
+                              <tr style={{ height: `${virtualizedSales.bottomSpacerHeight}px` }}>
+                                <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedSales.bottomSpacerHeight}px` }} />
+                              </tr>
+                            )}
+                          </>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
 
-                    {/* Mobile Card View (Regular) */}
-                    <div className="block md:hidden p-4 space-y-4 bg-slate-50">
-                       {filteredSales.length === 0 && (
-                         <div className="text-center p-12 bg-white border-2 border-slate-200 rounded-xl flex flex-col items-center justify-center gap-3">
-                           <Database className="w-8 h-8 text-slate-200" />
-                           <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Data Tidak Ditemukan</p>
-                         </div>
-                       )}
-                       {virtualizedSales.slice.map((s, idx) => (
-                         <div key={s.id || idx} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a] active:translate-y-[-1px] transition-all" onClick={() => handleEditSale(s)}>
-                            <div className="bg-slate-50 p-3 border-b-2 border-slate-900 flex justify-between items-center">
-                               <div className="flex flex-col">
-                                 <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{s.tanggalOrder || (s.tanggal ? new Date(s.tanggal.seconds ? s.tanggal.seconds * 1000 : s.tanggal).toLocaleDateString("id-ID") : "-")}</span>
-                                 <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{s.channel || "NO CHANNEL"}</span>
-                               </div>
-                               <div className="flex gap-2">
-                                  <button onClick={(e) => { e.stopPropagation(); handleEditSale(s); }} className="p-2 bg-white border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:shadow-none hover:bg-slate-50 transition-all"><Pencil className="w-3.5 h-3.5 text-slate-700" /></button>
-                                  <button onClick={(e) => { e.stopPropagation(); setSaleToDelete(s); }} className="p-2 bg-rose-50 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:shadow-none hover:bg-rose-100 transition-all"><Trash2 className="w-3.5 h-3.5 text-rose-600" /></button>
-                               </div>
-                            </div>
-                            <div className="p-4 space-y-4">
-                               <div className="flex justify-between items-start gap-4">
-                                  <div className="flex-1 space-y-1">
-                                     <h3 className="text-sm font-black text-slate-900 uppercase leading-snug">{s.namaBarang}</h3>
-                                     <div className="flex items-center gap-2">
-                                       <span className="text-[10px] font-mono text-slate-500 uppercase tracking-tighter bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">SKU: {s.kodeBarang || "-"}</span>
-                                       <span className="text-[10px] font-black text-slate-700 uppercase bg-slate-200 px-1.5 py-0.5 rounded">Qty: {s.qty}</span>
-                                     </div>
-                                  </div>
-                                  <div className="text-right">
-                                     <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Total Jual</div>
-                                     <div className="text-lg font-black text-indigo-600 leading-none">Rp {(s.totalHarga || 0).toLocaleString("id-ID")}</div>
-                                  </div>
-                               </div>
+                  {/* Mobile Card View (Regular) */}
+                  <div className="block md:hidden p-4 space-y-4 bg-slate-50">
+                     {filteredSales.length === 0 && (
+                       <div className="text-center p-12 bg-white border-2 border-slate-200 rounded-xl flex flex-col items-center justify-center gap-3">
+                         <Database className="w-8 h-8 text-slate-200" />
+                         <p className="text-xs font-black text-slate-400 uppercase tracking-widest">Data Tidak Ditemukan</p>
+                       </div>
+                     )}
+                     {virtualizedSales.slice.map((s: any, idx) => (
+                       <div key={s.id || idx} className="bg-white border-2 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#0f172a] active:translate-y-[-1px] transition-all">
+                          <div className="bg-slate-50 p-3 border-b-2 border-slate-900 flex justify-between items-center">
+                             <div className="flex flex-col">
+                               <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">
+                                 {s.tanggalOrder || (s.tanggal ? new Date(s.tanggal.seconds ? s.tanggal.seconds * 1000 : s.tanggal).toLocaleDateString("id-ID") : "-")}
+                               </span>
+                               <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{s.channel || "NO CHANNEL"}</span>
+                             </div>
+                             <div className="text-right">
+                               <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
+                                 {s.items.length} Barang
+                               </span>
+                             </div>
+                          </div>
+                          <div className="p-4 space-y-4">
+                             <div className="space-y-3">
+                               {s.items.map((item: any, itemIdx: number) => (
+                                 <div key={item.id || itemIdx} className="flex justify-between items-start gap-4 pb-3 border-b border-dashed border-slate-100 last:border-0 last:pb-0">
+                                   <div className="flex-1 space-y-1">
+                                      <h3 className="text-xs font-bold text-slate-900 uppercase leading-snug">{item.namaBarang}</h3>
+                                      <div className="flex flex-wrap items-center gap-1.5">
+                                        <span className="text-[9px] font-mono text-slate-500 uppercase tracking-tighter bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">SKU: {item.kodeBarang || "-"}</span>
+                                        <span className="text-[9px] font-black text-slate-700 uppercase bg-slate-200 px-1.5 py-0.5 rounded">Qty: {item.qty}</span>
+                                        <span className="text-[9px] font-medium text-slate-400">HPP: Rp {item.hpp.toLocaleString("id-ID")}</span>
+                                      </div>
+                                   </div>
+                                   <div className="text-right shrink-0">
+                                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest leading-none mb-1">Subtotal</div>
+                                      <div className="text-xs font-bold text-indigo-600">Rp {item.totalHarga.toLocaleString("id-ID")}</div>
+                                      <div className="text-[9px] text-emerald-600 font-bold">Laba: Rp {item.laba.toLocaleString("id-ID")}</div>
+                                      <div className="flex items-center justify-end gap-1 mt-1.5">
+                                        <button onClick={(e) => { e.stopPropagation(); handleEditSale(item.originalSale); }} className="p-1 bg-white border border-slate-300 hover:border-slate-900 rounded transition-all" title="Edit Item"><Pencil className="w-3.5 h-3.5 text-slate-700" /></button>
+                                        <button onClick={(e) => { e.stopPropagation(); setSaleToDelete(item.originalSale); }} className="p-1 bg-rose-50 border border-rose-200 hover:border-rose-900 rounded transition-all" title="Hapus Item"><Trash2 className="w-3.5 h-3.5 text-rose-600" /></button>
+                                      </div>
+                                   </div>
+                                 </div>
+                               ))}
+                             </div>
 
-                               <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-100">
-                                  <div className="space-y-1">
-                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">No. Resi / Paket</p>
-                                     <p className="text-[11px] font-black text-slate-800 font-mono truncate">{s.noResi || "-"}</p>
-                                     <p className="text-[10px] font-bold text-slate-500 uppercase">{s.namaEkspedisi || "-"}</p>
-                                  </div>
-                                  <div className="text-right space-y-1">
-                                     <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">Profit (Laba)</p>
-                                     <p className={`text-sm font-black font-mono ${(s.laba || 0) > 0 ? "text-emerald-600" : (s.laba || 0) < 0 ? "text-rose-600" : "text-slate-900"}`}>
-                                       Rp {(s.laba || 0).toLocaleString("id-ID")}
-                                     </p>
-                                     <p className="text-[9px] font-bold text-slate-400 uppercase">HPP: Rp {(s.hpp || 0).toLocaleString("id-ID")}</p>
-                                  </div>
-                               </div>
-                            </div>
-                         </div>
-                       ))}
+                             <div className="grid grid-cols-2 gap-4 pt-3 border-t-2 border-slate-900">
+                                <div className="space-y-1">
+                                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest">No. Resi / Paket</p>
+                                   <p className="text-[11px] font-black text-slate-800 font-mono truncate">{s.noResi || "-"}</p>
+                                   <p className="text-[10px] font-bold text-slate-500 uppercase">{s.namaEkspedisi || "-"}</p>
+                                   <p className="text-[10px] font-medium text-slate-500">No. Pesanan: {s.noPesanan || "-"}</p>
+                                </div>
+                                <div className="text-right space-y-1">
+                                   <p className="text-[9px] font-black text-indigo-600 uppercase tracking-widest font-display">Total Transaksi</p>
+                                   <p className="text-base font-black text-indigo-600 leading-none">Rp {s.totalHarga.toLocaleString("id-ID")}</p>
+                                   <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest pt-1">Total Profit (Laba)</p>
+                                   <p className={`text-xs font-black font-mono ${s.laba > 0 ? "text-emerald-600" : s.laba < 0 ? "text-rose-600" : "text-slate-900"}`}>
+                                     Rp {s.laba.toLocaleString("id-ID")}
+                                   </p>
+                                   <p className="text-[9px] font-bold text-slate-400 uppercase">Total Qty: {s.qty}</p>
+                                </div>
+                             </div>
+                          </div>
+                       </div>
+                     ))}
                     </div>
                   </div>
                 ) : (
@@ -9385,6 +9658,42 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 }}
               ></div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* SAVING PROGRESS MODAL */}
+      {savingProgress && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
+          <div className="bg-white border-4 border-slate-900 w-full max-w-sm p-8 shadow-[12px_12px_0px_0px_#0f172a] flex flex-col items-center text-center gap-6">
+            <div className="relative flex items-center justify-center">
+              <div className="w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
+              <Save className="w-5 h-5 text-indigo-600 absolute" />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-slate-900 mb-2 flex items-center justify-center gap-2 uppercase tracking-widest">
+                {savingProgress.title || "Menyimpan..."}
+              </h3>
+              {savingProgress.total > 1 ? (
+                <p className="text-sm text-slate-500 font-bold">
+                  Memproses {savingProgress.current} dari {savingProgress.total} baris.
+                </p>
+              ) : (
+                <p className="text-sm text-slate-500 font-bold">
+                  Sedang memproses, harap tunggu...
+                </p>
+              )}
+            </div>
+            {savingProgress.total > 1 && (
+              <div className="w-full bg-slate-100 rounded-full h-3 mb-2 overflow-hidden">
+                <div
+                  className="bg-indigo-600 h-3 rounded-full transition-all duration-300 ease-out"
+                  style={{
+                    width: `${Math.round((savingProgress.current / savingProgress.total) * 100)}%`,
+                  }}
+                ></div>
+              </div>
+            )}
           </div>
         </div>
       )}
