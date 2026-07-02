@@ -1205,52 +1205,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const ROW_HEIGHT = 48; // Standard row height in pixels
   const VISIBLE_ROWS_COUNT = 15; // Number of rows fully rendered simultaneously in the viewport
 
-  // TanStack Query for state caching, auto window-focus-refetching, and smart client sync
-  const { data: qSales } = useQuery<Sale[]>({
-    queryKey: ["sales"],
-    queryFn: () => fetch("/api/sales").then(async (res) => {
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    }),
-    refetchInterval: 60000,
-    staleTime: 30000,
-    enabled: isAuthenticated,
-  });
-
-  const { data: qSalesDS } = useQuery<SaleDS[]>({
-    queryKey: ["salesDS"],
-    queryFn: () => fetch("/api/sales-ds").then(async (res) => {
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    }),
-    refetchInterval: 60000,
-    staleTime: 30000,
-    enabled: isAuthenticated,
-  });
-
-  const { data: qIncoming } = useQuery<IncomingGood[]>({
-    queryKey: ["incomingGoods"],
-    queryFn: () => fetch("/api/incoming-goods").then(async (res) => {
-      if (!res.ok) throw new Error(await res.text());
-      return res.json();
-    }),
-    refetchInterval: 60000,
-    staleTime: 30000,
-    enabled: isAuthenticated,
-  });
-
-  useEffect(() => {
-    if (qSales) setSales(qSales);
-  }, [qSales]);
-
-  useEffect(() => {
-    if (qSalesDS) setSalesDS(qSalesDS);
-  }, [qSalesDS]);
-
-  useEffect(() => {
-    if (qIncoming) setIncomingGoods(qIncoming);
-  }, [qIncoming]);
-
   useEffect(() => {
     fetch('/api/admin/check-config')
       .then(async (res) => {
@@ -3697,9 +3651,15 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
   useEffect(() => {
     if (isAuthenticated) {
+      const unsubSales = subscribeToSales(setSales);
+      const unsubSalesDS = subscribeToSalesDS(setSalesDS);
+      const unsubIncoming = subscribeToIncomingGoods(setIncomingGoods);
       const unsubIklan = subscribeToIklan(setIklanList);
       const unsubWeekly = subscribeToWeeklySales(setWeeklySalesList);
       return () => {
+        unsubSales();
+        unsubSalesDS();
+        unsubIncoming();
         unsubIklan();
         unsubWeekly();
       };
