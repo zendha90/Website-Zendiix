@@ -137,10 +137,7 @@ export async function fetchApi(path: string, options?: RequestInit) {
       ...options?.headers,
     },
   });
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`API Error: ${res.status} ${errText || res.statusText}`);
-  }
+  if (!res.ok) throw new Error(`API Error: ${res.statusText}`);
   return res.json();
 }
 
@@ -172,7 +169,7 @@ function createSmartSubscriber<T>(path: string, callback: (data: T) => void, int
           else if (defaultValue !== undefined) callback(defaultValue);
         }
       })
-      .catch(err => console.error(`SmartSubscriber fetch error for ${path}:`, err));
+      .catch(console.error);
   };
 
   if (!subscribersRegistry.has(path)) {
@@ -180,22 +177,19 @@ function createSmartSubscriber<T>(path: string, callback: (data: T) => void, int
   }
   subscribersRegistry.get(path)!.add(runFetch);
 
-  // Initial fetch immediate, but staggered slightly to prevent AI Studio 429 rate limit on burst
-  const staggerMs = Math.floor(Math.random() * 500) + 100;
-  setTimeout(() => {
-    fetchApi(path).then(data => {
-      if (active) {
-        if (data !== undefined && data !== null) callback(data);
-        else if (defaultValue !== undefined) callback(defaultValue);
-      }
-    }).catch(err => console.error(`SmartSubscriber initial fetch error for ${path}:`, err));
-  }, staggerMs);
+  // Initial fetch immediate
+  fetchApi(path).then(data => {
+    if (active) {
+      if (data !== undefined && data !== null) callback(data);
+      else if (defaultValue !== undefined) callback(defaultValue);
+    }
+  }).catch(console.error);
 
   const interval = setInterval(runFetch, intervalMs);
 
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
-      setTimeout(runFetch, Math.floor(Math.random() * 500)); // Stagger visibility fetches too
+      runFetch();
     }
   };
   document.addEventListener('visibilitychange', handleVisibilityChange);
