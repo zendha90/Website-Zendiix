@@ -3,6 +3,7 @@ import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
 import { createServer as createViteServer } from 'vite';
+import compression from 'compression';
 import { db } from './src/db';
 import { products, incomingGoods, sales, salesDs, iklan, weeklySales, storefrontBanners, settings, reviews } from './src/db/schema';
 import { eq, desc, sql, and, ne } from 'drizzle-orm';
@@ -23,6 +24,7 @@ async function startServer() {
     return expressApp;
   }
 
+  app.use(compression());
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -195,7 +197,7 @@ async function startServer() {
     try {
       await Promise.race([
         db.execute(sql`SELECT 1`),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 3000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 15000))
       ]);
       console.log('Database health check succeeded. Restoring database connection.');
       isDbOnline = true;
@@ -227,7 +229,7 @@ async function startServer() {
       // Establish a quick ping. If this rejects, we abort the upgrades immediately to avoid blocking pool slots.
       await Promise.race([
         db.execute(sql`SELECT 1`),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Ping timeout')), 4000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Ping timeout')), 15000))
       ]);
       console.log('Database connectivity verified. Proceeding with passive schema checks...');
       isDbOnline = true;
@@ -329,7 +331,7 @@ async function startServer() {
       // Simple query to test connection with timeout protection
       await Promise.race([
         db.execute(sql`SELECT 1`),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection check timed out after 3.0 seconds')), 3000))
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Connection check timed out after 15.0 seconds')), 15000))
       ]);
       isDbOnline = true;
       res.json({ 
@@ -416,7 +418,7 @@ async function startServer() {
           try {
             const fresh = await Promise.race([
               fetchFn(),
-              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 3000))
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 20000))
             ]);
             serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
             console.log(`Background SWR cache refresh successful for key "${key}"`);
@@ -439,7 +441,7 @@ async function startServer() {
         try {
           const fresh = await Promise.race([
             fetchFn(),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 3000))
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 20000))
           ]);
           serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
           return fresh;
@@ -476,16 +478,43 @@ async function startServer() {
   app.get('/api/products', async (req, res) => {
     try {
       if (!isDbOnline) {
-        const sorted = [...fallbackData.products].sort((a, b) => b.id.localeCompare(a.id));
+        const sorted = [...fallbackData.products].sort((a, b) => b.id.localeCompare(a.id)).map(p => ({ ...p, imageUrl: undefined, seriesImageUrl: undefined }));
         return res.json(sorted);
       }
-      const allProducts = await getCached('products', () => 
-        db.select().from(products).orderBy(desc(products.createdAt))
+      const allProducts = await getCached('products_light', () => 
+        db.select({
+          id: products.id,
+          kodeBarang: products.kodeBarang,
+          namaBarang: products.namaBarang,
+          supplier: products.supplier,
+          hargaBeli: products.hargaBeli,
+          hargaJual: products.hargaJual,
+          stokAwal: products.stokAwal,
+          stokBarang: products.stokBarang,
+          terjual: products.terjual,
+          color: products.color,
+          bc: products.bc,
+          kadarAir: products.kadarAir,
+          durasi: products.durasi,
+          gDia: products.gDia,
+          diameter: products.diameter,
+          rating: products.rating,
+          reviewsCount: products.reviewsCount,
+          allowDualPower: products.allowDualPower,
+          groupName: products.groupName,
+          customCategory: products.customCategory,
+          hideSpecs: products.hideSpecs,
+          notSoftlens: products.notSoftlens,
+          description: products.description,
+          isFlashSale: products.isFlashSale,
+          createdAt: products.createdAt,
+          updatedAt: products.updatedAt
+        }).from(products).orderBy(desc(products.createdAt))
       );
       res.json(allProducts);
     } catch (error) {
       console.error('Error fetching products, returning local fallback products:', error);
-      const sorted = [...fallbackData.products].sort((a, b) => b.id.localeCompare(a.id));
+      const sorted = [...fallbackData.products].sort((a, b) => b.id.localeCompare(a.id)).map(p => ({ ...p, imageUrl: undefined, seriesImageUrl: undefined }));
       res.json(sorted);
     }
   });

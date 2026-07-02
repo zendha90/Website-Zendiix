@@ -34,9 +34,9 @@ if (process.env.DATABASE_URL) {
       user: parsed.username,
       password: safePassword,
       database: parsed.pathname.substring(1).split('?')[0],
-      connectionLimit: 3, 
-      connectTimeout: 5000, 
-      waitForConnections: false,
+      connectionLimit: 4, 
+      connectTimeout: 10000, 
+      waitForConnections: true,
       queueLimit: 0,
       ...queryParams,
     };

@@ -172,7 +172,7 @@ function createSmartSubscriber<T>(path: string, callback: (data: T) => void, int
           else if (defaultValue !== undefined) callback(defaultValue);
         }
       })
-      .catch(console.error);
+      .catch(err => console.error(`SmartSubscriber fetch error for ${path}:`, err));
   };
 
   if (!subscribersRegistry.has(path)) {
@@ -180,19 +180,22 @@ function createSmartSubscriber<T>(path: string, callback: (data: T) => void, int
   }
   subscribersRegistry.get(path)!.add(runFetch);
 
-  // Initial fetch immediate
-  fetchApi(path).then(data => {
-    if (active) {
-      if (data !== undefined && data !== null) callback(data);
-      else if (defaultValue !== undefined) callback(defaultValue);
-    }
-  }).catch(console.error);
+  // Initial fetch immediate, but staggered slightly to prevent AI Studio 429 rate limit on burst
+  const staggerMs = Math.floor(Math.random() * 500) + 100;
+  setTimeout(() => {
+    fetchApi(path).then(data => {
+      if (active) {
+        if (data !== undefined && data !== null) callback(data);
+        else if (defaultValue !== undefined) callback(defaultValue);
+      }
+    }).catch(err => console.error(`SmartSubscriber initial fetch error for ${path}:`, err));
+  }, staggerMs);
 
   const interval = setInterval(runFetch, intervalMs);
 
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
-      runFetch();
+      setTimeout(runFetch, Math.floor(Math.random() * 500)); // Stagger visibility fetches too
     }
   };
   document.addEventListener('visibilitychange', handleVisibilityChange);
