@@ -375,29 +375,18 @@ const WEEKS_DEFINITION: WeekDef[] = [
 
 function parseProductName(name: string) {
   const clean = name.trim();
-  
-  // Match the power suffix at the end of the string:
-  // e.g. "-10,00", "Plano", "-1.50", "+2.00", etc.
-  const powerRegex = /([-+–—−]?\s*\d+(?:[.,]\d+)?|normal|plano)$/i;
+  const powerRegex = /\s+([-+]?\d+([.,]\d+)?|normal|plano)$/i;
   const match = clean.match(powerRegex);
   
   if (match) {
-    const powerStr = match[1].toLowerCase().trim();
-    // Strip the matched power from the end of the string
-    let baseName = clean.substring(0, clean.length - match[0].length).trim();
-    
-    // Also strip any trailing separators from baseName (like space, hyphen, plus)
-    baseName = baseName.replace(/[-+–—−\s]+$/, "").trim();
+    const powerStr = match[1].toLowerCase();
+    const baseName = clean.substring(0, clean.length - match[0].length).trim();
     
     let power = 0;
     if (powerStr === "normal" || powerStr === "plano") {
       power = 0;
     } else {
-      const cleanPowerStr = powerStr
-        .replace(/\s+/g, "")
-        .replace(/[–—−]/g, "-")
-        .replace(",", ".");
-      power = parseFloat(cleanPowerStr);
+      power = parseFloat(powerStr.replace(",", "."));
     }
     return { baseName, power };
   }
@@ -1490,12 +1479,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     total: number;
   } | null>(null);
 
-  const [savingProgress, setSavingProgress] = useState<{
-    current: number;
-    total: number;
-    title?: string;
-  } | null>(null);
-
   // Product Form state
   const [namaBarang, setNamaBarang] = useState("");
   const [kodeBarang, setKodeBarang] = useState("");
@@ -1810,8 +1793,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     const prod = products.find((p) => p.id === incomingForm.productId);
     if (!prod) return;
 
-    setSavingProgress({ current: 0, total: 1, title: "Menyimpan Data Barang Masuk" });
-
     try {
       await addIncomingGood({
         productId: prod.id!,
@@ -1825,8 +1806,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       setIncomingForm({ qty: 1 });
     } catch (err) {
       alert("Gagal menambah barang masuk");
-    } finally {
-      setSavingProgress(null);
     }
   };
 
@@ -1950,10 +1929,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       return;
     }
 
-    setSavingProgress({ current: 0, total: itemsToSave.length, title: "Menyinkronkan Data Barang Masuk" });
-
-    for (let i = 0; i < itemsToSave.length; i++) {
-      const item = itemsToSave[i];
+    for (const item of itemsToSave) {
       const cleanName = item.rawName.trim();
       let matched: Product | undefined = undefined;
 
@@ -2035,7 +2011,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           prodSupplier = item.customProductDetails?.supplier || "";
         } catch (err) {
           console.error("Gagal membuat produk otomatis:", cleanName, err);
-          setSavingProgress({ current: i + 1, total: itemsToSave.length, title: "Menyinkronkan Data Barang Masuk" });
           continue;
         }
       }
@@ -2053,10 +2028,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       } catch (e) {
         console.error("Error adding incoming good", e);
       }
-      setSavingProgress({ current: i + 1, total: itemsToSave.length, title: "Menyinkronkan Data Barang Masuk" });
     }
 
-    setSavingProgress(null);
     alert(`Berhasil menyinkronkan ${successCount} data barang masuk!`);
     setIsIncomingTextModalOpen(false);
     setRawText("");
@@ -2165,9 +2138,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   const handleUpdateSaleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editSaleId) return;
-
-    setSavingProgress({ current: 0, total: 1, title: "Mengupdate Data Penjualan" });
-
     try {
       let hppValue = saleForm.hpp || 0;
       let totalHppValue = saleForm.totalHpp || 0;
@@ -2198,8 +2168,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       setSaleForm({});
     } catch (err) {
       alert("Gagal mengupdate transaksi");
-    } finally {
-      setSavingProgress(null);
     }
   };
 
@@ -2348,7 +2316,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       baseProducts.sort((a: any, b: any) => {
         const aVal = a[sortConfig.key] ?? "";
         const bVal = b[sortConfig.key] ?? "";
-        if (sortConfig.key === "namaBarang" || sortConfig.key === "kodeBarang") {
+        if (sortConfig.key === "namaBarang") {
           const sA = String(aVal);
           const sB = String(bVal);
           const pA = parseProductName(sA);
@@ -2688,17 +2656,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       }
     }
 
-    const itemsToSave = draftSales.filter((d) => d.jenisBarang);
-    if (itemsToSave.length === 0) {
-      alert("Tidak ada baris valid untuk disimpan. Pastikan nama barang terisi.");
-      return;
-    }
-
-    setSavingProgress({ current: 0, total: itemsToSave.length, title: "Menyimpan Transaksi Penjualan" });
-
     let successCount = 0;
-    for (let i = 0; i < itemsToSave.length; i++) {
-      const draft = itemsToSave[i];
+    for (const draft of draftSales) {
+      if (!draft.jenisBarang) continue;
+
       const product = findMatchedProduct(draft.jenisBarang, draft.productId);
 
       if (product) {
@@ -2736,10 +2697,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           console.error("Sale error", e);
         }
       }
-      setSavingProgress({ current: i + 1, total: itemsToSave.length, title: "Menyimpan Transaksi Penjualan" });
     }
 
-    setSavingProgress(null);
     alert(`Berhasil menyimpan ${successCount} data penjualan!`);
     setDraftSales(() => {
       return Array.from({ length: 100 }, (_, i) => ({
@@ -3193,11 +3152,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       }
     }
 
-    setSavingProgress({ current: 0, total: validDrafts.length, title: "Menyimpan Penjualan Dropship (DS)" });
-
     let successCount = 0;
-    for (let i = 0; i < validDrafts.length; i++) {
-      const draft = validDrafts[i];
+    for (const draft of validDrafts) {
       try {
         await addSaleDSRecord({
           kodeSupplier: draft.kodeSupplier,
@@ -3218,10 +3174,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       } catch (e) {
         console.error("Failed to add dropship sale record", e);
       }
-      setSavingProgress({ current: i + 1, total: validDrafts.length, title: "Menyimpan Penjualan Dropship (DS)" });
     }
 
-    setSavingProgress(null);
     alert(`Berhasil menyimpan ${successCount} data penjualan Dropship (DS)!`);
     
     // Automatically prepare export for the last saved record
@@ -3289,28 +3243,19 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     e.preventDefault();
     if (!editingIklan.tanggal || !editingIklan.totalPembayaran) return;
 
-    setSavingProgress({ current: 0, total: 1, title: "Menyimpan Data Pengeluaran Iklan" });
-
     const data = {
       tanggal: editingIklan.tanggal,
       totalPembayaran: Number(editingIklan.totalPembayaran),
       noPesanan: editingIklan.noPesanan || "",
     };
 
-    try {
-      if (editingIklan.id) {
-        await updateIklan({ id: editingIklan.id, ...data });
-      } else {
-        await addIklanRecord(data);
-      }
-      setIsIklanModalOpen(false);
-      setEditingIklan({});
-    } catch (err) {
-      console.error("Gagal menyimpan data iklan", err);
-      alert("Gagal menyimpan data pengeluaran iklan.");
-    } finally {
-      setSavingProgress(null);
+    if (editingIklan.id) {
+      await updateIklan({ id: editingIklan.id, ...data });
+    } else {
+      await addIklanRecord(data);
     }
+    setIsIklanModalOpen(false);
+    setEditingIklan({});
   };
 
   const [iklanToDelete, setIklanToDelete] = useState<Iklan | null>(null);
@@ -3330,8 +3275,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
     e.preventDefault();
     if (editingWeekly.tahun === undefined || editingWeekly.bulan === undefined || editingWeekly.minggu === undefined) return;
 
-    setSavingProgress({ current: 0, total: 1, title: "Menyimpan Perubahan Penjualan" });
-
     const data: Omit<WeeklySale, "id" | "createdAt"> = {
       tahun: Number(editingWeekly.tahun),
       bulan: Number(editingWeekly.bulan),
@@ -3346,20 +3289,13 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       hpp: Number(editingWeekly.hpp) || 0,
     };
 
-    try {
-      if (editingWeekly.id) {
-        await updateWeeklySale({ id: editingWeekly.id, ...data } as WeeklySale);
-      } else {
-        await addWeeklySaleRecord(data);
-      }
-      setIsWeeklyModalOpen(false);
-      setEditingWeekly({});
-    } catch (err) {
-      console.error("Gagal menyimpan data mingguan", err);
-      alert("Gagal menyimpan perubahan.");
-    } finally {
-      setSavingProgress(null);
+    if (editingWeekly.id) {
+      await updateWeeklySale({ id: editingWeekly.id, ...data } as WeeklySale);
+    } else {
+      await addWeeklySaleRecord(data);
     }
+    setIsWeeklyModalOpen(false);
+    setEditingWeekly({});
   };
 
   const [draftIklan, setDraftIklan] = useState<DraftIklan[]>(() => []); // Initially empty now
@@ -3466,11 +3402,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       return;
     }
 
-    setSavingProgress({ current: 0, total: validDrafts.length, title: "Menyimpan Pengeluaran Iklan" });
-
     let successCount = 0;
-    for (let i = 0; i < validDrafts.length; i++) {
-      const draft = validDrafts[i];
+    for (const draft of validDrafts) {
       try {
         await addIklanRecord({
           tanggal: draft.tanggal,
@@ -3481,10 +3414,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       } catch (e) {
         console.error("Failed to add iklan record", e);
       }
-      setSavingProgress({ current: i + 1, total: validDrafts.length, title: "Menyimpan Pengeluaran Iklan" });
     }
 
-    setSavingProgress(null);
     alert(`Berhasil menyimpan ${successCount} data iklan!`);
     setDraftIklan(() => {
       return Array.from({ length: 100 }, (_, i) => ({
@@ -3648,8 +3579,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       return;
     // Note: stokBarang (Masuk) is optional, defaults to 0 if not provided
 
-    setSavingProgress({ current: 0, total: 1, title: editProductId ? "Mengupdate Data Barang" : "Menyimpan Data Barang" });
-
     const existingProduct = editProductId
       ? products.find((p) => p.id === editProductId)
       : products.find(
@@ -3708,8 +3637,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
       handleCancelEdit();
     } catch (e) {
       console.error("Failed to save product", e);
-    } finally {
-      setSavingProgress(null);
     }
   };
 
@@ -9458,42 +9385,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                 }}
               ></div>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* SAVING PROGRESS MODAL */}
-      {savingProgress && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white border-4 border-slate-900 w-full max-w-sm p-8 shadow-[12px_12px_0px_0px_#0f172a] flex flex-col items-center text-center gap-6">
-            <div className="relative flex items-center justify-center">
-              <div className="w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
-              <Save className="w-5 h-5 text-indigo-600 absolute" />
-            </div>
-            <div>
-              <h3 className="text-xl font-black text-slate-900 mb-2 flex items-center justify-center gap-2 uppercase tracking-widest">
-                {savingProgress.title || "Menyimpan..."}
-              </h3>
-              {savingProgress.total > 1 ? (
-                <p className="text-sm text-slate-500 font-bold">
-                  Memproses {savingProgress.current} dari {savingProgress.total} baris.
-                </p>
-              ) : (
-                <p className="text-sm text-slate-500 font-bold">
-                  Sedang memproses, harap tunggu...
-                </p>
-              )}
-            </div>
-            {savingProgress.total > 1 && (
-              <div className="w-full bg-slate-100 rounded-full h-3 mb-2 overflow-hidden">
-                <div
-                  className="bg-indigo-600 h-3 rounded-full transition-all duration-300 ease-out"
-                  style={{
-                    width: `${Math.round((savingProgress.current / savingProgress.total) * 100)}%`,
-                  }}
-                ></div>
-              </div>
-            )}
           </div>
         </div>
       )}
