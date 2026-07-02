@@ -137,7 +137,10 @@ export async function fetchApi(path: string, options?: RequestInit) {
       ...options?.headers,
     },
   });
-  if (!res.ok) throw new Error(`API Error: ${res.statusText}`);
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`API Error: ${res.status} ${errText || res.statusText}`);
+  }
   return res.json();
 }
 

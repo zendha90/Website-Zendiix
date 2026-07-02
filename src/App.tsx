@@ -1208,7 +1208,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
   // TanStack Query for state caching, auto window-focus-refetching, and smart client sync
   const { data: qSales } = useQuery<Sale[]>({
     queryKey: ["sales"],
-    queryFn: () => fetch("/api/sales").then(res => res.json()),
+    queryFn: () => fetch("/api/sales").then(async (res) => {
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }),
     refetchInterval: 60000,
     staleTime: 30000,
     enabled: isAuthenticated,
@@ -1216,7 +1219,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
   const { data: qSalesDS } = useQuery<SaleDS[]>({
     queryKey: ["salesDS"],
-    queryFn: () => fetch("/api/sales-ds").then(res => res.json()),
+    queryFn: () => fetch("/api/sales-ds").then(async (res) => {
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }),
     refetchInterval: 60000,
     staleTime: 30000,
     enabled: isAuthenticated,
@@ -1224,7 +1230,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
   const { data: qIncoming } = useQuery<IncomingGood[]>({
     queryKey: ["incomingGoods"],
-    queryFn: () => fetch("/api/incoming-goods").then(res => res.json()),
+    queryFn: () => fetch("/api/incoming-goods").then(async (res) => {
+      if (!res.ok) throw new Error(await res.text());
+      return res.json();
+    }),
     refetchInterval: 60000,
     staleTime: 30000,
     enabled: isAuthenticated,
@@ -1244,14 +1253,20 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
   useEffect(() => {
     fetch('/api/admin/check-config')
-      .then(res => res.json())
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+        return res.json();
+      })
       .then(data => {
         if (data && data.hasCustomPassword) {
           setHasCustomPassword(true);
         }
       })
       .catch(err => {
-        console.error('Failed to check admin password config', err);
+        console.error('Failed to check admin password config:', err.message);
       });
   }, []);
 
@@ -9718,7 +9733,13 @@ export default function App() {
 
   useEffect(() => {
     fetch('/api/health-check')
-      .then(res => res.json())
+      .then(async (res) => {
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+        return res.json();
+      })
       .then(data => {
         if (data.status === 'error') {
           setDbError({
@@ -9730,7 +9751,7 @@ export default function App() {
         }
       })
       .catch(err => {
-        console.error('Failed to run database health check:', err);
+        console.error('Failed to run database health check:', err.message);
       });
   }, []);
 

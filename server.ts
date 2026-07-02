@@ -26,6 +26,10 @@ async function startServer() {
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
+  const serverCache = new Map<string, { data: any; expires: number }>();
+  const pendingQueries = new Map<string, Promise<any>>();
+  const CACHE_STALE_MS = 15000; // Cache database reads for 15 seconds
+
   const FALLBACK_FILE = path.join(process.cwd(), 'fallback_db.json');
 
   let fallbackData: any = {
@@ -117,15 +121,42 @@ async function startServer() {
       if (fs.existsSync(FALLBACK_FILE)) {
         const contents = fs.readFileSync(FALLBACK_FILE, 'utf8');
         const parsed = JSON.parse(contents);
-        if (parsed.products) fallbackData.products = parsed.products;
-        if (parsed.incomingGoods) fallbackData.incomingGoods = parsed.incomingGoods;
-        if (parsed.sales) fallbackData.sales = parsed.sales;
-        if (parsed.salesDs) fallbackData.salesDs = parsed.salesDs;
-        if (parsed.iklan) fallbackData.iklan = parsed.iklan;
-        if (parsed.weeklySales) fallbackData.weeklySales = parsed.weeklySales;
-        if (parsed.storefrontBanners) fallbackData.storefrontBanners = parsed.storefrontBanners;
-        if (parsed.settings) fallbackData.settings = parsed.settings;
-        if (parsed.reviews) fallbackData.reviews = parsed.reviews;
+        if (parsed.products) {
+          fallbackData.products = parsed.products;
+          serverCache.set('products', { data: fallbackData.products, expires: Date.now() + CACHE_STALE_MS });
+        }
+        if (parsed.incomingGoods) {
+          fallbackData.incomingGoods = parsed.incomingGoods;
+          serverCache.set('incoming-goods', { data: fallbackData.incomingGoods, expires: Date.now() + CACHE_STALE_MS });
+        }
+        if (parsed.sales) {
+          fallbackData.sales = parsed.sales;
+          serverCache.set('sales', { data: fallbackData.sales, expires: Date.now() + CACHE_STALE_MS });
+        }
+        if (parsed.salesDs) {
+          fallbackData.salesDs = parsed.salesDs;
+          serverCache.set('sales-ds', { data: fallbackData.salesDs, expires: Date.now() + CACHE_STALE_MS });
+        }
+        if (parsed.iklan) {
+          fallbackData.iklan = parsed.iklan;
+          serverCache.set('iklan', { data: fallbackData.iklan, expires: Date.now() + CACHE_STALE_MS });
+        }
+        if (parsed.weeklySales) {
+          fallbackData.weeklySales = parsed.weeklySales;
+          serverCache.set('weekly-sales', { data: fallbackData.weeklySales, expires: Date.now() + CACHE_STALE_MS });
+        }
+        if (parsed.storefrontBanners) {
+          fallbackData.storefrontBanners = parsed.storefrontBanners;
+          serverCache.set('banners', { data: fallbackData.storefrontBanners, expires: Date.now() + CACHE_STALE_MS });
+        }
+        if (parsed.settings) {
+          fallbackData.settings = parsed.settings;
+          serverCache.set('branding', { data: fallbackData.settings[0] || null, expires: Date.now() + CACHE_STALE_MS });
+        }
+        if (parsed.reviews) {
+          fallbackData.reviews = parsed.reviews;
+          serverCache.set('reviews', { data: fallbackData.reviews, expires: Date.now() + CACHE_STALE_MS });
+        }
       } else {
         saveFallbackData();
       }
@@ -367,10 +398,7 @@ async function startServer() {
   // Resilient caching layer to handle DB load spikes and cPanel's 5 max_user_connections constraints.
   // When a database read fails due to connections, we serve the latest stale cached data or defaults.
   // We use Stale-While-Revalidate and Request Coalescing to make reads sub-millisecond and protect the pool from concurrent spikes.
-  const serverCache = new Map<string, { data: any; expires: number }>();
-  const pendingQueries = new Map<string, Promise<any>>();
-  const CACHE_STALE_MS = 15000; // Cache database reads for 15 seconds
-
+  
   async function getCached<T>(key: string, fetchFn: () => Promise<T>): Promise<T> {
     const cached = serverCache.get(key);
     const now = Date.now();
@@ -388,7 +416,7 @@ async function startServer() {
           try {
             const fresh = await Promise.race([
               fetchFn(),
-              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 5000))
+              new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 3000))
             ]);
             serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
             console.log(`Background SWR cache refresh successful for key "${key}"`);
@@ -411,7 +439,7 @@ async function startServer() {
         try {
           const fresh = await Promise.race([
             fetchFn(),
-            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 5000))
+            new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 3000))
           ]);
           serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
           return fresh;

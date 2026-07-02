@@ -33,15 +33,11 @@ if (process.env.DATABASE_URL) {
       port: parsed.port ? parseInt(parsed.port) : 3306,
       user: parsed.username,
       password: safePassword,
-      database: parsed.pathname.substring(1).split('?')[0], // remove leading / and query string if present
-      connectionLimit: 2, // Strict limit to prevent exceeding max user connections (5)
-      maxIdle: 2,
-      idleTimeout: 30000, // 30 seconds
-      connectTimeout: 2000, // 2 seconds fast connection timeout
-      waitForConnections: true,
+      database: parsed.pathname.substring(1).split('?')[0],
+      connectionLimit: 3, 
+      connectTimeout: 5000, 
+      waitForConnections: false,
       queueLimit: 0,
-      enableKeepAlive: true,
-      keepAliveInitialDelay: 10000,
       ...queryParams,
     };
 
