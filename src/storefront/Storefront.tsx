@@ -22,7 +22,9 @@ import {
   ArrowLeft,
   ShoppingBag as CartIcon,
   Instagram,
-  Music
+  Music,
+  Camera,
+  Upload
 } from 'lucide-react';
 import { Product, Sale, IncomingGood, subscribeToSales, subscribeToIncomingGoods, BrandingSettings, Review, subscribeToReviews, addReview } from '../services';
 
@@ -284,6 +286,8 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
   const [newReviewName, setNewReviewName] = useState('');
   const [newReviewRating, setNewReviewRating] = useState(5);
   const [newReviewComment, setNewReviewComment] = useState('');
+  const [newReviewPhoto, setNewReviewPhoto] = useState('');
+  const [isCompressingPhoto, setIsCompressingPhoto] = useState(false);
 
   useEffect(() => {
     return subscribeToReviews(setReviews);
@@ -298,6 +302,47 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     );
   }, [reviews, selectedSeries]);
 
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsCompressingPhoto(true);
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        
+        // Max dimension 400px for nice quality yet extremely lightweight
+        const maxDim = 400;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+        
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(img, 0, 0, width, height);
+          // Compress to JPEG with 0.7 quality to ensure it stays extremely small
+          const compressedDataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          setNewReviewPhoto(compressedDataUrl);
+        }
+        setIsCompressingPhoto(false);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const handleSubmitReview = async () => {
     if (!selectedSeries || !newReviewName.trim() || !newReviewComment.trim()) return;
     try {
@@ -306,11 +351,12 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
         reviewerName: newReviewName.trim(),
         rating: newReviewRating,
         comment: newReviewComment.trim(),
-        photoUrl: ''
+        photoUrl: newReviewPhoto
       });
       setNewReviewName('');
       setNewReviewRating(5);
       setNewReviewComment('');
+      setNewReviewPhoto('');
       setToastMessage("Terima kasih! Ulasan Anda telah terkirim.");
     } catch (err) {
       console.error(err);
@@ -1270,6 +1316,22 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                             ))}
                           </div>
                           <p className="text-[11px] text-neutral-600 font-medium leading-relaxed">{review.comment}</p>
+                          {review.photoUrl && (
+                            <div 
+                              className="mt-2 w-16 h-16 rounded-md overflow-hidden border border-neutral-100 bg-neutral-50 relative cursor-pointer"
+                              onClick={() => setFullScreenImage({ urls: [review.photoUrl!], index: 0 })}
+                            >
+                              <img 
+                                src={review.photoUrl} 
+                                alt={`Ulasan dari ${review.reviewerName}`} 
+                                width="64"
+                                height="64"
+                                loading="lazy"
+                                className="w-full h-full object-cover" 
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -1314,9 +1376,43 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                         className="w-full bg-white border border-neutral-200 rounded p-2.5 text-[11px] font-bold focus:outline-none focus:ring-1 focus:ring-slate-950"
                       />
                     </div>
+                    <div className="space-y-1">
+                      <label className="text-[8.5px] font-bold text-neutral-400 uppercase tracking-wider block">Foto Ulasan (Opsional)</label>
+                      {newReviewPhoto ? (
+                        <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-neutral-200 bg-white shadow-xs group">
+                          <img 
+                            src={newReviewPhoto} 
+                            alt="Preview ulasan" 
+                            className="w-full h-full object-cover" 
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setNewReviewPhoto('')}
+                            className="absolute top-1 right-1 bg-red-500 text-white p-1 rounded-full hover:bg-red-600 transition-colors shadow-xs"
+                            aria-label="Hapus foto"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center border border-dashed border-neutral-300 rounded-lg p-3.5 cursor-pointer bg-white hover:border-slate-950 hover:bg-neutral-50 transition-all text-center">
+                          <Camera className="w-4 h-4 text-neutral-400 mb-1" />
+                          <span className="text-[9.5px] font-bold text-neutral-500">
+                            {isCompressingPhoto ? "Memproses..." : "Ambil Foto / Upload"}
+                          </span>
+                          <input 
+                            type="file" 
+                            accept="image/*" 
+                            onChange={handlePhotoUpload} 
+                            disabled={isCompressingPhoto}
+                            className="hidden" 
+                          />
+                        </label>
+                      )}
+                    </div>
                     <button
                       onClick={handleSubmitReview}
-                      disabled={!newReviewName.trim() || !newReviewComment.trim()}
+                      disabled={!newReviewName.trim() || !newReviewComment.trim() || isCompressingPhoto}
                       className="w-full py-2 bg-slate-950 text-white hover:bg-slate-900 rounded font-bold text-[10px] uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       Kirim Ulasan • Gratis

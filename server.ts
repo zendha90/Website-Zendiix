@@ -310,6 +310,9 @@ async function startServer() {
         )
       `);
     } catch (e) {}
+    try {
+      await db.execute(sql`ALTER TABLE reviews MODIFY COLUMN photo_url MEDIUMTEXT NULL`);
+    } catch (e) {}
     console.log('Background schema check and bootstrap completed successfully.');
   })().catch(err => {
     console.error('Warning: Background database schema bootstrap check failed, server will remain active:', err);
