@@ -1809,15 +1809,23 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
           <section className="p-2 mt-4 text-left">
             <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest pl-2 mb-3">BEST REVIEW</h3>
             <div className="grid grid-cols-2 gap-2">
-              {(reviews.length > 0 
-                ? [...reviews].sort((a, b) => b.rating - a.rating).slice(0, 4)
-                : [
-                    { id: "r1", reviewerName: "Rara Amelia", rating: 5, comment: "Softlens paling nyaman yang pernah aku pakai! Gak gampang kering sama sekali.", photoUrl: "https://picsum.photos/seed/re1/300/300" },
-                    { id: "r2", reviewerName: "Indah Permata", rating: 5, comment: "Warnanya natural banget di mata, kelihatan anggun dan mewah. Pengiriman cepat!", photoUrl: "https://picsum.photos/seed/re2/300/300" },
-                    { id: "r3", reviewerName: "Siti Rahma", rating: 5, comment: "Sangat recommended untuk mata sensitif. Rapi dan dapat bonus case lucu.", photoUrl: "https://picsum.photos/seed/re3/300/300" },
-                    { id: "r4", reviewerName: "Zahra A.", rating: 5, comment: "Zendiix softlens emang juara. Udah langganan beli di sini dan selalu puas.", photoUrl: "https://picsum.photos/seed/re4/300/300" }
-                  ]
-              ).map((rev) => (
+              {(() => {
+                const pinnedReviews = reviews.filter(r => r.isPinned);
+                if (pinnedReviews.length > 0) {
+                  return pinnedReviews.slice(0, 4);
+                }
+                // Fallback to highest rated reviews if none are pinned
+                if (reviews.length > 0) {
+                  return [...reviews].sort((a, b) => b.rating - a.rating).slice(0, 4);
+                }
+                // Default fallback if database is empty/offline
+                return [
+                  { id: "r1", reviewerName: "Rara Amelia", rating: 5, comment: "Softlens paling nyaman yang pernah aku pakai! Gak gampang kering sama sekali.", photoUrl: "https://picsum.photos/seed/re1/300/300" },
+                  { id: "r2", reviewerName: "Indah Permata", rating: 5, comment: "Warnanya natural banget di mata, kelihatan anggun dan mewah. Pengiriman cepat!", photoUrl: "https://picsum.photos/seed/re2/300/300" },
+                  { id: "r3", reviewerName: "Siti Rahma", rating: 5, comment: "Sangat recommended untuk mata sensitif. Rapi dan dapat bonus case lucu.", photoUrl: "https://picsum.photos/seed/re3/300/300" },
+                  { id: "r4", reviewerName: "Zahra A.", rating: 5, comment: "Zendiix softlens emang juara. Udah langganan beli di sini dan selalu puas.", photoUrl: "https://picsum.photos/seed/re4/300/300" }
+                ];
+              })().map((rev) => (
                 <div key={rev.id} className="bg-white rounded-md overflow-hidden border border-neutral-100 flex flex-col justify-between">
                   <div className="aspect-square bg-neutral-100 relative overflow-hidden">
                      {rev.photoUrl ? (

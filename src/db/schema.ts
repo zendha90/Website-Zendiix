@@ -135,5 +135,6 @@ export const reviews = mysqlTable('reviews', {
   rating: int('rating').notNull(),
   comment: text('comment'),
   photoUrl: text('photo_url'),
+  isPinned: boolean('is_pinned').default(false),
   createdAt: timestamp('created_at').defaultNow(),
 });

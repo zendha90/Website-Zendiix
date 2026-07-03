@@ -115,6 +115,7 @@ export interface Review {
   rating: number;
   comment?: string;
   photoUrl?: string;
+  isPinned?: boolean;
   createdAt?: any;
 }
 
