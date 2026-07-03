@@ -1,6 +1,48 @@
 import React, { useState, useEffect } from "react";
-import { Review, subscribeToReviews } from "../services";
-import { Star, ChevronLeft, Search, ArrowLeft, AlertTriangle, Sparkles, Database } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Review, subscribeToReviews, Product } from "../services";
+import { Star, ChevronLeft, Search, ArrowLeft, AlertTriangle, Sparkles, Database, ChevronRight } from "lucide-react";
+
+const getSeriesNameFromProduct = (product: any): string => {
+  if (product.groupName && product.groupName.trim() !== "") {
+    return product.groupName.trim();
+  }
+
+  let name = product.namaBarang;
+  
+  name = name.replace(/series master families/i, '');
+  name = name.replace(/master families/i, '');
+  name = name.replace(/\bseries\b/i, '');
+
+  name = name.replace(/-\s*\d+[,.]\d+/g, '');
+  name = name.replace(/-\s*\d+/g, '');
+  name = name.replace(/\b\d+[,.]\d+\b/g, '');
+  
+  name = name.replace(/(plano|normal|0\.00|0,00|\bsph\b|\bpower\b)/i, '');
+  
+  if (product.color) {
+    const colorWord = product.color.trim();
+    if (colorWord) {
+      const colorRegex = new RegExp(`\\b${colorWord}\\b`, 'i');
+      name = name.replace(colorRegex, '');
+    }
+  }
+
+  const additionalColors = [
+    'brown', 'choco', 'coklat', 'grey', 'gray', 'abu', 'hazel', 
+    'gold', 'blue', 'biru', 'green', 'hijau', 'olive', 'pink', 
+    'rose', 'clear', 'black', 'hitam', 'nude', 'dark'
+  ];
+  additionalColors.forEach(c => {
+    const r = new RegExp(`\\b${c}\\b`, 'i');
+    name = name.replace(r, '');
+  });
+
+  name = name.replace(/\s+/g, ' ').trim();
+  name = name.replace(/^[-–—\s,;.()\s[]]+|[-–—\s,;.()\s\]]+$/g, '');
+
+  return name || product.namaBarang;
+};
 
 interface CustomerReviewsProps {
   branding?: {
@@ -13,13 +55,22 @@ interface CustomerReviewsProps {
     message: string;
     suggestedIp?: string;
   } | null;
+  products?: Product[];
 }
 
-export function CustomerReviews({ branding, dbError }: CustomerReviewsProps) {
+export function CustomerReviews({ branding, dbError, products = [] }: CustomerReviewsProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
 
   const [selectedFilter, setSelectedFilter] = useState<string>("all");
+
+  const getProductForReview = (productId: string) => {
+    if (!products || products.length === 0 || !productId) return null;
+    return products.find(p => {
+      const seriesName = (p.groupName || getSeriesNameFromProduct(p)).toLowerCase();
+      return seriesName === productId.toLowerCase();
+    });
+  };
 
   useEffect(() => {
     return subscribeToReviews(setReviews);
@@ -198,6 +249,38 @@ export function CustomerReviews({ branding, dbError }: CustomerReviewsProps) {
                       />
                     </div>
                   )}
+
+                  {review.productId && (() => {
+                    const matchedProd = getProductForReview(review.productId);
+                    const seriesName = review.productId;
+                    const imageSrc = matchedProd?.imageUrl || matchedProd?.seriesImageUrl || `https://picsum.photos/seed/${seriesName}/100/100`;
+                    
+                    return (
+                      <Link 
+                        to={`/?product=${encodeURIComponent(seriesName)}`}
+                        className="mt-3 flex items-center gap-3 p-2 bg-neutral-50 hover:bg-neutral-100/80 active:scale-[0.98] rounded-lg border border-neutral-100/80 transition-all group cursor-pointer"
+                      >
+                        <div className="w-10 h-10 rounded-md overflow-hidden bg-white border border-neutral-200 shrink-0">
+                          <img 
+                            src={imageSrc} 
+                            alt={seriesName} 
+                            width="40"
+                            height="40"
+                            loading="lazy"
+                            className="w-full h-full object-cover group-hover:scale-105 transition-transform"
+                          />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-wider block">Produk yang diulas</span>
+                          <h4 className="text-[11px] font-extrabold text-slate-800 truncate group-hover:text-slate-950 transition-colors uppercase font-display">{seriesName} Series</h4>
+                        </div>
+                        <div className="text-[10px] font-bold text-slate-950 group-hover:translate-x-0.5 transition-transform flex items-center gap-0.5 shrink-0 px-2 py-1 bg-white rounded border border-neutral-200/60 shadow-3xs">
+                          <span>Beli</span>
+                          <ChevronRight className="w-3.5 h-3.5 text-slate-950" />
+                        </div>
+                      </Link>
+                    );
+                  })()}
                 </div>
               ))
             )}

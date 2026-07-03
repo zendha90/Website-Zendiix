@@ -1415,7 +1415,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                       disabled={!newReviewName.trim() || !newReviewComment.trim() || isCompressingPhoto}
                       className="w-full py-2 bg-slate-950 text-white hover:bg-slate-900 rounded font-bold text-[10px] uppercase tracking-wider transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      Kirim Ulasan • Gratis
+                      Kirim Ulasan
                     </button>
                   </div>
                 </div>
@@ -1837,17 +1837,42 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                      )}
                   </div>
                   <div className="p-2 flex-grow flex flex-col justify-between">
-                    <div className="flex items-center gap-1.5">
-                      <div className="w-5 h-5 bg-slate-900 text-white rounded-full flex items-center justify-center text-[8px] font-black uppercase">
-                        {rev.reviewerName.slice(0, 2)}
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-5 h-5 bg-slate-900 text-white rounded-full flex items-center justify-center text-[8px] font-black uppercase">
+                          {rev.reviewerName.slice(0, 2)}
+                        </div>
+                        <span className="text-[9.5px] font-extrabold text-slate-800 truncate block max-w-[80px]">{rev.reviewerName}</span>
                       </div>
-                      <span className="text-[9.5px] font-extrabold text-slate-800 truncate block max-w-[80px]">{rev.reviewerName}</span>
+                      {rev.comment && (
+                        <p className="text-[9.5px] text-neutral-600 mt-1.5 line-clamp-2 leading-relaxed font-sans">
+                          "{rev.comment}"
+                        </p>
+                      )}
                     </div>
-                    {rev.comment && (
-                      <p className="text-[9.5px] text-neutral-600 mt-1.5 line-clamp-2 leading-relaxed font-sans">
-                        "{rev.comment}"
-                      </p>
-                    )}
+
+                    {(() => {
+                      const defaultProductId1 = groupedSeriesList[0]?.seriesName || "Zendiix Pearl";
+                      const defaultProductId2 = groupedSeriesList[1]?.seriesName || groupedSeriesList[0]?.seriesName || "Aura";
+                      const reviewProductId = (rev as any).productId || (rev.id === "r1" || rev.id === "r3" ? defaultProductId1 : defaultProductId2);
+                      const foundSeries = groupedSeriesList.find(s => s.seriesName.trim().toLowerCase() === reviewProductId?.trim().toLowerCase());
+                      
+                      if (!foundSeries) return null;
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedSeries(foundSeries);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className="mt-2.5 flex items-center gap-1 p-1 bg-neutral-50 hover:bg-neutral-100/90 active:scale-95 rounded text-[8.5px] font-bold text-slate-900 border border-neutral-100 transition-all max-w-full text-left truncate cursor-pointer font-sans"
+                        >
+                          <span className="text-neutral-400 shrink-0">Lensa:</span>
+                          <span className="truncate flex-1 font-extrabold uppercase text-slate-800">{foundSeries.seriesName}</span>
+                          <span className="text-slate-900 text-[7px] font-black shrink-0 px-1 py-0.2 bg-white rounded border border-neutral-200/60 shadow-3xs ml-1">LIHAT</span>
+                        </button>
+                      );
+                    })()}
                   </div>
                 </div>
               ))}

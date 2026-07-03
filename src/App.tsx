@@ -9835,7 +9835,7 @@ export default function App() {
       <div className="flex-1 flex flex-col">
         <Routes>
           <Route path="/" element={<Storefront products={products} banners={banners} branding={branding} isLoading={loadingProducts} />} />
-          <Route path="/customer/reviews" element={<CustomerReviews branding={branding} dbError={dbError} />} />
+          <Route path="/customer/reviews" element={<CustomerReviews branding={branding} dbError={dbError} products={products} />} />
           <Route path="/admin/*" element={<AppContent sharedProducts={products} sharedBanners={banners} sharedBranding={branding} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
