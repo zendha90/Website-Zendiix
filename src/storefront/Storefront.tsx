@@ -930,7 +930,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               /* Elegant Cosmetics Brand Branding with Mall/Boutique Gold Accent Badge */
               <div className="flex items-center gap-2 flex-shrink-0">
                 {branding?.logoUrl ? (
-                  <img src={branding.logoUrl} alt="Logo" className="h-8 w-auto object-contain" />
+                  <img src={branding.logoUrl} alt="Logo" width="128" height="32" className="h-8 w-auto object-contain" />
                 ) : (
                   <span className="font-display text-2xl font-black tracking-tighter leading-none text-slate-950">
                     {branding?.logoText || "ZENDIIX"}
@@ -945,11 +945,11 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               </div>
             ) : !isFilterVisible ? (
               <div className="flex-1 relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
                 <input 
                   type="text" 
                   placeholder="Cari Seri atau Warna..."
-                  className="w-full h-10 pl-9 pr-4 bg-neutral-100 text-neutral-800 rounded-md text-xs font-bold placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all"
+                  className="w-full h-10 pl-9 pr-4 bg-neutral-100 text-neutral-800 rounded-md text-xs font-bold placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-slate-900 transition-all"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
@@ -961,7 +961,8 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
             {/* enlarged Cart Button & Notif badge */}
             <button 
               onClick={() => setIsCartOpen(true)}
-              className="relative p-2.5 hover:bg-neutral-50 rounded-full transition-all flex items-center justify-center cursor-pointer flex-shrink-0"
+              aria-label="Keranjang Belanja"
+              className="relative w-11 h-11 hover:bg-neutral-50 rounded-full transition-all flex items-center justify-center cursor-pointer flex-shrink-0"
             >
               <ShoppingBag className="w-[22px] h-[22px] text-slate-900" />
               {cart.length > 0 && (
@@ -974,7 +975,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
         </header>
 
         {/* Main Phone Screen Viewport Area */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-10 scrollbar-none">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pb-10 scrollbar-none">
           
           {selectedSeries ? (() => {
             const stats = getSeriesStatistics(selectedSeries);
@@ -1003,14 +1004,18 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                   <img 
                     src={currentImageUrl}
                     alt={selectedSeries.seriesName}
+                    width="480"
+                    height="480"
                     className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
                     referrerPolicy="no-referrer"
+                    {...{ fetchPriority: "high" } as any}
                   />
                   
                   {/* Float share button */}
                   <button
                     onClick={() => handleShare(selectedSeries.seriesName)}
-                    className="absolute right-4 top-4 bg-white/90 backdrop-blur-md p-2.5 rounded-full shadow-md text-slate-800 hover:bg-white transition-all hover:scale-110 active:scale-95"
+                    aria-label="Bagikan & Salin Link Produk"
+                    className="absolute right-4 top-4 bg-white/90 backdrop-blur-md w-11 h-11 p-2.5 rounded-full shadow-md text-slate-800 hover:bg-white transition-all hover:scale-110 active:scale-95 flex items-center justify-center"
                     title="Bagikan & Salin Link"
                   >
                     <svg className="w-5 h-5 stroke-[2.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
@@ -1026,20 +1031,21 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                 {/* Thumbnails Gallery inside page */}
                 {displayImageUrls.length > 1 && (
                   <div className="px-4 py-3 bg-neutral-50/50 border-b border-neutral-100">
-                    <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest block font-display mb-1.5 font-sans">Galeri Foto Lensa</span>
+                    <span className="text-[10px] font-bold text-neutral-500 uppercase tracking-widest block font-display mb-1.5 font-sans">Galeri Foto Lensa</span>
                     <div className="flex items-center gap-2 overflow-x-auto pb-1 scrollbar-none">
                       {displayImageUrls.map((thumbUrl, idx) => (
                         <button
                           key={idx}
                           type="button"
                           onClick={() => setActiveImageIdx(idx)}
-                          className={`w-12 h-12 rounded overflow-hidden border transition-all shrink-0 ${
+                          aria-label={`Lihat gambar produk ke ${idx + 1}`}
+                          className={`w-12 h-12 rounded overflow-hidden border transition-all shrink-0 flex items-center justify-center ${
                             activeImageIdx === idx 
                               ? 'border-slate-950 ring-2 ring-slate-950/20 scale-95' 
                               : 'border-neutral-200 opacity-80 hover:opacity-100'
                           }`}
                         >
-                          <img src={thumbUrl} alt="" className="w-full h-full object-cover" />
+                          <img src={thumbUrl} alt="" width="48" height="48" loading="lazy" className="w-full h-full object-cover" />
                         </button>
                       ))}
                     </div>
@@ -1337,16 +1343,24 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                           <img 
                             src={slide.imageUrl} 
                             alt={`Promo Banner ${idx + 1}`} 
+                            width="480"
+                            height="600"
                             className="w-full h-full object-cover"
                             referrerPolicy="no-referrer"
+                            loading={idx === 0 ? "eager" : "lazy"}
+                            {...(idx === 0 ? { fetchPriority: "high" } as any : {})}
                           />
                         </a>
                       ) : (
                         <img 
                           src={slide.imageUrl} 
                           alt={`Promo Banner ${idx + 1}`} 
+                          width="480"
+                          height="600"
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
+                          loading={idx === 0 ? "eager" : "lazy"}
+                          {...(idx === 0 ? { fetchPriority: "high" } as any : {})}
                         />
                       )}
                     </div>
@@ -1424,13 +1438,14 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                         className="w-24 shrink-0 bg-neutral-50 p-1.5 border border-dashed border-neutral-200 rounded-md text-left cursor-pointer hover:border-neutral-400 hover:shadow-xs transition-all block text-neutral-900 leading-normal"
                       >
                         <div className="aspect-square bg-white rounded-md overflow-hidden relative mb-1">
-                          <img src={imageSrc} alt="" className="w-full h-full object-cover" />
+                          <img src={imageSrc} alt={series.seriesName} width="96" height="96" loading="lazy" className="w-full h-full object-cover" />
                           <button
                             onClick={(e) => {
                               e.preventDefault();
                               e.stopPropagation();
                               handleShare(series.seriesName);
                             }}
+                            aria-label={`Salin Link Produk ${series.seriesName}`}
                             className="absolute top-1 left-1 p-1 bg-white/95 hover:bg-slate-900 hover:text-white text-neutral-700 rounded-full shadow-sm z-10 transition-all cursor-pointer hover:scale-110 active:scale-95 flex items-center justify-center border border-neutral-100"
                             title="Salin Link Produk"
                           >
@@ -1612,6 +1627,9 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                         <img 
                           src={imageSrc}
                           alt={series.seriesName}
+                          width="220"
+                          height="220"
+                          loading="lazy"
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
                         />
@@ -1623,6 +1641,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                             e.stopPropagation();
                             handleShare(series.seriesName);
                           }}
+                          aria-label={`Salin Link Produk ${series.seriesName}`}
                           className="absolute top-2 right-2 p-1.5 bg-white/95 hover:bg-slate-900 hover:text-white text-neutral-700 rounded-full shadow-md z-10 transition-all cursor-pointer hover:scale-110 active:scale-95 flex items-center justify-center border border-neutral-100"
                           title="Salin Link Produk"
                         >
@@ -1691,20 +1710,48 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
           </section>
 
           {/* BEST REVIEW */}
-          <section className="p-2 mt-4">
+          <section className="p-2 mt-4 text-left">
             <h3 className="text-sm font-black text-slate-800 uppercase tracking-widest pl-2 mb-3">BEST REVIEW</h3>
             <div className="grid grid-cols-2 gap-2">
-              {[1, 2, 3, 4].map((item) => (
-                <div key={item} className="bg-white rounded-md overflow-hidden border border-neutral-100 flex flex-col">
-                  <div className="aspect-square bg-neutral-200 relative">
-                     <div className="absolute inset-0 flex items-center justify-center text-neutral-400 text-xs font-bold">Image</div>
+              {(reviews.length > 0 
+                ? [...reviews].sort((a, b) => b.rating - a.rating).slice(0, 4)
+                : [
+                    { id: "r1", reviewerName: "Rara Amelia", rating: 5, comment: "Softlens paling nyaman yang pernah aku pakai! Gak gampang kering sama sekali.", photoUrl: "https://picsum.photos/seed/re1/300/300" },
+                    { id: "r2", reviewerName: "Indah Permata", rating: 5, comment: "Warnanya natural banget di mata, kelihatan anggun dan mewah. Pengiriman cepat!", photoUrl: "https://picsum.photos/seed/re2/300/300" },
+                    { id: "r3", reviewerName: "Siti Rahma", rating: 5, comment: "Sangat recommended untuk mata sensitif. Rapi dan dapat bonus case lucu.", photoUrl: "https://picsum.photos/seed/re3/300/300" },
+                    { id: "r4", reviewerName: "Zahra A.", rating: 5, comment: "Zendiix softlens emang juara. Udah langganan beli di sini dan selalu puas.", photoUrl: "https://picsum.photos/seed/re4/300/300" }
+                  ]
+              ).map((rev) => (
+                <div key={rev.id} className="bg-white rounded-md overflow-hidden border border-neutral-100 flex flex-col justify-between">
+                  <div className="aspect-square bg-neutral-100 relative overflow-hidden">
+                     {rev.photoUrl ? (
+                       <img 
+                         src={rev.photoUrl} 
+                         alt={`Ulasan dari ${rev.reviewerName}`} 
+                         width="150"
+                         height="150"
+                         loading="lazy"
+                         className="w-full h-full object-cover"
+                         referrerPolicy="no-referrer"
+                       />
+                     ) : (
+                       <div className="absolute inset-0 flex items-center justify-center bg-neutral-100 text-neutral-400 text-[10px] font-bold">
+                         Rating ⭐ {rev.rating}
+                       </div>
+                     )}
                   </div>
-                  <div className="p-2 flex-grow">
-                    <div className="flex items-center gap-1">
-                      <div className="w-5 h-5 bg-neutral-300 rounded-full"></div>
-                      <span className="text-[9px] font-bold">User Name</span>
+                  <div className="p-2 flex-grow flex flex-col justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <div className="w-5 h-5 bg-slate-900 text-white rounded-full flex items-center justify-center text-[8px] font-black uppercase">
+                        {rev.reviewerName.slice(0, 2)}
+                      </div>
+                      <span className="text-[9.5px] font-extrabold text-slate-800 truncate block max-w-[80px]">{rev.reviewerName}</span>
                     </div>
-                    <p className="text-[10px] text-neutral-600 mt-2 line-clamp-3">Review comment sample text...</p>
+                    {rev.comment && (
+                      <p className="text-[9.5px] text-neutral-600 mt-1.5 line-clamp-2 leading-relaxed font-sans">
+                        "{rev.comment}"
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
@@ -1755,16 +1802,25 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                   <img 
                     src="https://upload.wikimedia.org/wikipedia/commons/a/a2/Logo_QRIS.svg" 
                     alt="QRIS" 
+                    width="50"
+                    height="16"
+                    loading="lazy"
                     className="h-4 object-contain"
                   />
                   <img 
                     src="https://upload.wikimedia.org/wikipedia/commons/5/5c/Bank_Central_Asia.svg" 
                     alt="BCA" 
+                    width="50"
+                    height="14"
+                    loading="lazy"
                     className="h-3.5 object-contain"
                   />
                   <img 
                     src="https://upload.wikimedia.org/wikipedia/commons/a/ad/Bank_Mandiri_logo_2016.svg" 
                     alt="Mandiri" 
+                    width="50"
+                    height="14"
+                    loading="lazy"
                     className="h-3.5 object-contain"
                   />
                 </div>
@@ -1781,7 +1837,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
             </>
           )}
 
-        </div>
+        </main>
 
         {/* 3. PERSISTENT SHOPEE-STYLE BOTTOM SHEETS VARIANT SELECTOR */}
         <AnimatePresence>

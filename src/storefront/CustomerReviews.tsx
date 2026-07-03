@@ -83,7 +83,7 @@ export function CustomerReviews({ branding, dbError }: CustomerReviewsProps) {
         </header>
 
         {/* Main reviews content with bottom padding */}
-        <div className="flex-1 overflow-y-auto overflow-x-hidden pb-10 scrollbar-none">
+        <main className="flex-1 overflow-y-auto overflow-x-hidden pb-10 scrollbar-none">
           
           {/* dbError cPanel MySQL Connection Warning Box (Matched consistently if offline) */}
           {dbError && (
@@ -138,13 +138,14 @@ export function CustomerReviews({ branding, dbError }: CustomerReviewsProps) {
           {/* Elegant Search Input */}
           <div className="px-4 mb-4">
             <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-400 w-4 h-4" />
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 w-4 h-4" />
               <input 
                 type="text"
                 placeholder="Cari ulasan pelanggan secara spesifik..."
+                aria-label="Cari ulasan pelanggan"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full h-10 pl-9 pr-4 bg-neutral-100 text-neutral-800 rounded-md text-xs font-bold placeholder-neutral-400 focus:outline-none focus:ring-2 focus:ring-slate-950 transition-all font-sans"
+                className="w-full h-10 pl-9 pr-4 bg-neutral-100 text-neutral-800 rounded-md text-xs font-bold placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-slate-950 transition-all font-sans"
               />
             </div>
           </div>
@@ -189,6 +190,9 @@ export function CustomerReviews({ branding, dbError }: CustomerReviewsProps) {
                       <img 
                         src={review.photoUrl} 
                         alt="Review upload" 
+                        width="150"
+                        height="150"
+                        loading="lazy"
                         className="w-full h-full object-cover" 
                         referrerPolicy="no-referrer"
                       />
@@ -237,16 +241,25 @@ export function CustomerReviews({ branding, dbError }: CustomerReviewsProps) {
                   <img 
                     src="https://upload.wikimedia.org/wikipedia/commons/a/a2/Logo_QRIS.svg" 
                     alt="QRIS" 
+                    width="50"
+                    height="16"
+                    loading="lazy"
                     className="h-4 object-contain"
                   />
                   <img 
                     src="https://upload.wikimedia.org/wikipedia/commons/5/5c/Bank_Central_Asia.svg" 
                     alt="BCA" 
+                    width="50"
+                    height="14"
+                    loading="lazy"
                     className="h-3.5 object-contain"
                   />
                   <img 
                     src="https://upload.wikimedia.org/wikipedia/commons/a/ad/Bank_Mandiri_logo_2016.svg" 
                     alt="Mandiri" 
+                    width="50"
+                    height="14"
+                    loading="lazy"
                     className="h-3.5 object-contain"
                   />
                 </div>
@@ -262,7 +275,7 @@ export function CustomerReviews({ branding, dbError }: CustomerReviewsProps) {
             </div>
           </footer>
 
-        </div>
+        </main>
       </div>
     </div>
   );
