@@ -395,6 +395,45 @@ async function startServer() {
     return cleaned;
   };
 
+  const stripDuplicateImages = (productsList: any[]) => {
+    const seriesImageSaved = new Set<string>();
+    const colorImageSaved = new Set<string>();
+    
+    return productsList.map(p => {
+      let seriesName = p.groupName ? p.groupName.trim() : "";
+      if (!seriesName && p.namaBarang) {
+        let name = p.namaBarang;
+        name = name.replace(/series master families/i, '').replace(/master families/i, '').replace(/\bseries\b/i, '');
+        name = name.replace(/-\s*\d+[,.]\d+/g, '').replace(/-\s*\d+/g, '');
+        name = name.replace(/\s+/g, ' ').trim();
+        seriesName = name;
+      }
+      const seriesKey = (seriesName || "Unknown").toLowerCase();
+      const color = (p.color || "Clear").toLowerCase();
+      const colorKey = `${seriesKey}::${color}`;
+      
+      const copy = { ...p };
+      
+      if (copy.seriesImageUrl && copy.seriesImageUrl.trim() !== "") {
+        if (seriesImageSaved.has(seriesKey)) {
+          copy.seriesImageUrl = "";
+        } else {
+          seriesImageSaved.add(seriesKey);
+        }
+      }
+      
+      if (copy.imageUrl && copy.imageUrl.trim() !== "") {
+        if (colorImageSaved.has(colorKey)) {
+          copy.imageUrl = "";
+        } else {
+          colorImageSaved.add(colorKey);
+        }
+      }
+      
+      return copy;
+    });
+  };
+
   // Resilient caching layer to handle DB load spikes and cPanel's 5 max_user_connections constraints.
   // When a database read fails due to connections, we serve the latest stale cached data or defaults.
   // We use Stale-While-Revalidate and Request Coalescing to make reads sub-millisecond and protect the pool from concurrent spikes.
@@ -477,16 +516,16 @@ async function startServer() {
     try {
       if (!isDbOnline) {
         const sorted = [...fallbackData.products].sort((a, b) => b.id.localeCompare(a.id));
-        return res.json(sorted);
+        return res.json(stripDuplicateImages(sorted));
       }
       const allProducts = await getCached('products', () => 
         db.select().from(products).orderBy(desc(products.createdAt))
       );
-      res.json(allProducts);
+      res.json(stripDuplicateImages(allProducts));
     } catch (error) {
       console.error('Error fetching products, returning local fallback products:', error);
       const sorted = [...fallbackData.products].sort((a, b) => b.id.localeCompare(a.id));
-      res.json(sorted);
+      res.json(stripDuplicateImages(sorted));
     }
   });
 

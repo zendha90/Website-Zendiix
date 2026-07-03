@@ -418,11 +418,25 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
 
   // Sync state and calculate dynamic stocks for each individual variant product
   const productsWithStock = useMemo(() => {
+    const salesMap = new Map<string, number>();
+    for (let i = 0; i < sales.length; i++) {
+      const s = sales[i];
+      if (s.productId) {
+        salesMap.set(s.productId, (salesMap.get(s.productId) || 0) + s.qty);
+      }
+    }
+
+    const incomingMap = new Map<string, number>();
+    for (let i = 0; i < incomingGoods.length; i++) {
+      const ig = incomingGoods[i];
+      if (ig.productId) {
+        incomingMap.set(ig.productId, (incomingMap.get(ig.productId) || 0) + ig.qty);
+      }
+    }
+
     return products.map(p => {
-      const productSales = sales.filter(s => s.productId === p.id);
-      const totalTerjual = productSales.reduce((sum, s) => sum + s.qty, 0);
-      const productIncoming = incomingGoods.filter(ig => ig.productId === p.id);
-      const totalMasuk = productIncoming.reduce((sum, ig) => sum + ig.qty, 0);
+      const totalTerjual = salesMap.get(p.id!) || 0;
+      const totalMasuk = incomingMap.get(p.id!) || 0;
       const currentStock = (p.stokAwal || 0) + totalMasuk - totalTerjual;
       return { ...p, stokBarang: currentStock };
     });

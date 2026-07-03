@@ -1,4 +1,4 @@
-import { mysqlTable, varchar, int, double, timestamp, boolean, json, text } from 'drizzle-orm/mysql-core';
+import { mysqlTable, varchar, int, double, timestamp, boolean, json, text, index } from 'drizzle-orm/mysql-core';
 
 export const products = mysqlTable('products', {
   id: varchar('id', { length: 255 }).primaryKey(),
@@ -29,7 +29,11 @@ export const products = mysqlTable('products', {
   isFlashSale: boolean('is_flash_sale').default(false),
   createdAt: timestamp('created_at').defaultNow(),
   updatedAt: timestamp('updated_at').defaultNow().onUpdateNow(),
-});
+}, (table) => ({
+  groupNameIdx: index('group_name_idx').on(table.groupName),
+  kodeBarangIdx: index('kode_barang_idx').on(table.kodeBarang),
+  createdAtIdx: index('created_at_idx').on(table.createdAt),
+}));
 
 export const incomingGoods = mysqlTable('incoming_goods', {
   id: varchar('id', { length: 255 }).primaryKey(),
@@ -39,7 +43,9 @@ export const incomingGoods = mysqlTable('incoming_goods', {
   qty: int('qty').notNull(),
   supplier: varchar('supplier', { length: 255 }),
   tanggal: timestamp('tanggal').defaultNow(),
-});
+}, (table) => ({
+  productIdIdx: index('incoming_goods_product_id_idx').on(table.productId),
+}));
 
 export const sales = mysqlTable('sales', {
   id: varchar('id', { length: 255 }).primaryKey(),
@@ -57,7 +63,10 @@ export const sales = mysqlTable('sales', {
   totalHpp: double('total_hpp'),
   laba: double('laba'),
   tanggal: timestamp('tanggal').defaultNow(),
-});
+}, (table) => ({
+  productIdIdx: index('sales_product_id_idx').on(table.productId),
+  tanggalIdx: index('sales_tanggal_idx').on(table.tanggal),
+}));
 
 export const salesDs = mysqlTable('sales_ds', {
   id: varchar('id', { length: 255 }).primaryKey(),
