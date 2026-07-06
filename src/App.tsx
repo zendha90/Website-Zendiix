@@ -47,6 +47,7 @@ import {
   subscribeToIncomingGoods,
   upsertProduct,
   deleteProduct,
+  deleteProductsBatch,
   processSale,
   addSaleRecord,
   processSalesBulk,
@@ -1667,6 +1668,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
 
   const [editProductId, setEditProductId] = useState<string | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [selectedProductIds, setSelectedProductIds] = useState<string[]>([]);
+  const [isMultiDeleteModalOpen, setIsMultiDeleteModalOpen] = useState(false);
 
   const [isSaleModalOpen, setIsSaleModalOpen] = useState(false);
   const [editSaleId, setEditSaleId] = useState<string | null>(null);
@@ -5610,8 +5613,16 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                     <Package className="w-6 h-6 border-2 border-slate-900 bg-indigo-100 p-0.5 shadow-[2px_2px_0px_0px_#0f172a]" />
                     Data Stok & Barang
                   </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-auto lg:flex lg:items-center">
-                    <div className="relative w-full lg:w-64">
+                  <div className="flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3 w-full lg:w-auto">
+                    {selectedProductIds.length > 0 && (
+                      <button
+                        onClick={() => setIsMultiDeleteModalOpen(true)}
+                        className="h-10 px-4 bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[2px] hover:translate-x-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-y-[4px] active:translate-x-[4px] active:shadow-none transition-all flex items-center justify-center gap-2"
+                      >
+                        <Trash2 className="w-4 h-4 shrink-0" /> HAPUS TERPILIH ({selectedProductIds.length})
+                      </button>
+                    )}
+                    <div className="relative w-full sm:w-64">
                       <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
                       <input
                         type="text"
@@ -5851,6 +5862,20 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                   <table className="w-full text-left whitespace-nowrap min-w-[1200px] border-collapse table-auto">
                     <thead className="bg-slate-900 text-white sticky top-0 z-10 text-xs uppercase tracking-widest font-black">
                       <tr>
+                        <th className="px-4 py-4 border-r border-slate-700 w-12 text-center bg-slate-850">
+                          <input
+                            type="checkbox"
+                            checked={sortedAndFilteredProducts.length > 0 && sortedAndFilteredProducts.every(p => selectedProductIds.includes(p.id))}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setSelectedProductIds(sortedAndFilteredProducts.map(p => p.id));
+                              } else {
+                                setSelectedProductIds([]);
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 accent-indigo-600 cursor-pointer"
+                          />
+                        </th>
                         <th className="px-6 py-4 text-xs font-black text-slate-100 uppercase tracking-widest text-center border-r border-slate-700 w-[140px]">
                           AKSI
                         </th>
@@ -5943,7 +5968,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                         <tr>
                           <td
                              className="px-6 py-4 pt-10 text-xs text-center text-slate-400 font-black uppercase tracking-widest"
-                             colSpan={13}
+                             colSpan={14}
                           >
                              Belum ada data barang.
                           </td>
@@ -5952,7 +5977,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                         <>
                           {virtualizedProducts.topSpacerHeight > 0 && (
                             <tr style={{ height: `${virtualizedProducts.topSpacerHeight}px` }}>
-                              <td colSpan={13} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedProducts.topSpacerHeight}px` }} />
+                              <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedProducts.topSpacerHeight}px` }} />
                             </tr>
                           )}
                           {virtualizedProducts.slice.map((p: any, idx) => {
@@ -5965,6 +5990,20 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                                 key={p.id}
                                 className={`${bgColor} hover:bg-slate-100 transition-colors border-b border-slate-200 group`}
                               >
+                                <td className="px-4 py-3 text-center border-r border-slate-200 w-12 bg-slate-50/50">
+                                  <input
+                                    type="checkbox"
+                                    checked={selectedProductIds.includes(p.id)}
+                                    onChange={(e) => {
+                                      if (e.target.checked) {
+                                        setSelectedProductIds((prev) => [...prev, p.id]);
+                                      } else {
+                                        setSelectedProductIds((prev) => prev.filter((id) => id !== p.id));
+                                      }
+                                    }}
+                                    className="w-4 h-4 rounded border-slate-300 accent-indigo-600 cursor-pointer"
+                                  />
+                                </td>
                                 <td className="px-3 py-3 text-center border-r border-slate-200 w-[140px]">
                                   <div className="flex items-center justify-center gap-1.5">
                                     <button
@@ -6039,7 +6078,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
                           })}
                           {virtualizedProducts.bottomSpacerHeight > 0 && (
                             <tr style={{ height: `${virtualizedProducts.bottomSpacerHeight}px` }}>
-                              <td colSpan={13} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedProducts.bottomSpacerHeight}px` }} />
+                              <td colSpan={14} className="p-0 border-0 h-[0px]" style={{ height: `${virtualizedProducts.bottomSpacerHeight}px` }} />
                             </tr>
                           )}
                         </>
@@ -7796,6 +7835,47 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
             <section className="col-span-12 max-w-7xl mx-auto w-full pt-8 pb-12">
               <BrandingTab branding={branding} banners={banners} />
             </section>
+          )}
+
+          {/* PRODUCT MULTI DELETE CONFIRM MODAL */}
+          {isMultiDeleteModalOpen && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
+              <div className="bg-white border-4 border-slate-900 w-full max-w-md p-8 shadow-[16px_16px_0px_0px_#0f172a] flex flex-col gap-8">
+                <div>
+                  <h3 className="text-2xl font-black text-rose-600 mb-4 flex items-center gap-2 uppercase tracking-widest">
+                    HAPUS BANYAK BARANG?
+                  </h3>
+                  <div className="p-4 bg-rose-50 border-2 border-rose-200 text-slate-900 font-bold text-sm space-y-4">
+                    <p>Apakah Anda yakin ingin menghapus <strong className="font-black text-rose-600">{selectedProductIds.length}</strong> barang yang dipilih?</p>
+                    <p className="text-xs italic text-rose-500 font-bold">
+                      ⚠️ Peringatan: Tindakan ini akan menghapus semua produk terpilih secara permanen dan tidak dapat dibatalkan.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-4 pt-4 border-t-2 border-slate-900">
+                  <button
+                    onClick={() => setIsMultiDeleteModalOpen(false)}
+                    className="flex-1 py-4 bg-white border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all cursor-pointer"
+                  >
+                    BATAL
+                  </button>
+                  <button
+                    onClick={async () => {
+                      try {
+                        await deleteProductsBatch(selectedProductIds);
+                        setSelectedProductIds([]);
+                        setIsMultiDeleteModalOpen(false);
+                      } catch (err) {
+                        console.error("Gagal menghapus produk terpilih:", err);
+                      }
+                    }}
+                    className="flex-1 py-4 bg-rose-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all cursor-pointer"
+                  >
+                    YA, HAPUS SEMUA
+                  </button>
+                </div>
+              </div>
+            </div>
           )}
 
           {/* PRODUCT DELETE CONFIRM MODAL */}
@@ -9690,6 +9770,54 @@ export default function App() {
   const [dbError, setDbError] = useState<{ message: string; suggestedIp?: string } | null>(null);
   const [isCopied, setIsCopied] = useState(false);
   const [isDismissed, setIsDismissed] = useState(false);
+  const [toasts, setToasts] = useState<{ id: string; message: string; type: "success" | "error" | "info" }[]>([]);
+
+  useEffect(() => {
+    const originalAlert = window.alert;
+
+    window.alert = (message: string) => {
+      if (!message || typeof message !== "string") return;
+
+      const id = Math.random().toString(36).substring(2, 9);
+      let type: "success" | "error" | "info" = "info";
+      
+      const lowercaseMsg = message.toLowerCase();
+      if (
+        lowercaseMsg.includes("berhasil") || 
+        lowercaseMsg.includes("sukses") || 
+        lowercaseMsg.includes("tersimpan") || 
+        lowercaseMsg.includes("saved") || 
+        lowercaseMsg.includes("success") || 
+        lowercaseMsg.includes("tersalin") ||
+        lowercaseMsg.includes("disalin") ||
+        lowercaseMsg.includes("cocok") ||
+        lowercaseMsg.includes("ditambahkan")
+      ) {
+        type = "success";
+      } else if (
+        lowercaseMsg.includes("gagal") || 
+        lowercaseMsg.includes("error") || 
+        lowercaseMsg.includes("failed") || 
+        lowercaseMsg.includes("salah") ||
+        lowercaseMsg.includes("tidak") ||
+        lowercaseMsg.includes("belum") ||
+        lowercaseMsg.includes("wajib") ||
+        lowercaseMsg.includes("pastikan")
+      ) {
+        type = "error";
+      }
+
+      setToasts((prev) => [...prev, { id, message, type }]);
+
+      setTimeout(() => {
+        setToasts((prev) => prev.filter((t) => t.id !== id));
+      }, 5000);
+    };
+
+    return () => {
+      window.alert = originalAlert;
+    };
+  }, []);
 
   useEffect(() => {
     fetch('/api/health-check')
@@ -9770,6 +9898,50 @@ export default function App() {
 
   return (
     <div className="min-h-screen flex flex-col relative">
+      {/* Toast Notifications Overlay */}
+      <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none px-4 sm:px-0">
+        {toasts.map((t) => (
+          <div
+            key={t.id}
+            className={`pointer-events-auto w-full flex items-start gap-3 p-4 bg-white border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] rounded-lg transition-all duration-300 animate-slide-in`}
+          >
+            <div className="shrink-0 mt-0.5">
+              {t.type === "success" && (
+                <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 border border-emerald-300">
+                  <Check className="w-3.5 h-3.5" />
+                </div>
+              )}
+              {t.type === "error" && (
+                <div className="w-6 h-6 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 border border-rose-300">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                </div>
+              )}
+              {t.type === "info" && (
+                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 border border-blue-300">
+                  <Sparkles className="w-3.5 h-3.5" />
+                </div>
+              )}
+            </div>
+            
+            <div className="flex-1 min-w-0">
+              <span className="text-[10px] font-black uppercase tracking-widest block mb-0.5 text-slate-400">
+                {t.type === "success" ? "Sukses" : t.type === "error" ? "Peringatan" : "Info"}
+              </span>
+              <p className="text-xs font-bold text-slate-800 leading-relaxed break-words">
+                {t.message}
+              </p>
+            </div>
+
+            <button
+              onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
+              className="shrink-0 p-1 text-neutral-400 hover:text-slate-800 hover:bg-neutral-100 rounded transition-all cursor-pointer"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
+
       {/* Troubleshooting Banner for Remote cPanel MySQL */}
       {dbError && !isDismissed && (
         <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200 text-amber-900 p-4 md:p-6 shadow-sm z-50">

@@ -5,7 +5,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { createServer as createViteServer } from 'vite';
 import { db } from './src/db';
 import { products, incomingGoods, sales, salesDs, iklan, weeklySales, storefrontBanners, settings, reviews } from './src/db/schema';
-import { eq, desc, sql, and, ne } from 'drizzle-orm';
+import { eq, desc, sql, and, ne, inArray } from 'drizzle-orm';
 
 // Global process listeners to prevent unhandled rejection crashes (essential for low max_user_connections database issues)
 process.on('unhandledRejection', (reason, promise) => {
@@ -998,6 +998,28 @@ async function startServer() {
     } catch (error) {
       console.error('Error clearing products in DB, falling back to local storage:', error);
       fallbackData.products = [];
+      saveFallbackData();
+      res.json({ success: true });
+    }
+  });
+
+  app.post('/api/products/batch-delete', async (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'IDs must be a non-empty array' });
+    }
+    try {
+      if (!isDbOnline) {
+        fallbackData.products = fallbackData.products.filter((p: any) => !ids.includes(p.id));
+        saveFallbackData();
+        return res.json({ success: true });
+      }
+      await db.delete(products).where(inArray(products.id, ids));
+      clearCache('products');
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error batch deleting products in DB, falling back to local storage:', error);
+      fallbackData.products = fallbackData.products.filter((p: any) => !ids.includes(p.id));
       saveFallbackData();
       res.json({ success: true });
     }
