@@ -1030,6 +1030,12 @@ async function startServer() {
     const { id } = req.params;
     const data = req.body;
     try {
+      const updateData = { ...data };
+      delete updateData.id;
+      if (updateData.tanggal) {
+        updateData.tanggal = new Date(updateData.tanggal);
+      }
+
       if (!isDbOnline) {
         const existingIdx = fallbackData.sales.findIndex((s: any) => s.id === id);
         if (existingIdx !== -1) {
@@ -1038,7 +1044,7 @@ async function startServer() {
         saveFallbackData();
         return res.json({ success: true });
       }
-      await db.update(sales).set(data).where(eq(sales.id, id));
+      await db.update(sales).set(updateData).where(eq(sales.id, id));
       clearCache('sales');
       res.json({ success: true });
     } catch (error) {
@@ -1094,6 +1100,12 @@ async function startServer() {
     const { id } = req.params;
     const data = req.body;
     try {
+      const updateData = { ...data };
+      delete updateData.id;
+      if (updateData.tanggal) {
+        updateData.tanggal = new Date(updateData.tanggal);
+      }
+
       if (!isDbOnline) {
         const existingIdx = fallbackData.salesDs.findIndex((s: any) => s.id === id);
         if (existingIdx !== -1) {
@@ -1102,7 +1114,7 @@ async function startServer() {
         saveFallbackData();
         return res.json({ success: true });
       }
-      await db.update(salesDs).set(data).where(eq(salesDs.id, id));
+      await db.update(salesDs).set(updateData).where(eq(salesDs.id, id));
       clearCache('sales-ds');
       res.json({ success: true });
     } catch (error) {
@@ -1196,6 +1208,12 @@ async function startServer() {
     const { id } = req.params;
     const data = req.body;
     try {
+      const updateData = { ...data };
+      delete updateData.id;
+      if (updateData.createdAt) {
+        updateData.createdAt = new Date(updateData.createdAt);
+      }
+
       if (!isDbOnline) {
         const existingIdx = fallbackData.iklan.findIndex((i: any) => i.id === id);
         if (existingIdx !== -1) {
@@ -1204,7 +1222,7 @@ async function startServer() {
         saveFallbackData();
         return res.json({ success: true });
       }
-      await db.update(iklan).set(data).where(eq(iklan.id, id));
+      await db.update(iklan).set(updateData).where(eq(iklan.id, id));
       clearCache('iklan');
       res.json({ success: true });
     } catch (error) {
@@ -1260,6 +1278,12 @@ async function startServer() {
     const { id } = req.params;
     const data = req.body;
     try {
+      const updateData = { ...data };
+      delete updateData.id;
+      if (updateData.createdAt) {
+        updateData.createdAt = new Date(updateData.createdAt);
+      }
+
       if (!isDbOnline) {
         const existingIdx = fallbackData.weeklySales.findIndex((w: any) => w.id === id);
         if (existingIdx !== -1) {
@@ -1268,7 +1292,7 @@ async function startServer() {
         saveFallbackData();
         return res.json({ success: true });
       }
-      await db.update(weeklySales).set(data).where(eq(weeklySales.id, id));
+      await db.update(weeklySales).set(updateData).where(eq(weeklySales.id, id));
       clearCache('weekly-sales');
       res.json({ success: true });
     } catch (error) {
