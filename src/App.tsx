@@ -1230,7 +1230,7 @@ function BannerUploadManager({ onAddBanner }: { onAddBanner: (imageUrl: string, 
   );
 }
 
-function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedProducts: Product[]; sharedBanners: StorefrontBanner[]; sharedBranding: BrandingSettings }) {
+function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadingProducts = false }: { sharedProducts: Product[]; sharedBanners: StorefrontBanner[]; sharedBranding: BrandingSettings; sharedLoadingProducts?: boolean }) {
   const [products, setProducts] = useState<Product[]>(sharedProducts);
   const [banners, setBanners] = useState<StorefrontBanner[]>(sharedBanners || []);
   const [branding, setBranding] = useState<BrandingSettings>(sharedBranding);
@@ -5274,12 +5274,24 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding }: { sharedP
           </div>
         </nav>
         <div className="p-4 border-t-2 border-slate-900">
-          <div className="bg-green-50 border-2 border-green-700 p-3 flex items-center gap-3 shadow-[3px_3px_0px_0px_#15803d]">
-            <div className="w-2.5 h-2.5 bg-green-500 border border-slate-900 rounded-full animate-pulse"></div>
-            <span className="text-[10px] font-black text-green-700 uppercase tracking-widest">
-              System Online
-            </span>
-          </div>
+          {sharedLoadingProducts ? (
+            <div className="bg-amber-50 border-2 border-amber-700 p-3 flex items-center gap-3 shadow-[3px_3px_0px_0px_#b45309] rounded">
+              <div className="w-2.5 h-2.5 bg-amber-500 border border-slate-900 rounded-full animate-bounce"></div>
+              <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">
+                MEMUAT DATABASE...
+              </span>
+            </div>
+          ) : (
+            <div className="bg-green-50 border-2 border-green-700 p-3 flex items-center gap-3 shadow-[3px_3px_0px_0px_#15803d] rounded">
+              <div className="w-2.5 h-2.5 bg-green-500 border border-slate-900 rounded-full animate-pulse"></div>
+              <span className="text-[10px] font-black text-green-700 uppercase tracking-widest leading-none">
+                SYSTEM ONLINE
+                <span className="block text-[8px] font-bold text-green-600 mt-0.5 lowercase tracking-normal">
+                  {products.length} produk terload
+                </span>
+              </span>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -11287,7 +11299,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Storefront products={products} banners={banners} branding={branding} isLoading={loadingProducts} />} />
           <Route path="/customer/reviews" element={<CustomerReviews branding={branding} dbError={dbError} products={products} />} />
-          <Route path="/admin/*" element={<AppContent sharedProducts={products} sharedBanners={banners} sharedBranding={branding} />} />
+          <Route path="/admin/*" element={<AppContent sharedProducts={products} sharedBanners={banners} sharedBranding={branding} sharedLoadingProducts={loadingProducts} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>
