@@ -1267,6 +1267,11 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
   const [incomingGoods, setIncomingGoods] = useState<IncomingGood[]>([]);
   const [iklanList, setIklanList] = useState<Iklan[]>([]);
   const [weeklySalesList, setWeeklySalesList] = useState<WeeklySale[]>([]);
+  const [loadingSales, setLoadingSales] = useState(false);
+  const [loadingSalesDS, setLoadingSalesDS] = useState(false);
+  const [loadingIncoming, setLoadingIncoming] = useState(false);
+  const [loadingIklan, setLoadingIklan] = useState(false);
+  const [loadingWeekly, setLoadingWeekly] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -3816,11 +3821,32 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
 
   useEffect(() => {
     if (isAuthenticated) {
-      const unsubSales = subscribeToSales(setSales);
-      const unsubSalesDS = subscribeToSalesDS(setSalesDS);
-      const unsubIncoming = subscribeToIncomingGoods(setIncomingGoods);
-      const unsubIklan = subscribeToIklan(setIklanList);
-      const unsubWeekly = subscribeToWeeklySales(setWeeklySalesList);
+      setLoadingSales(true);
+      setLoadingSalesDS(true);
+      setLoadingIncoming(true);
+      setLoadingIklan(true);
+      setLoadingWeekly(true);
+
+      const unsubSales = subscribeToSales((data) => {
+        setSales(data);
+        setLoadingSales(false);
+      });
+      const unsubSalesDS = subscribeToSalesDS((data) => {
+        setSalesDS(data);
+        setLoadingSalesDS(false);
+      });
+      const unsubIncoming = subscribeToIncomingGoods((data) => {
+        setIncomingGoods(data);
+        setLoadingIncoming(false);
+      });
+      const unsubIklan = subscribeToIklan((data) => {
+        setIklanList(data);
+        setLoadingIklan(false);
+      });
+      const unsubWeekly = subscribeToWeeklySales((data) => {
+        setWeeklySalesList(data);
+        setLoadingWeekly(false);
+      });
       return () => {
         unsubSales();
         unsubSalesDS();
@@ -3834,6 +3860,11 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
       setSalesDS([]);
       setIklanList([]);
       setWeeklySalesList([]);
+      setLoadingSales(false);
+      setLoadingSalesDS(false);
+      setLoadingIncoming(false);
+      setLoadingIklan(false);
+      setLoadingWeekly(false);
     }
   }, [isAuthenticated]);
 
@@ -5274,22 +5305,36 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
           </div>
         </nav>
         <div className="p-4 border-t-2 border-slate-900">
-          {sharedLoadingProducts ? (
-            <div className="bg-amber-50 border-2 border-amber-700 p-3 flex items-center gap-3 shadow-[3px_3px_0px_0px_#b45309] rounded">
-              <div className="w-2.5 h-2.5 bg-amber-500 border border-slate-900 rounded-full animate-bounce"></div>
-              <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest">
-                MEMUAT DATABASE...
-              </span>
+          {sharedLoadingProducts || (isAuthenticated && (loadingSales || loadingIncoming || loadingSalesDS || loadingIklan || loadingWeekly)) ? (
+            <div className="bg-amber-50 border-2 border-amber-700 p-3 flex flex-col gap-1.5 shadow-[3px_3px_0px_0px_#b45309] rounded">
+              <div className="flex items-center gap-3">
+                <div className="w-2.5 h-2.5 bg-amber-500 border border-slate-900 rounded-full animate-bounce"></div>
+                <span className="text-[10px] font-black text-amber-700 uppercase tracking-widest leading-none">
+                  MEMUAT DATABASE...
+                </span>
+              </div>
+              <div className="text-[8px] font-medium text-amber-600 space-y-0.5 pl-5.5">
+                {sharedLoadingProducts && <span className="block">• Produk & Katalog</span>}
+                {isAuthenticated && loadingSales && <span className="block">• Data Penjualan</span>}
+                {isAuthenticated && loadingIncoming && <span className="block">• Stok Barang Masuk</span>}
+                {isAuthenticated && loadingSalesDS && <span className="block">• Penjualan Dropship</span>}
+                {isAuthenticated && loadingIklan && <span className="block">• Database Iklan</span>}
+                {isAuthenticated && loadingWeekly && <span className="block">• Laporan Mingguan</span>}
+              </div>
             </div>
           ) : (
-            <div className="bg-green-50 border-2 border-green-700 p-3 flex items-center gap-3 shadow-[3px_3px_0px_0px_#15803d] rounded">
-              <div className="w-2.5 h-2.5 bg-green-500 border border-slate-900 rounded-full animate-pulse"></div>
-              <span className="text-[10px] font-black text-green-700 uppercase tracking-widest leading-none">
-                SYSTEM ONLINE
-                <span className="block text-[8px] font-bold text-green-600 mt-0.5 lowercase tracking-normal">
-                  {products.length} produk terload
+            <div className="bg-green-50 border-2 border-green-700 p-3 flex flex-col gap-1.5 shadow-[3px_3px_0px_0px_#15803d] rounded">
+              <div className="flex items-center gap-3">
+                <div className="w-2.5 h-2.5 bg-green-500 border border-slate-900 rounded-full animate-pulse"></div>
+                <span className="text-[10px] font-black text-green-700 uppercase tracking-widest leading-none">
+                  SYSTEM ONLINE
                 </span>
-              </span>
+              </div>
+              <div className="text-[8px] font-bold text-green-600 pl-5.5 space-y-0.5">
+                <span className="block">• {products.length} produk terload</span>
+                <span className="block">• {sales.length} data terjual</span>
+                <span className="block">• {incomingGoods.length} data stok masuk</span>
+              </div>
             </div>
           )}
         </div>
