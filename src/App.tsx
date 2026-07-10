@@ -4424,11 +4424,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
         const pCode = (p.kodeBarang || "").toLowerCase();
         
         if (pattern === "normal") {
+          const hasZeroPower = (str: string) => /(?:^|[^1-9])0[.,]00/.test(str);
           return pName.includes("normal") || 
-                 pName.includes("0,00") || 
-                 pName.includes("0.00") || 
-                 pCode.includes("0,00") || 
-                 pCode.includes("0.00") || 
+                 hasZeroPower(pName) || 
+                 hasZeroPower(pCode) || 
                  pName.includes("plano") || 
                  pName.includes("pln") || 
                  pCode.includes("plano") || 
