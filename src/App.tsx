@@ -93,7 +93,6 @@ import { CustomerReviews } from "./storefront/CustomerReviews";
 import { AdminReviews } from "./components/AdminReviews"; // ADD THIS
 import { KatalogTab } from "./components/KatalogTab";
 import { BrandingTab } from "./components/BrandingTab";
-import { PerformanceLabTab } from "./components/PerformanceLabTab";
 
 const DROPSHIP_SUPPLIERS = ["S-KIM", "S-akumaucantik", "S-LINA"];
 
@@ -5302,16 +5301,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                 Pengaturan Database
               </span>
             </button>
-
-            <button
-              onClick={() => { setActiveTab("optimasi"); setIsMobileSidebarOpen(false); }}
-              className={`w-full flex items-center gap-3 px-4 py-2.5 border-2 transition-all ${activeTab === "optimasi" ? "bg-indigo-600 text-white border-slate-900 shadow-[3px_3px_0px_0px_#0f172a] -translate-x-[1px] -translate-y-[1px]" : "text-slate-600 hover:bg-slate-50 border-transparent hover:border-slate-200"}`}
-            >
-              <Database className="w-4 h-4 text-amber-500" />
-              <span className="text-xs font-extrabold uppercase tracking-wide text-left">
-                Optimasi Performa
-              </span>
-            </button>
           </div>
         </nav>
         <div className="p-4 border-t-2 border-slate-900">
@@ -8147,13 +8136,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                   })()}
                 </div>
               </div>
-            </section>
-          )}
-
-          {/* Optimasi Performa TAB */}
-          {activeTab === "optimasi" && (
-            <section className="col-span-12 max-w-7xl mx-auto w-full pt-4 pb-12 px-4">
-              <PerformanceLabTab />
             </section>
           )}
 
