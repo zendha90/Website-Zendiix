@@ -853,16 +853,44 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     window.open(`https://wa.me/6282132612061?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
-  // SPH Powers default options list
+  // SPH Powers dynamic option list based on actual variants in the database for selected series & color
   const powerOptions = useMemo(() => {
-    const list = ['0.00'];
-    for (let i = 0.5; i <= 8.0; i += 0.25) {
-      if (i === 0.5 || i === 0.75 || i >= 1.0) {
-        list.push(`-${i.toFixed(2)}`);
+    if (!selectedSeries || !modalColor) {
+      return ['0.00'];
+    }
+    const matchingPowers = selectedSeries.variants
+      .filter(v => v.color.toLowerCase() === modalColor.toLowerCase())
+      .map(v => v.power);
+    
+    // De-duplicate
+    const uniquePowers = Array.from(new Set(matchingPowers)) as string[];
+    
+    if (uniquePowers.length === 0) {
+      return ['0.00'];
+    }
+
+    // Sort powers. Since powers are numeric string values (e.g. "-1.25", "0.00", "-0.50"),
+    // sort based on numeric value descending (so 0.00 is first, then negative powers descending: -0.50, -0.75, -1.00, etc.)
+    uniquePowers.sort((a, b) => {
+      const numA = parseFloat(a) || 0;
+      const numB = parseFloat(b) || 0;
+      return numB - numA;
+    });
+
+    return uniquePowers;
+  }, [selectedSeries, modalColor]);
+
+  // Synchronize selectedPowerL and selectedPowerR with the dynamic powerOptions
+  useEffect(() => {
+    if (powerOptions && powerOptions.length > 0) {
+      if (!powerOptions.includes(selectedPowerL)) {
+        setSelectedPowerL(powerOptions[0]);
+      }
+      if (!powerOptions.includes(selectedPowerR)) {
+        setSelectedPowerR(powerOptions[0]);
       }
     }
-    return list;
-  }, []);
+  }, [powerOptions, selectedPowerL, selectedPowerR]);
 
   // Compute stats of representative items
   const getSeriesStatistics = (series: GroupedSeries) => {

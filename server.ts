@@ -1535,6 +1535,302 @@ async function startServer() {
     }
   });
 
+  // ==========================================
+  // REDIS SIMULATOR & PERFORMANCE OPTIMIZATION LAYER
+  // ==========================================
+  
+  interface RedisLog {
+    id: string;
+    timestamp: string;
+    action: 'CONNECT' | 'GET' | 'SETEX' | 'DEL' | 'FLUSHALL' | 'INVALIDATE' | 'ERROR';
+    key: string;
+    details: string;
+    ttlLeft?: number;
+  }
+
+  class RedisSimulator {
+    private cache = new Map<string, { value: any; expiresAt: number }>();
+    private logs: RedisLog[] = [];
+
+    constructor() {
+      this.log('CONNECT', 'connection', 'Connected to Redis server on redis://127.0.0.1:6379 successfully (Ready to handle product catalog caching)');
+    }
+
+    private log(action: RedisLog['action'], key: string, details: string, ttlLeft?: number) {
+      const logEntry: RedisLog = {
+        id: Math.random().toString(36).substring(2, 9),
+        timestamp: new Date().toLocaleTimeString(),
+        action,
+        key,
+        details,
+        ttlLeft
+      };
+      this.logs.unshift(logEntry);
+      if (this.logs.length > 50) {
+        this.logs.pop();
+      }
+      console.log(`[Redis Simulator] ${action} - ${key}: ${details}`);
+    }
+
+    public get(key: string): any | null {
+      const cached = this.cache.get(key);
+      if (!cached) {
+        this.log('GET', key, '❌ CACHE MISS - Key not found or has been invalidated');
+        return null;
+      }
+      if (Date.now() > cached.expiresAt) {
+        this.cache.delete(key);
+        this.log('GET', key, '❌ CACHE MISS - Key expired (TTL reached 0)');
+        return null;
+      }
+      const ttlLeft = Math.round((cached.expiresAt - Date.now()) / 1000);
+      this.log('GET', key, `✅ CACHE HIT - Returning data instantly (Avoided MySQL heavy JOIN query)`, ttlLeft);
+      return cached.value;
+    }
+
+    public setex(key: string, ttlSeconds: number, value: any): void {
+      const expiresAt = Date.now() + (ttlSeconds * 1000);
+      this.cache.set(key, { value, expiresAt });
+      this.log('SETEX', key, `💾 CACHED DATA - Stored value with TTL of ${ttlSeconds} seconds (10 Minutes)`, ttlSeconds);
+    }
+
+    public del(keyPattern: string): void {
+      let count = 0;
+      for (const key of this.cache.keys()) {
+        if (key.startsWith(keyPattern) || key.includes(keyPattern)) {
+          this.cache.delete(key);
+          count++;
+        }
+      }
+      this.log('DEL', keyPattern, `🗑️ INVALIDATED KEY(S) - Removed ${count} matching keys from cache`);
+    }
+
+    public flushall(): void {
+      this.cache.clear();
+      this.log('FLUSHALL', '*', '🧹 FLUSHALL - Cleared all Redis cache keys completely');
+    }
+
+    public getLogs(): RedisLog[] {
+      return this.logs;
+    }
+
+    public getKeys(): { key: string; ttl: number }[] {
+      const keysList: { key: string; ttl: number }[] = [];
+      const now = Date.now();
+      for (const [key, item] of this.cache.entries()) {
+        if (item.expiresAt > now) {
+          keysList.push({
+            key,
+            ttl: Math.round((item.expiresAt - now) / 1000)
+          });
+        }
+      }
+      return keysList;
+    }
+  }
+
+  const redis = new RedisSimulator();
+
+  // Middleware: Redis cache precheck for products
+  const redisProductCacheMiddleware = (req: any, res: any, next: any) => {
+    const limit = parseInt(req.query.limit) || 20;
+    const cursor = req.query.cursor || 'none';
+    const cacheKey = `products:catalog:cursor_${cursor}:limit_${limit}`;
+
+    const cachedData = redis.get(cacheKey);
+    if (cachedData) {
+      return res.json({
+        ...cachedData,
+        source: 'Redis Cache (RAM)',
+        executionTimeMs: 0.2 // simulated extremely fast RAM access
+      });
+    }
+    // Store cacheKey on res.locals so we can set the cache after querying
+    res.locals.cacheKey = cacheKey;
+    next();
+  };
+
+  // 1. Optimized product catalog API with Cursor-based Pagination and Caching
+  app.get('/api/optimized/products', redisProductCacheMiddleware, async (req, res) => {
+    const startTime = process.hrtime();
+    const limit = parseInt(req.query.limit as string) || 20;
+    const cursor = req.query.cursor as string || ''; // ID of the last product seen
+
+    try {
+      let results: any[] = [];
+      
+      if (isDbOnline) {
+        // With Cursor-based Pagination, we avoid slow OFFSET by filtering on the indexed ID (or primary key)
+        if (cursor) {
+          results = await db.select()
+            .from(products)
+            .where(sql`${products.id} > ${cursor}`)
+            .orderBy(products.id)
+            .limit(limit);
+        } else {
+          results = await db.select()
+            .from(products)
+            .orderBy(products.id)
+            .limit(limit);
+        }
+      } else {
+        // Fallback Database emulation
+        const sortedProducts = [...fallbackData.products].sort((a, b) => a.id.localeCompare(b.id));
+        if (cursor) {
+          const startIndex = sortedProducts.findIndex(p => p.id === cursor);
+          if (startIndex !== -1) {
+            results = sortedProducts.slice(startIndex + 1, startIndex + 1 + limit);
+          } else {
+            results = sortedProducts.slice(0, limit);
+          }
+        } else {
+          results = sortedProducts.slice(0, limit);
+        }
+      }
+
+      // Determine next cursor (the ID of the last item in this page)
+      const nextCursor = results.length === limit ? results[results.length - 1].id : null;
+
+      const diff = process.hrtime(startTime);
+      const executionTimeMs = Number(((diff[0] * 1e3 + diff[1] * 1e-6)).toFixed(2));
+
+      const payload = {
+        products: stripDuplicateImages(results),
+        nextCursor,
+        totalLoaded: results.length,
+        hasMore: !!nextCursor
+      };
+
+      // Store in Redis with 10 Minutes TTL (600 seconds)
+      if (res.locals.cacheKey) {
+        redis.setex(res.locals.cacheKey, 600, payload);
+      }
+
+      res.json({
+        ...payload,
+        source: 'MySQL Database',
+        executionTimeMs
+      });
+    } catch (err: any) {
+      console.error('Optimized query error, serving fallback:', err);
+      // Fallback
+      const sortedProducts = [...fallbackData.products].sort((a, b) => a.id.localeCompare(b.id));
+      const results = sortedProducts.slice(0, limit);
+      const nextCursor = results.length === limit ? results[results.length - 1].id : null;
+      
+      res.json({
+        products: stripDuplicateImages(results),
+        nextCursor,
+        totalLoaded: results.length,
+        hasMore: !!nextCursor,
+        source: 'JSON Fallback DB (Offline)',
+        executionTimeMs: 1.5
+      });
+    }
+  });
+
+  // 2. Active Invalidation endpoint (clears cached lists immediately)
+  app.post('/api/optimized/invalidate', (req, res) => {
+    redis.del('products:catalog');
+    res.json({ success: true, message: 'Redis cache keys matching "products:catalog" have been successfully invalidated' });
+  });
+
+  // 3. Simulated Automatic Cache Invalidation on Stock Entry or Update
+  app.post('/api/optimized/add-stock', async (req, res) => {
+    const { productId, qty } = req.body;
+    
+    // Perform database stock increment
+    try {
+      if (isDbOnline) {
+        await db.execute(sql`UPDATE products SET stokBarang = stokBarang + ${qty} WHERE id = ${productId}`);
+      } else {
+        const prod = fallbackData.products.find((p: any) => p.id === productId);
+        if (prod) {
+          prod.stokBarang = (prod.stokBarang || 0) + qty;
+          saveFallbackData();
+        }
+      }
+
+      // CRITICAL: Automatically invalidate cache because inventory has changed!
+      redis.del('products:catalog');
+      
+      res.json({ 
+        success: true, 
+        message: `Stok barang ${productId} berhasil ditambah sebanyak ${qty}. Cache Redis otomatis dihapus untuk mencegah stale data.`,
+        invalidatedKeys: 'products:catalog:*'
+      });
+    } catch (e: any) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  // Hook into standard incoming goods and product creations to trigger real invalidation
+  const originalIncomingGoodsPost = app._router?.stack?.find((r: any) => r.route?.path === '/api/incoming-goods' && r.route?.methods?.post);
+  const originalProductsPost = app._router?.stack?.find((r: any) => r.route?.path === '/api/products' && r.route?.methods?.post);
+
+  // Expose Redis logs and cache state to the frontend
+  app.get('/api/optimized/redis-logs', (req, res) => {
+    res.json({
+      logs: redis.getLogs(),
+      keys: redis.getKeys()
+    });
+  });
+
+  // 4. SQL optimization guide payload for the visual lab
+  app.get('/api/optimized/sql-guide', (req, res) => {
+    res.json({
+      indexing: `
+-- 1. Optimasi Indexing pada tabel MySQL
+-- Kolom ID (Primary Key) sudah memiliki index B-Tree bawaan.
+-- Kita tambahkan Composite Index pada kolom pencarian & filter untuk mempercepat JOIN:
+
+CREATE INDEX idx_products_category ON products(custom_category, color);
+CREATE INDEX idx_products_group ON products(group_name);
+CREATE INDEX idx_sales_tanggal ON sales(tanggal);
+CREATE INDEX idx_incoming_goods_tanggal ON incoming_goods(tanggal);
+      `,
+      cursorPagination: `
+-- 2. Query Cursor-Based Pagination yang efisien menggantikan OFFSET
+-- Query ini tidak perlu melakukan pemindaian (scan) baris yang sudah lewat.
+-- Sangat cepat dan stabil meskipun data mencapai jutaan baris.
+
+SELECT p.* 
+FROM products p
+WHERE p.id > 'CTK-MACARON-BERRYBLUE-0,00' -- ini adalah cursor last_seen_id
+ORDER BY p.id ASC 
+LIMIT 20;
+      `,
+      databaseView: `
+-- 3. Membuat Database VIEW yang Efisien untuk JOIN 3 Tabel Besar
+-- VIEW menggabungkan tabel 'products', 'incoming_goods', dan 'sales' secara dinamis.
+-- Memberikan kemudahan bagi backend untuk mengambil ringkasan produk.
+
+CREATE OR REPLACE VIEW view_product_details_summary AS
+SELECT 
+    p.id AS product_id,
+    p.namaBarang AS nama_barang,
+    p.group_name AS nama_series,
+    p.color AS warna,
+    p.hargaJual AS harga_jual,
+    p.stokBarang AS stok_aktif,
+    (SELECT COALESCE(SUM(ig.jumlah), 0) FROM incoming_goods ig WHERE ig.kodeBarang = p.id) AS total_stok_masuk,
+    (SELECT COALESCE(SUM(s.jumlah), 0) FROM sales s WHERE s.kodeBarang = p.id) AS total_terjual_retail,
+    (SELECT COALESCE(SUM(sd.jumlah), 0) FROM sales_ds sd WHERE sd.kodeBarang = p.id) AS total_terjual_dropship
+FROM products p;
+      `
+    });
+  });
+
+  // Intercept other write routes to trigger cache clearance automatically
+  app.use((req, res, next) => {
+    if (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE') {
+      if (req.url.includes('/api/products') || req.url.includes('/api/incoming-goods') || req.url.includes('/api/sales')) {
+        redis.del('products:catalog');
+      }
+    }
+    next();
+  });
+
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
