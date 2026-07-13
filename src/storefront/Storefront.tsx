@@ -1000,7 +1000,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
       label: 'Chat CS',
       onClick: () => {
         setIsCartOpen(false);
-        window.location.href = "https://wa.me/6281234567890";
+        window.location.href = "https://wa.me/6282132612061";
       }
     }
   ];
