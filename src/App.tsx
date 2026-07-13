@@ -1267,11 +1267,11 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
   const [incomingGoods, setIncomingGoods] = useState<IncomingGood[]>([]);
   const [iklanList, setIklanList] = useState<Iklan[]>([]);
   const [weeklySalesList, setWeeklySalesList] = useState<WeeklySale[]>([]);
-  const [loadingSales, setLoadingSales] = useState(false);
-  const [loadingSalesDS, setLoadingSalesDS] = useState(false);
-  const [loadingIncoming, setLoadingIncoming] = useState(false);
-  const [loadingIklan, setLoadingIklan] = useState(false);
-  const [loadingWeekly, setLoadingWeekly] = useState(false);
+  const [loadingSales, setLoadingSales] = useState(true);
+  const [loadingSalesDS, setLoadingSalesDS] = useState(true);
+  const [loadingIncoming, setLoadingIncoming] = useState(true);
+  const [loadingIklan, setLoadingIklan] = useState(true);
+  const [loadingWeekly, setLoadingWeekly] = useState(true);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [passwordInput, setPasswordInput] = useState("");
   const [loginError, setLoginError] = useState("");
