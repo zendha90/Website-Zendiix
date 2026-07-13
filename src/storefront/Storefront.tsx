@@ -840,9 +840,9 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
 
     const totalBonus = totalCartPrice >= 400000 ? "Bonus: Free Shipping + Travel Kit Premium Case ✨" : "Bonus: Custom Mirror Contact Lens Case ✨";
 
-    const msg = `Halo Zendiix Softlens! Saya ingin memesan produk premium berikut:\n\n${orderListText}\n\n======================\n*TOTAL ORDER: Rp ${totalCartPrice.toLocaleString()}*\n======================\n${totalBonus}\n\nMohon bantu diinfo no-rekening dan estimasi kirim ke alamat saya ya Sis! ❤️`;
+    const msg = `Halo Zendiix Softlens! Saya ingin memesan produk berikut:\n\n${orderListText}\n\n======================\n*TOTAL ORDER: Rp ${totalCartPrice.toLocaleString()}*\n======================\n${totalBonus}\n\nMohon bantu diinfo no-rekening dan estimasi kirim ke alamat saya ya Sis! ❤️`;
     
-    window.open(`https://wa.me/6281234567890?text=${encodeURIComponent(msg)}`, '_blank');
+    window.open(`https://wa.me/6282132612061?text=${encodeURIComponent(msg)}`, '_blank');
   };
 
   // SPH Powers default options list
