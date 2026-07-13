@@ -24,7 +24,8 @@ import {
   Instagram,
   Music,
   Camera,
-  Upload
+  Upload,
+  Home
 } from 'lucide-react';
 import { Product, Sale, IncomingGood, subscribeToSales, subscribeToIncomingGoods, BrandingSettings, Review, subscribeToReviews, addReview } from '../services';
 import { LimelightNav } from '../components/ui/limelight-nav';
@@ -249,7 +250,12 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
 
   // Variant picker selector states
   const [modalColor, setModalColor] = useState<string>('');
-  const [modalIsDualPower, setModalIsDualPower] = useState(false);
+  const modalIsDualPower = useMemo(() => {
+    if (!selectedSeries) return false;
+    const isNotSoftlens = !!selectedSeries.representativeProduct.notSoftlens;
+    return !isNotSoftlens && selectedSeries.representativeProduct.allowDualPower !== false;
+  }, [selectedSeries]);
+
   const [selectedPowerL, setSelectedPowerL] = useState('0.00');
   const [selectedPowerR, setSelectedPowerR] = useState('0.00');
   const [buyQty, setBuyQty] = useState(1);
@@ -265,7 +271,6 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
   useEffect(() => {
     if (selectedSeries) {
       setModalColor(selectedSeries.colors[0] || 'Clear');
-      setModalIsDualPower(false);
       setSelectedPowerL('0.00');
       setSelectedPowerR('0.00');
       setBuyQty(1);
@@ -598,7 +603,6 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
           if (!currentSelect || currentSelect.seriesName.trim().toLowerCase() !== decodedName) {
             setSelectedSeries(found);
             setModalColor(found.colors[0] || 'Clear');
-            setModalIsDualPower(false);
             setSelectedPowerL('0.00'); // Standard default normalization
             setSelectedPowerR('0.00');
             setBuyQty(1);
@@ -769,12 +773,14 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
       ? variantL.product.hargaJual
       : selectedSeries.representativeProduct.hargaJual;
     const finalPowerL = isProductNotSoftlens ? '0.00' : selectedPowerL;
-    const finalPowerR = finalPowerL;
-    const finalIsDual = false;
+    const finalIsDual = modalIsDualPower && !isProductNotSoftlens;
+    const finalPowerR = finalIsDual ? selectedPowerR : finalPowerL;
 
     const cartId = isProductNotSoftlens
       ? `${selectedSeries.seriesName}-${modalColor}-notsoftlens`
-      : `${selectedSeries.seriesName}-${modalColor}-${finalPowerL}`;
+      : finalIsDual
+        ? `${selectedSeries.seriesName}-${modalColor}-${finalPowerL}-${finalPowerR}-dual`
+        : `${selectedSeries.seriesName}-${modalColor}-${finalPowerL}`;
 
     const cartItem: CartItem = {
       cartId,
@@ -786,7 +792,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
       isDual: finalIsDual,
       productL: variantL.product,
       productR: variantR.product,
-      hargaJual: price,
+      hargaJual: price * (finalIsDual ? 2 : 1),
       notSoftlens: isProductNotSoftlens
     };
 
@@ -831,6 +837,8 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
       let powerDetails = "";
       if (item.notSoftlens) {
         powerDetails = `\n    └─ Tipe: Aksesori / Non-Softlens`;
+      } else if (item.isDual) {
+        powerDetails = `\n    └─ SPH Kiri (L): ${item.powerL}\n    └─ SPH Kanan (R): ${item.powerR}\n    *(Beli Paket 2 Box - Beda SPH)*`;
       } else {
         powerDetails = `\n    └─ SPH Minus: ${item.powerL}\n    *(Beli 1 Box)*`;
       }
@@ -944,10 +952,11 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
   const frontendNavItems = [
     {
       id: 'home',
-      icon: <Sparkles className="w-5 h-5" />,
+      icon: <Home className="w-5 h-5" />,
       label: 'Beranda',
       onClick: () => {
         setIsCartOpen(false);
+        setSelectedSeries(null);
         setActiveCategory('All');
         setActiveColorFilter('All');
         setActiveDiameterFilter('All');
@@ -1250,30 +1259,81 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                     </div>
                   ) : (
                     <div className="space-y-3 font-sans">
-                      {/* SPH POWER GRID */}
-                      <div className="space-y-1.5 text-left">
-                        <span className="text-[10px] font-bold uppercase text-neutral-400 block font-display">Pilihan Ukuran Minus</span>
-                        <div className="relative">
-                          <select
-                            value={selectedPowerL}
-                            onChange={(e) => setSelectedPowerL(e.target.value)}
-                            className="w-full bg-white border border-neutral-200 rounded-lg py-2.5 px-3 text-[11px] font-bold focus:outline-none focus:ring-1 focus:ring-slate-950 appearance-none"
-                          >
-                            {powerOptions.map(pow => {
-                              const matchingVariant = selectedSeries.variants.find(
-                                v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === pow
-                              );
-                              const stockVal = matchingVariant?.stokBarang ?? 0;
-                              return (
-                                <option key={pow} value={pow}>
-                                  SPH: {pow} {stockVal <= 0 ? '- [Stok Kosong]' : ''}
-                                </option>
-                              );
-                            })}
-                          </select>
-                          <ChevronDown className="w-4 h-4 text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                      {!modalIsDualPower ? (
+                        <div className="space-y-1.5 text-left">
+                          <span className="text-[10px] font-bold uppercase text-neutral-400 block font-display">Pilihan Ukuran SPH</span>
+                          <div className="relative">
+                            <select
+                              value={selectedPowerL}
+                              onChange={(e) => setSelectedPowerL(e.target.value)}
+                              className="w-full bg-white border border-neutral-200 rounded-lg py-2.5 px-3 text-[11px] font-bold focus:outline-none focus:ring-1 focus:ring-slate-950 appearance-none"
+                            >
+                              {powerOptions.map(pow => {
+                                const matchingVariant = selectedSeries.variants.find(
+                                  v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === pow
+                                );
+                                const stockVal = matchingVariant?.stokBarang ?? 0;
+                                return (
+                                  <option key={pow} value={pow}>
+                                    SPH: {pow} {stockVal <= 0 ? '- [Stok Kosong]' : ''}
+                                  </option>
+                                );
+                              })}
+                            </select>
+                            <ChevronDown className="w-4 h-4 text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                          </div>
                         </div>
-                      </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1.5 text-left">
+                            <span className="text-[10px] font-bold uppercase text-neutral-400 block font-display">Mata Kiri (Left)</span>
+                            <div className="relative">
+                              <select
+                                value={selectedPowerL}
+                                onChange={(e) => setSelectedPowerL(e.target.value)}
+                                className="w-full bg-white border border-neutral-200 rounded-lg py-2.5 px-3 text-[11px] font-bold focus:outline-none focus:ring-1 focus:ring-slate-950 appearance-none"
+                              >
+                                {powerOptions.map(pow => {
+                                  const matchingVariant = selectedSeries.variants.find(
+                                    v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === pow
+                                  );
+                                  const stockVal = matchingVariant?.stokBarang ?? 0;
+                                  return (
+                                    <option key={pow} value={pow}>
+                                      L: {pow} {stockVal <= 0 ? '- [Stok Kosong]' : ''}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <ChevronDown className="w-4 h-4 text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
+                          </div>
+                          
+                          <div className="space-y-1.5 text-left">
+                            <span className="text-[10px] font-bold uppercase text-neutral-400 block font-display">Mata Kanan (Right)</span>
+                            <div className="relative">
+                              <select
+                                value={selectedPowerR}
+                                onChange={(e) => setSelectedPowerR(e.target.value)}
+                                className="w-full bg-white border border-neutral-200 rounded-lg py-2.5 px-3 text-[11px] font-bold focus:outline-none focus:ring-1 focus:ring-slate-950 appearance-none"
+                              >
+                                {powerOptions.map(pow => {
+                                  const matchingVariant = selectedSeries.variants.find(
+                                    v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === pow
+                                  );
+                                  const stockVal = matchingVariant?.stokBarang ?? 0;
+                                  return (
+                                    <option key={pow} value={pow}>
+                                      R: {pow} {stockVal <= 0 ? '- [Stok Kosong]' : ''}
+                                    </option>
+                                  );
+                                })}
+                              </select>
+                              <ChevronDown className="w-4 h-4 text-neutral-400 absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -2366,9 +2426,15 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                               <div className="text-[8.5px] text-neutral-400 font-bold mt-0.5 uppercase tracking-wide">
                                 Non-Softlens
                               </div>
+                            ) : item.isDual ? (
+                              <div className="text-[8.5px] text-neutral-500 font-bold mt-0.5 space-y-0.5">
+                                <div>SPH Kiri (L): <span className="text-slate-900 font-black">{item.powerL}</span></div>
+                                <div>SPH Kanan (R): <span className="text-slate-900 font-black">{item.powerR}</span></div>
+                                <span className="inline-block bg-slate-900 text-white text-[7.5px] font-black px-1 py-0.2 rounded uppercase mt-0.5 tracking-wider">Beda SPH (2 Box)</span>
+                              </div>
                             ) : (
                               <div className="text-[8.5px] text-neutral-400 font-bold mt-0.5">
-                                SPH: {item.powerL}
+                                SPH: {item.powerL} <span className="inline-block bg-neutral-100 text-neutral-500 text-[7px] font-black px-1 py-0.2 rounded uppercase ml-1">1 Box</span>
                               </div>
                             )}
 
