@@ -27,6 +27,7 @@ import {
   Upload
 } from 'lucide-react';
 import { Product, Sale, IncomingGood, subscribeToSales, subscribeToIncomingGoods, BrandingSettings, Review, subscribeToReviews, addReview } from '../services';
+import { LimelightNav } from '../components/ui/limelight-nav';
 
 interface StorefrontProps {
   products: Product[];
@@ -937,6 +938,72 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     const multiplier = (modalIsDualPower && !isNotSoftlens) ? 2 : 1;
     return price * buyQty * multiplier;
   }, [selectedSeries, modalColor, selectedPowerL, modalIsDualPower, buyQty]);
+
+  const currentActiveNavIndex = isCartOpen ? 2 : (isFilterVisible ? 1 : 0);
+
+  const frontendNavItems = [
+    {
+      id: 'home',
+      icon: <Sparkles className="w-5 h-5" />,
+      label: 'Beranda',
+      onClick: () => {
+        setIsCartOpen(false);
+        setActiveCategory('All');
+        setActiveColorFilter('All');
+        setActiveDiameterFilter('All');
+        setActiveWaterFilter('All');
+        setActiveBCFilter('All');
+        setSearchQuery('');
+        setIsFilterVisible(false);
+        const top = document.querySelector('header');
+        if (top) top.scrollIntoView({ behavior: 'smooth' });
+      }
+    },
+    {
+      id: 'category',
+      icon: <Search className="w-5 h-5" />,
+      label: 'Kategori',
+      onClick: () => {
+        setIsCartOpen(false);
+        setIsFilterVisible(prev => {
+          const nextVal = !prev;
+          if (nextVal) {
+            setTimeout(() => {
+              const filterArea = document.getElementById('filter-panel');
+              if (filterArea) {
+                filterArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              }
+            }, 150);
+          }
+          return nextVal;
+        });
+      }
+    },
+    {
+      id: 'cart',
+      icon: (
+        <div className="relative">
+          <ShoppingBag className="w-5 h-5" />
+          {cart.length > 0 && (
+            <span className="absolute -top-1.5 -right-1.5 bg-slate-900 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center leading-none">
+              {cart.reduce((a, b) => a + b.qty, 0)}
+            </span>
+          )}
+        </div>
+      ),
+      label: 'Keranjang',
+      onClick: () => setIsCartOpen(prev => !prev)
+    },
+    {
+      id: 'chat',
+      icon: <Phone className="w-5 h-5 text-emerald-500" />,
+      label: 'Chat CS',
+      onClick: () => {
+        setIsCartOpen(false);
+        window.location.href = "https://wa.me/6281234567890";
+      }
+    }
+  ];
 
   return (
     <div className="min-h-screen bg-neutral-50 font-sans text-neutral-800 antialiased selection:bg-slate-900 selection:text-white flex justify-center items-start">
@@ -2372,77 +2439,16 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
           )}
         </AnimatePresence>
 
-        {/* Shopee Classic Bottom Navigation Bar (Persistent across pages) */}
-        <nav className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] h-[55px] bg-white border-t border-neutral-200 flex items-center justify-around z-[200] select-none shadow-lg">
-          <button 
-            type="button"
-            onClick={() => {
-              setIsCartOpen(false);
-              setActiveCategory('All');
-              setActiveColorFilter('All');
-              setActiveDiameterFilter('All');
-              setActiveWaterFilter('All');
-              setActiveBCFilter('All');
-              setSearchQuery('');
-              setIsFilterVisible(false);
-              const top = document.querySelector('header');
-              if (top) top.scrollIntoView({ behavior: 'smooth' });
-            }}
-            className="flex flex-col items-center justify-center gap-0.5 focus:outline-none"
-          >
-            <Sparkles className={`w-5 h-5 ${!isFilterVisible ? 'text-slate-900' : 'text-neutral-400'}`} />
-            <span className={`text-[8.5px] font-bold ${!isFilterVisible ? 'text-slate-900' : 'text-neutral-400'}`}>Beranda</span>
-          </button>
-
-          <button 
-            type="button"
-            onClick={() => {
-              setIsCartOpen(false);
-              setIsFilterVisible(prev => {
-                const nextVal = !prev;
-                if (nextVal) {
-                  setTimeout(() => {
-                    const filterArea = document.getElementById('filter-panel');
-                    if (filterArea) {
-                      filterArea.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                  }, 150);
-                }
-                return nextVal;
-              });
-            }}
-            className="flex flex-col items-center justify-center gap-0.5 focus:outline-none"
-          >
-            <Search className={`w-5 h-5 transition-colors ${isFilterVisible ? 'text-slate-900' : 'text-neutral-500'}`} />
-            <span className={`text-[8.5px] font-bold transition-colors ${isFilterVisible ? 'text-slate-900' : 'text-neutral-500'}`}>Kategori</span>
-          </button>
-
-          <button 
-            type="button"
-            onClick={() => setIsCartOpen(prev => !prev)}
-            className="flex flex-col items-center justify-center gap-0.5 text-neutral-400 relative focus:outline-none"
-          >
-            <div className="relative">
-              <ShoppingBag className="w-5 h-5 text-neutral-500" />
-              {cart.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-slate-900 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center">
-                  {cart.reduce((a, b) => a + b.qty, 0)}
-                </span>
-              )}
-            </div>
-            <span className="text-[8.5px] font-bold text-neutral-500">Keranjang</span>
-          </button>
-
-          <a 
-            href="https://wa.me/6281234567890" 
-            rel="noreferrer"
-            onClick={() => setIsCartOpen(false)}
-            className="flex flex-col items-center justify-center gap-0.5 text-neutral-400 focus:outline-none"
-          >
-            <Phone className="w-5 h-5 text-emerald-500" />
-            <span className="text-[8.5px] font-bold text-neutral-500">Chat CS</span>
-          </a>
-        </nav>
+        {/* Limelight Bottom Navigation Bar */}
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-[200] select-none">
+          <LimelightNav 
+            items={frontendNavItems}
+            activeIndex={currentActiveNavIndex}
+            className="w-full h-[58px] bg-white border-t border-neutral-200 shadow-lg rounded-none justify-around px-2"
+            limelightClassName="bg-slate-900 shadow-[0_50px_15px_rgba(15,23,42,0.8)] h-[4px] w-12"
+            iconContainerClassName="p-3"
+          />
+        </div>
 
         {/* Full Screen Image Viewer */}
         {fullScreenImage && (
