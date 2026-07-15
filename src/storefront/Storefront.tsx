@@ -25,7 +25,10 @@ import {
   Music,
   Camera,
   Upload,
-  Home
+  Home,
+  ShieldCheck,
+  HeartPulse,
+  Clock
 } from 'lucide-react';
 import { Product, Sale, IncomingGood, subscribeToSales, subscribeToIncomingGoods, BrandingSettings, Review, subscribeToReviews, addReview } from '../services';
 import { LimelightNav } from '../components/ui/limelight-nav';
@@ -224,6 +227,29 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
   
   // Custom Sliding Carousel state (4:5 portrait ratio)
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [touchStart, setTouchStart] = useState<number | null>(null);
+  const [touchEnd, setTouchEnd] = useState<number | null>(null);
+
+  const handleTouchStart = (e: React.TouchEvent) => {
+    setTouchEnd(null);
+    setTouchStart(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    setTouchEnd(e.targetTouches[0].clientX);
+  };
+
+  const handleTouchEnd = () => {
+    if (!touchStart || !touchEnd) return;
+    const distance = touchStart - touchEnd;
+    const isLeftSwipe = distance > 50;
+    const isRightSwipe = distance < -50;
+    if (isLeftSwipe) {
+      setCurrentSlide(prev => (prev === activeSlides.length - 1 ? 0 : prev + 1));
+    } else if (isRightSwipe) {
+      setCurrentSlide(prev => (prev === 0 ? activeSlides.length - 1 : prev - 1));
+    }
+  };
 
   const defaultBanners = useMemo(() => [
     { imageUrl: "/src/assets/images/hero_banner_zendiix_png_1781662668206.jpg", linkUrl: "" },
@@ -276,6 +302,24 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
       setBuyQty(1);
     }
   }, [selectedSeries]);
+
+  useEffect(() => {
+    if (selectedSeries) {
+      const mainViewport = document.getElementById('main-viewport');
+      if (mainViewport) {
+        mainViewport.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }
+  }, [selectedSeries]);
+
+  const [cartAnimated, setCartAnimated] = useState(false);
+  useEffect(() => {
+    if (cart.length > 0) {
+      setCartAnimated(true);
+      const t = setTimeout(() => setCartAnimated(false), 600);
+      return () => clearTimeout(t);
+    }
+  }, [cart]);
 
   // Toast message notification state & automatic clear
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -805,6 +849,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     });
 
     setIsCartOpen(true);
+    setToastMessage(`"${selectedSeries.seriesName}" berhasil ditambahkan ke keranjang!`);
     setSelectedSeries(null); // Dismiss checkout dialog
   };
 
@@ -1002,6 +1047,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
       label: 'Kategori',
       onClick: () => {
         setIsCartOpen(false);
+        setSelectedSeries(null);
         setIsFilterVisible(prev => {
           const nextVal = !prev;
           if (nextVal) {
@@ -1046,10 +1092,10 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
     <div className="min-h-screen bg-neutral-50 font-sans text-neutral-800 antialiased selection:bg-slate-900 selection:text-white flex justify-center items-start">
       
       {/* Centered High-Fidelity Shopee Mobile Layout without device frames */}
-      <div className="w-full max-w-[480px] min-h-screen bg-white shadow-[0_0_50px_-12px_rgba(0,0,0,0.08)] flex flex-col relative pb-[65px] transition-all">
+      <div className={`w-full max-w-[480px] min-h-screen bg-white shadow-[0_0_50px_-12px_rgba(0,0,0,0.08)] flex flex-col relative transition-all ${selectedSeries ? 'pb-[130px]' : 'pb-[65px]'}`}>
         
         {/* Top Shopee Style Notice Banner */}
-        <div className="w-full bg-[#1F1F1F] text-white text-[9.5px] font-bold py-2 px-3 overflow-hidden flex items-center justify-center z-50">
+        <div className="w-full bg-[#1F1F1F] text-white text-[11px] font-semibold py-2 px-3 overflow-hidden flex items-center justify-center z-50">
           <AnimatePresence mode="wait">
             <motion.div
               key={promoIdx}
@@ -1057,9 +1103,9 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               animate={{ y: 0, opacity: 1 }}
               exit={{ y: -10, opacity: 0 }}
               transition={{ duration: 0.3 }}
-              className="flex items-center gap-1.5 uppercase tracking-wider text-neutral-300"
+              className="flex items-center gap-1.5 text-neutral-200 text-center tracking-wide"
             >
-              <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-current" />
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 fill-current flex-shrink-0" />
               <span>{promoTexts[promoIdx]}</span>
             </motion.div>
           </AnimatePresence>
@@ -1093,7 +1139,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               <div className="flex-1 text-center font-display text-xs font-black text-slate-950 truncate uppercase pr-4">
                 {selectedSeries.seriesName} Detail
               </div>
-            ) : !isFilterVisible ? (
+            ) : (
               <div className="flex-1 relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-500" />
                 <input 
@@ -1104,19 +1150,17 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
               </div>
-            ) : (
-              <div className="flex-1" />
             )}
 
             {/* enlarged Cart Button & Notif badge */}
             <button 
               onClick={() => setIsCartOpen(true)}
               aria-label="Keranjang Belanja"
-              className="relative w-11 h-11 hover:bg-neutral-50 rounded-full transition-all flex items-center justify-center cursor-pointer flex-shrink-0"
+              className={`relative w-11 h-11 hover:bg-neutral-50 rounded-full transition-all flex items-center justify-center cursor-pointer flex-shrink-0 ${cartAnimated ? 'scale-125 duration-300' : ''}`}
             >
               <ShoppingBag className="w-[22px] h-[22px] text-slate-900" />
               {cart.length > 0 && (
-                <span className="absolute -top-0.5 -right-0.5 bg-slate-900 text-white text-[9.5px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center font-sans tracking-tighter shadow-md">
+                <span className="absolute -top-0.5 -right-0.5 bg-slate-900 text-white text-[11px] font-extrabold w-5 h-5 rounded-full flex items-center justify-center font-sans tracking-tighter shadow-md">
                   {cart.reduce((a, b) => a + b.qty, 0)}
                 </span>
               )}
@@ -1125,7 +1169,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
         </header>
 
         {/* Main Phone Screen Viewport Area */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden pb-10 scrollbar-none">
+        <main id="main-viewport" className="flex-1 overflow-y-auto overflow-x-hidden pb-10 scrollbar-none">
           
           {selectedSeries ? (() => {
             const stats = getSeriesStatistics(selectedSeries);
@@ -1408,27 +1452,6 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                       )}
                     </div>
                   </div>
-
-                  {/* Add to Cart CTA Checkout Action */}
-                  <div className="pt-2 border-t border-neutral-100 space-y-3 font-sans">
-                    <div className="flex justify-between items-center text-[10px] text-neutral-400 font-bold uppercase px-1">
-                      <span>Total Bayar ({buyQty} Box):</span>
-                      <span className="text-base font-black text-slate-950 font-sans">Rp {modalSubtotal.toLocaleString()}</span>
-                    </div>
-
-                    <button
-                      onClick={handleAddToCart}
-                      disabled={!activeStockStatus.available}
-                      className={`w-full py-3.5 rounded-xl text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all shadow-md active:scale-[0.98] ${
-                        activeStockStatus.available 
-                          ? 'bg-slate-950 text-white hover:bg-slate-900 shadow-slate-950/10' 
-                          : 'bg-neutral-150 text-neutral-400 border border-neutral-200 cursor-not-allowed shadow-none'
-                      }`}
-                    >
-                      <ShoppingBag className="w-4 h-4" />
-                      <span>Tambah ke Keranjang • Rp {modalSubtotal.toLocaleString()}</span>
-                    </button>
-                  </div>
                 </div>
 
                 {/* Product specific customer reviews section */}
@@ -1581,7 +1604,13 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               {!isFilterVisible && (
             <>
               {/* Shopee-style Home Carousel Banner */}
-              <div id="promo-banner-carousel" className="relative w-full aspect-[4/5] bg-neutral-900 overflow-hidden select-none">
+              <div 
+                id="promo-banner-carousel" 
+                className="relative w-full aspect-[3/2] bg-neutral-900 overflow-hidden select-none"
+                onTouchStart={handleTouchStart}
+                onTouchMove={handleTouchMove}
+                onTouchEnd={handleTouchEnd}
+              >
                 {/* Slides wrapper with custom transitional flex row */}
                 <div 
                   className="flex w-full h-full transition-transform duration-500 ease-out"
@@ -1595,7 +1624,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                             src={slide.imageUrl} 
                             alt={`Promo Banner ${idx + 1}`} 
                             width="480"
-                            height="600"
+                            height="320"
                             className="w-full h-full object-cover"
                             referrerPolicy="no-referrer"
                             loading={idx === 0 ? "eager" : "lazy"}
@@ -1607,7 +1636,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                           src={slide.imageUrl} 
                           alt={`Promo Banner ${idx + 1}`} 
                           width="480"
-                          height="600"
+                          height="320"
                           className="w-full h-full object-cover"
                           referrerPolicy="no-referrer"
                           loading={idx === 0 ? "eager" : "lazy"}
@@ -1662,60 +1691,70 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               </div>
 
               {/* Flash Sale Section (Essential Cosmetic Boutique Look & Feel) */}
-              <div className="bg-white p-3 border-b border-neutral-100">
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-slate-900 font-extrabold uppercase tracking-wider text-[11px] bg-neutral-100 px-2 py-0.5 rounded font-display">Special Offer</span>
+              {filteredSeries.filter(s => s.representativeProduct.isFlashSale).length > 0 && (
+                <div className="bg-white p-3 border-b border-neutral-100">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-900 font-extrabold uppercase tracking-wider text-[11px] bg-neutral-100 px-2 py-0.5 rounded font-display">Special Offer</span>
+                    </div>
+                    <button 
+                      onClick={() => { setActiveCategory('All'); }}
+                      className="text-slate-900 font-bold text-[10px] flex items-center gap-0.5 cursor-pointer"
+                    >
+                      Lihat Semua <ChevronRight className="w-3 h-3" />
+                    </button>
                   </div>
-                  <button 
-                    onClick={() => { setActiveCategory('All'); }}
-                    className="text-slate-900 font-bold text-[10px] flex items-center gap-0.5 cursor-pointer"
-                  >
-                    Lihat Semua <ChevronRight className="w-3 h-3" />
-                  </button>
-                </div>
 
-                <div className="flex items-center gap-3 overflow-x-auto pb-1.5 scrollbar-none">
-                  {filteredSeries.filter(s => s.representativeProduct.isFlashSale).slice(0, 4).map((series, index) => {
-                    const imageSrc = series.computedMainImage || `https://picsum.photos/seed/${series.seriesName}/600/600`;
-                    return (
-                      <a 
-                        key={index} 
-                        href={`${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(series.seriesName)}`}
-                        onClick={(e) => {
-                          e.preventDefault();
-                          setSelectedSeries(series);
-                        }}
-                        className="w-24 shrink-0 bg-neutral-50 p-1.5 border border-dashed border-neutral-200 rounded-md text-left cursor-pointer hover:border-neutral-400 hover:shadow-xs transition-all block text-neutral-900 leading-normal"
-                      >
-                        <div className="aspect-square bg-white rounded-md overflow-hidden relative mb-1">
-                          <img src={imageSrc} alt={series.seriesName} width="96" height="96" loading="lazy" className="w-full h-full object-cover" />
-                          <button
-                            onClick={(e) => {
-                              e.preventDefault();
-                              e.stopPropagation();
-                              handleShare(series.seriesName);
-                            }}
-                            aria-label={`Salin Link Produk ${series.seriesName}`}
-                            className="absolute top-1 left-1 p-1 bg-white/95 hover:bg-slate-900 hover:text-white text-neutral-700 rounded-full shadow-sm z-10 transition-all cursor-pointer hover:scale-110 active:scale-95 flex items-center justify-center border border-neutral-100"
-                            title="Salin Link Produk"
-                          >
-                            <svg className="w-2.5 h-2.5 stroke-[2.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
-                              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
-                              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
-                            </svg>
-                          </button>
-                          <div className="absolute top-0 right-0 bg-slate-950 text-white text-[7px] font-bold px-1 rounded-bl">
-                            -25%
+                  <div className="flex items-center gap-3 overflow-x-auto pb-1.5 scrollbar-none">
+                    {filteredSeries.filter(s => s.representativeProduct.isFlashSale).slice(0, 4).map((series, index) => {
+                      const imageSrc = series.computedMainImage || `https://picsum.photos/seed/${series.seriesName}/600/600`;
+                      return (
+                        <a 
+                          key={index} 
+                          href={`${window.location.origin}${window.location.pathname}?product=${encodeURIComponent(series.seriesName)}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            setSelectedSeries(series);
+                          }}
+                          className="w-24 shrink-0 bg-neutral-50 p-1.5 border border-dashed border-neutral-200 rounded-md text-left cursor-pointer hover:border-neutral-400 hover:shadow-xs transition-all block text-neutral-900 leading-normal"
+                        >
+                          <div className="aspect-square bg-neutral-100 animate-pulse rounded-md overflow-hidden relative mb-1">
+                            <img 
+                              src={imageSrc} 
+                              alt={series.seriesName} 
+                              width="96" 
+                              height="96" 
+                              loading="lazy" 
+                              className="w-full h-full object-cover" 
+                              onLoad={(e) => e.currentTarget.parentElement?.classList.remove('animate-pulse')}
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                handleShare(series.seriesName);
+                              }}
+                              aria-label={`Salin Link Produk ${series.seriesName}`}
+                              className="absolute top-1 left-1 p-1 bg-white/95 hover:bg-slate-900 hover:text-white text-neutral-700 rounded-full shadow-sm z-10 transition-all cursor-pointer hover:scale-110 active:scale-95 flex items-center justify-center border border-neutral-100"
+                              title="Salin Link Produk"
+                            >
+                              <svg className="w-2.5 h-2.5 stroke-[2.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                              </svg>
+                            </button>
+                            <div className="absolute top-0 right-0 bg-slate-950 text-white text-[7px] font-bold px-1 rounded-bl">
+                              -25%
+                            </div>
                           </div>
-                        </div>
-                        <span className="text-[9px] font-black text-neutral-800 line-clamp-1 block">{series.seriesName}</span>
-                        <span className="text-[10px] font-extrabold text-slate-950 block">{getPriceRangeDisplay(series)}</span>
-                      </a>
-                    );
-                  })}
+                          <span className="text-[9px] font-black text-neutral-800 line-clamp-1 block">{series.seriesName}</span>
+                          <span className="text-[10px] font-extrabold text-slate-950 block">{getPriceRangeDisplay(series)}</span>
+                        </a>
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
             </>
           )}
 
@@ -1873,16 +1912,17 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                       }}
                       className="group bg-white rounded-md overflow-hidden hover:shadow-md transition-all border border-neutral-100 relative cursor-pointer flex flex-col justify-between block text-neutral-900 leading-normal"
                     >
-                      {/* Product square thumbnail */}
-                      <div className="relative aspect-square bg-[#FAFAFA]">
+                      {/* Product square thumbnail with pulse skeleton load */}
+                      <div className="relative aspect-square bg-neutral-100 animate-pulse">
                         <img 
                           src={imageSrc}
                           alt={series.seriesName}
                           width="220"
                           height="220"
                           loading="lazy"
-                          className="w-full h-full object-cover"
+                          className="w-full h-full object-cover transition-opacity duration-300"
                           referrerPolicy="no-referrer"
+                          onLoad={(e) => e.currentTarget.parentElement?.classList.remove('animate-pulse')}
                         />
 
                         {/* Copy/Share Link Alert Overlay Button */}
@@ -1920,6 +1960,14 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                             {series.seriesName}
                           </h4>
 
+                          {/* Rating and Reviews Count row */}
+                          <div className="flex items-center gap-1 mt-0.5 mb-1.5 text-[11px] text-neutral-500 font-bold justify-start">
+                            <span className="text-amber-400 text-xs">⭐</span>
+                            <span className="text-slate-700">{rating.toFixed(1)}</span>
+                            <span className="text-neutral-300">|</span>
+                            <span className="text-[11px] font-medium text-neutral-400">({reviews})</span>
+                          </div>
+
                           {/* Softlens parameters dot swatches block */}
                           <div className="flex items-center gap-1.5 my-1.5 justify-start">
                             <div className="flex items-center -space-x-1 shrink-0">
@@ -1946,7 +1994,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                               <span className="text-[7.5px] font-bold text-neutral-400 leading-none">HARGA BOX</span>
                               <span className="text-xs font-black text-slate-900">{getPriceRangeDisplay(series)}</span>
                             </div>
-                            <span className="text-[8.5px] font-bold text-white bg-slate-950 px-1.5 py-0.5 rounded tracking-tighter">
+                            <span className="h-[44px] min-w-[54px] text-[11px] uppercase tracking-wider font-extrabold text-white bg-slate-950 px-3 rounded-md flex items-center justify-center hover:bg-slate-900 active:scale-95 transition-all">
                               Beli
                             </span>
                           </div>
@@ -2005,11 +2053,11 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                         <div className="w-5 h-5 bg-slate-900 text-white rounded-full flex items-center justify-center text-[8px] font-black uppercase">
                           {rev.reviewerName.slice(0, 2)}
                         </div>
-                        <span className="text-[9.5px] font-extrabold text-slate-800 truncate block max-w-[80px]">{rev.reviewerName}</span>
+                        <span className="text-xs font-extrabold text-slate-800 truncate block max-w-[80px]">{rev.reviewerName}</span>
                       </div>
                       {rev.comment && (
-                        <p className="text-[9.5px] text-neutral-600 mt-1.5 line-clamp-2 leading-relaxed font-sans">
-                          "{rev.comment}"
+                        <p className="text-xs text-neutral-600 mt-1.5 line-clamp-2 leading-relaxed font-sans">
+                          {`"${rev.comment}"`}
                         </p>
                       )}
                     </div>
@@ -2051,6 +2099,44 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
             </button>
           </section>
 
+          {/* MENGAPA ZENDIIX TRUST BADGES */}
+          <section className="p-4 mt-6 border-t border-b border-neutral-100 bg-neutral-50/50 text-left font-sans">
+            <h3 className="text-xs font-black text-slate-950 uppercase tracking-widest pl-2 mb-4 text-center font-display">MENGAPA ZENDIIX?</h3>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white p-3 rounded-lg border border-neutral-100/80 flex flex-col items-center text-center">
+                <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center mb-2.5">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <h4 className="text-[11px] font-black text-slate-950 uppercase tracking-tight mb-1">100% Original</h4>
+                <p className="text-[10px] text-neutral-500 leading-normal">Semua produk dijamin asli & bersertifikasi resmi.</p>
+              </div>
+
+              <div className="bg-white p-3 rounded-lg border border-neutral-100/80 flex flex-col items-center text-center">
+                <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center mb-2.5">
+                  <Sparkles className="w-5 h-5" />
+                </div>
+                <h4 className="text-[11px] font-black text-slate-950 uppercase tracking-tight mb-1">Premium Quality</h4>
+                <p className="text-[10px] text-neutral-500 leading-normal">Menggunakan material terbaik & nyaman dipakai seharian.</p>
+              </div>
+
+              <div className="bg-white p-3 rounded-lg border border-neutral-100/80 flex flex-col items-center text-center">
+                <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center mb-2.5">
+                  <HeartPulse className="w-5 h-5" />
+                </div>
+                <h4 className="text-[11px] font-black text-slate-950 uppercase tracking-tight mb-1">Safe & Sterile</h4>
+                <p className="text-[10px] text-neutral-500 leading-normal">Sterilisasi berstandar medis untuk kesehatan mata Anda.</p>
+              </div>
+
+              <div className="bg-white p-3 rounded-lg border border-neutral-100/80 flex flex-col items-center text-center">
+                <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center mb-2.5">
+                  <Clock className="w-5 h-5" />
+                </div>
+                <h4 className="text-[11px] font-black text-slate-950 uppercase tracking-tight mb-1">Instant Support</h4>
+                <p className="text-[10px] text-neutral-500 leading-normal">Konsultasi admin fast response via WhatsApp.</p>
+              </div>
+            </div>
+          </section>
+
           {/* Persistent Footer */}
           <footer className="bg-white border-t border-neutral-100 py-10 px-6 mt-8">
             <div className="max-w-md mx-auto space-y-10 text-center">
@@ -2067,13 +2153,13 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               <div className="space-y-4">
                 <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.2em] font-display">Ikuti Kami</p>
                 <div className="flex justify-center gap-10">
-                  <a href="#" className="text-slate-900 border-b-2 border-transparent hover:border-slate-900 transition-all pb-0.5 text-[10px] uppercase font-black tracking-wider">
+                  <a href="https://instagram.com/zendiix" target="_blank" rel="noopener noreferrer" className="text-slate-900 border-b-2 border-transparent hover:border-slate-900 transition-all pb-0.5 text-[10px] uppercase font-black tracking-wider">
                     Instagram
                   </a>
-                  <a href="#" className="text-slate-900 border-b-2 border-transparent hover:border-slate-900 transition-all pb-0.5 text-[10px] uppercase font-black tracking-wider">
+                  <a href="https://shopee.co.id/zendiix" target="_blank" rel="noopener noreferrer" className="text-slate-900 border-b-2 border-transparent hover:border-slate-900 transition-all pb-0.5 text-[10px] uppercase font-black tracking-wider">
                     Shopee
                   </a>
-                  <a href="#" className="text-slate-900 border-b-2 border-transparent hover:border-slate-900 transition-all pb-0.5 text-[10px] uppercase font-black tracking-wider">
+                  <a href="https://tiktok.com/@zendiix" target="_blank" rel="noopener noreferrer" className="text-slate-900 border-b-2 border-transparent hover:border-slate-900 transition-all pb-0.5 text-[10px] uppercase font-black tracking-wider">
                     TikTok
                   </a>
                 </div>
@@ -2411,7 +2497,7 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                 animate={{ y: 0 }}
                 exit={{ y: '100%' }}
                 transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-                className="relative w-full sm:max-w-lg bg-white h-full shadow-2xl flex flex-col z-10"
+                className="relative w-full max-w-[480px] bg-white h-full shadow-2xl flex flex-col z-10"
               >
                 <div className="p-4 border-b border-neutral-100 flex items-center justify-between bg-neutral-50">
                   <div className="flex items-center gap-2">
@@ -2533,8 +2619,28 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
           )}
         </AnimatePresence>
 
-        {/* Limelight Bottom Navigation Bar */}
-        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-[200] select-none">
+        {/* Limelight Bottom Navigation Bar and Sticky CTA for Product Detail */}
+        <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[480px] z-[200] select-none flex flex-col">
+          {selectedSeries && (
+            <div className="w-full h-[62px] bg-white border-t border-neutral-100 px-4 py-2 flex items-center justify-between gap-3 shadow-[0_-4px_24px_rgba(0,0,0,0.08)]">
+              <div className="flex flex-col text-left">
+                <span className="text-[8.5px] font-black text-neutral-400 uppercase tracking-widest leading-none">TOTAL BAYAR</span>
+                <span className="text-sm font-black text-slate-950 mt-1">Rp {modalSubtotal.toLocaleString()}</span>
+              </div>
+              <button
+                onClick={handleAddToCart}
+                disabled={!activeStockStatus.available}
+                className={`flex-1 h-11 rounded-lg text-xs font-black uppercase tracking-wider flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer ${
+                  activeStockStatus.available 
+                    ? 'bg-slate-950 text-white hover:bg-slate-900 shadow-sm' 
+                    : 'bg-neutral-200 text-neutral-400 cursor-not-allowed border-neutral-200'
+                }`}
+              >
+                <ShoppingBag className="w-4 h-4" />
+                <span>{activeStockStatus.available ? 'Tambah ke Keranjang' : 'Stok Habis'}</span>
+              </button>
+            </div>
+          )}
           <LimelightNav 
             items={frontendNavItems}
             activeIndex={currentActiveNavIndex}
