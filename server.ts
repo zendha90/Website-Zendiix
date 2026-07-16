@@ -1126,6 +1126,45 @@ async function startServer() {
     }
   });
 
+  // Database Pengeluaran Iklan GET API for Extension Integrations
+  app.get('/api/get-pengeluaran-iklan', async (req, res) => {
+    try {
+      let noPesananList: string[] = [];
+      if (!isDbOnline) {
+        // From fallback local file
+        noPesananList = (fallbackData.iklan || [])
+          .map((i: any) => String(i.noPesanan || "").trim())
+          .filter((np: string) => np.length > 0);
+      } else {
+        // From MySQL DB
+        const dbList = await getCached('iklan', () => db.select().from(iklan));
+        noPesananList = (dbList || [])
+          .map((i: any) => String(i.noPesanan || "").trim())
+          .filter((np: string) => np.length > 0);
+      }
+
+      // Eliminate duplicate entries to keep it clean
+      const uniqueNoPesanan = Array.from(new Set(noPesananList));
+
+      // Support format parameter: 'array' (Default string[]) or 'object' (containing nested array of objects)
+      if (req.query.format === 'object') {
+        return res.json({
+          success: true,
+          data: uniqueNoPesanan.map(np => ({ noPesanan: np }))
+        });
+      }
+
+      // Default to JSON array of strings
+      res.json(uniqueNoPesanan);
+    } catch (error: any) {
+      console.error('Error in GET /api/get-pengeluaran-iklan:', error);
+      res.status(500).json({
+        success: false,
+        error: error?.message || 'Gagal mengambil daftar nomor pesanan iklan.'
+      });
+    }
+  });
+
   // Weekly Sales
   app.get('/api/weekly-sales', async (req, res) => {
     try {
