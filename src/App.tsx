@@ -876,6 +876,13 @@ function findAutoMatch(
   
   const cleanRaw = rawName.toLowerCase().trim();
   const slugRaw = cleanRaw.replace(/[^a-z0-9]/g, "");
+  const inputHasMl = /\d+ml\b|\bml\b/i.test(cleanRaw);
+
+  // Helper to extract ml volumes
+  const getMlValues = (str: string): number[] => {
+    const matches = [...str.matchAll(/(\d+)\s*ml\b/gi)];
+    return matches.map(m => parseInt(m[1], 10));
+  };
 
   // 1. Priority: Exact match Code
   const exactCodeMatch = productList.find(p => p.kodeBarang && p.kodeBarang.toLowerCase().trim() === cleanRaw);
@@ -894,7 +901,9 @@ function findAutoMatch(
   if (slugMatch) return slugMatch;
 
   // 4. Advanced Word Intersection
-  const inputWords = cleanRaw.split(/[^a-z0-9]+/).filter(w => w.length >= 1);
+  // Insert spaces around digit sequences to cleanly isolate numeric and alphabetic parts
+  const cleanRawSpaced = cleanRaw.replace(/(\d+)/g, " $1 ");
+  const inputWords = cleanRawSpaced.split(/[^a-z0-9]+/).filter(w => w.length >= 1);
   if (inputWords.length === 0) return undefined;
 
   let bestMatch: Product | undefined = undefined;
@@ -905,7 +914,10 @@ function findAutoMatch(
     const pName = (p.namaBarang || "").toLowerCase();
     const pCode = (p.kodeBarang || "").toLowerCase();
     const pFullName = (pCode + " " + pName);
-    const pWords = pFullName.split(/[^a-z0-9]+/).filter(w => w.length >= 1);
+    
+    // Also space-split candidate product name/code
+    const pFullNameSpaced = pFullName.replace(/(\d+)/g, " $1 ");
+    const pWords = pFullNameSpaced.split(/[^a-z0-9]+/).filter(w => w.length >= 1);
     const pWordsSet = new Set(pWords);
     const pDigitsOnly = pFullName.replace(/[^0-9]/g, "");
     
@@ -928,11 +940,14 @@ function findAutoMatch(
       } else {
         // Fuzzy word match
         let foundPartial = false;
-        for (const pw of pWords) {
-          if (pw.includes(iw) || iw.includes(pw)) {
-            score += 0.5;
-            foundPartial = true;
-            break;
+        // ONLY allow partial matching if both words are at least 3 characters long
+        if (iw.length >= 3) {
+          for (const pw of pWords) {
+            if (pw.length >= 3 && (pw.includes(iw) || iw.includes(pw))) {
+              score += 0.5;
+              foundPartial = true;
+              break;
+            }
           }
         }
       }
@@ -953,6 +968,24 @@ function findAutoMatch(
       }
       if (!numericSatisfied) {
         score -= 10; // Extra heavy penalty if no numbers match but input has numbers
+      }
+    }
+
+    // ML volume check: Keep liquids with liquids, lenses with lenses
+    const productHasMl = /\d+ml\b|\bml\b/i.test(pFullName);
+    if (inputHasMl && !productHasMl) {
+      score -= 15; // Heavy penalty if input is a liquid (has ml) but product is not
+    } else if (!inputHasMl && productHasMl) {
+      score -= 15; // Heavy penalty if input is not a liquid but product is
+    }
+
+    // Hard liquid volume verification
+    const inputMls = getMlValues(cleanRaw);
+    const productMls = getMlValues(pFullName);
+    if (inputMls.length > 0 && productMls.length > 0) {
+      const hasIntersection = productMls.some(m => inputMls.includes(m));
+      if (!hasIntersection) {
+        score -= 20; // Massive penalty for volume mismatch
       }
     }
 
@@ -9633,32 +9666,16 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                       </td>
                                       <td className="px-4 py-2.5">
                                         {item.isEditingMapping ? (
-                                          <div className="flex items-center gap-1.5 max-w-[320px]">
-                                            <select
-                                              value={
-                                                item.overrideProductId || ""
-                                              }
-                                              onChange={(e) =>
-                                                handleParsedItemOverrideChange(
-                                                  idx,
-                                                  e.target.value,
-                                                )
-                                              }
-                                              className="flex-1 px-2 py-1.5 border-2 border-slate-900 bg-white font-bold font-mono text-[11px] focus:outline-none"
-                                            >
-                                              <option value="">
-                                                -- OTOMATIS (AUTO-MATCH) --
-                                              </option>
-                                              <option value="new">
-                                                🆕 PAKSA BUAT BARU DI KATALOG
-                                              </option>
-                                              {products.map((p) => (
-                                                <option key={p.id} value={p.id}>
-                                                  {p.kodeBarang} -{" "}
-                                                  {p.namaBarang}
-                                                </option>
-                                              ))}
-                                            </select>
+                                          <div className="flex items-center gap-1.5 w-[320px]">
+                                            <div className="flex-1 min-w-0">
+                                              <SearchableProductSelect
+                                                products={products}
+                                                value={item.overrideProductId || ""}
+                                                onChange={(val) =>
+                                                  handleParsedItemOverrideChange(idx, val)
+                                                }
+                                              />
+                                            </div>
                                             <button
                                               type="button"
                                               onClick={() =>
@@ -9666,7 +9683,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                                   idx,
                                                 )
                                               }
-                                              className="px-2.5 py-1.5 text-xs font-black bg-slate-900 text-white border-2 border-slate-900 transition-all active:translate-y-[1px]"
+                                              className="px-2.5 py-1.5 text-xs font-black bg-slate-900 text-white border border-slate-900 transition-all active:translate-y-[1px] shrink-0"
                                             >
                                               Selesai
                                             </button>
@@ -11076,6 +11093,137 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                     width: `${Math.round((savingProgress.current / savingProgress.total) * 100)}%`,
                   }}
                 ></div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface SearchableProductSelectProps {
+  products: Product[];
+  value: string;
+  onChange: (value: string) => void;
+}
+
+function SearchableProductSelect({ products, value, onChange }: SearchableProductSelectProps) {
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [search, setSearch] = React.useState("");
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  const selectedProduct = React.useMemo(() => {
+    return products.find(p => p.id === value);
+  }, [products, value]);
+
+  // Filter products based on search term
+  const filteredProducts = React.useMemo(() => {
+    if (!search.trim()) return products.slice(0, 50); // limit to keep responsive
+    const query = search.toLowerCase();
+    return products
+      .filter(p => {
+        const code = (p.kodeBarang || "").toLowerCase();
+        const name = (p.namaBarang || "").toLowerCase();
+        return code.includes(query) || name.includes(query);
+      })
+      .slice(0, 100); // limit to top 100 matches to prevent lagging
+  }, [products, search]);
+
+  return (
+    <div className="relative w-full" ref={dropdownRef}>
+      <button
+        type="button"
+        onClick={() => {
+          setIsOpen(!isOpen);
+          if (!isOpen) setSearch(""); // Reset search on open
+        }}
+        className="w-full flex items-center justify-between px-2 py-1 border border-slate-900 bg-white font-bold text-slate-800 text-[11px] focus:outline-none focus:ring-1 focus:ring-emerald-500/20 text-left cursor-pointer"
+      >
+        <span className="truncate font-mono">
+          {value === "" && "✨ OTOMATIS (AUTO-MATCH)"}
+          {value === "new" && "🆕 PAKSA BUAT BARU DI KATALOG"}
+          {value !== "" && value !== "new" && selectedProduct && `${selectedProduct.kodeBarang} - ${selectedProduct.namaBarang}`}
+          {value !== "" && value !== "new" && !selectedProduct && value}
+        </span>
+        <ChevronDown className="w-3.5 h-3.5 ml-1 shrink-0 text-slate-500" />
+      </button>
+
+      {isOpen && (
+        <div className="absolute left-0 right-0 mt-1 z-[120] bg-white border border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] max-h-[220px] flex flex-col">
+          {/* Search Input Box */}
+          <div className="p-1 border-b border-slate-900 bg-slate-50 flex items-center gap-1">
+            <Search className="w-3 h-3 text-slate-500 shrink-0" />
+            <input
+              type="text"
+              placeholder="Cari kode / nama barang..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full px-1.5 py-0.5 text-[10px] font-bold border border-slate-400 bg-white text-slate-800 focus:outline-none focus:border-slate-900 font-sans"
+              autoFocus
+            />
+          </div>
+
+          {/* List of Options */}
+          <div className="overflow-y-auto flex-1 max-h-[160px]">
+            {/* Automatic match option */}
+            <button
+              type="button"
+              onClick={() => {
+                onChange("");
+                setIsOpen(false);
+              }}
+              className={`w-full px-2 py-1 text-left text-[10px] font-bold border-b border-slate-100 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-1 transition-colors ${value === "" ? "bg-emerald-50 text-emerald-900" : "text-slate-700"}`}
+            >
+              <span>✨</span>
+              <span className="font-mono">-- OTOMATIS (AUTO-MATCH) --</span>
+            </button>
+
+            {/* Force new option */}
+            <button
+              type="button"
+              onClick={() => {
+                onChange("new");
+                setIsOpen(false);
+              }}
+              className={`w-full px-2 py-1 text-left text-[10px] font-bold border-b border-slate-100 hover:bg-indigo-50 hover:text-indigo-800 flex items-center gap-1 transition-colors ${value === "new" ? "bg-indigo-50 text-indigo-900" : "text-slate-700"}`}
+            >
+              <span>🆕</span>
+              <span className="font-mono">🆕 PAKSA BUAT BARU DI KATALOG</span>
+            </button>
+
+            {/* Filtered products */}
+            {filteredProducts.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                onClick={() => {
+                  onChange(p.id);
+                  setIsOpen(false);
+                }}
+                className={`w-full px-2 py-1 text-left text-[10px] font-bold border-b border-slate-100 hover:bg-slate-50 flex flex-col transition-colors ${value === p.id ? "bg-indigo-50 text-indigo-900 border-l-2 border-l-slate-900 pl-1.5" : "text-slate-800"}`}
+              >
+                <span className="font-mono text-slate-900 font-extrabold">{p.kodeBarang}</span>
+                <span className="text-[9px] text-slate-500 font-medium truncate">{p.namaBarang}</span>
+              </button>
+            ))}
+
+            {filteredProducts.length === 0 && (
+              <div className="p-2 text-center text-[10px] text-slate-400 font-bold font-sans">
+                Barang tidak ditemukan 😢
               </div>
             )}
           </div>

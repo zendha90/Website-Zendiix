@@ -25,10 +25,7 @@ import {
   Music,
   Camera,
   Upload,
-  Home,
-  ShieldCheck,
-  HeartPulse,
-  Clock
+  Home
 } from 'lucide-react';
 import { Product, Sale, IncomingGood, subscribeToSales, subscribeToIncomingGoods, BrandingSettings, Review, subscribeToReviews, addReview } from '../services';
 import { LimelightNav } from '../components/ui/limelight-nav';
@@ -2099,44 +2096,6 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
             </button>
           </section>
 
-          {/* MENGAPA ZENDIIX TRUST BADGES */}
-          <section className="p-4 mt-6 border-t border-b border-neutral-100 bg-neutral-50/50 text-left font-sans">
-            <h3 className="text-xs font-black text-slate-950 uppercase tracking-widest pl-2 mb-4 text-center font-display">MENGAPA ZENDIIX?</h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="bg-white p-3 rounded-lg border border-neutral-100/80 flex flex-col items-center text-center">
-                <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center mb-2.5">
-                  <ShieldCheck className="w-5 h-5" />
-                </div>
-                <h4 className="text-[11px] font-black text-slate-950 uppercase tracking-tight mb-1">100% Original</h4>
-                <p className="text-[10px] text-neutral-500 leading-normal">Semua produk dijamin asli & bersertifikasi resmi.</p>
-              </div>
-
-              <div className="bg-white p-3 rounded-lg border border-neutral-100/80 flex flex-col items-center text-center">
-                <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center mb-2.5">
-                  <Sparkles className="w-5 h-5" />
-                </div>
-                <h4 className="text-[11px] font-black text-slate-950 uppercase tracking-tight mb-1">Premium Quality</h4>
-                <p className="text-[10px] text-neutral-500 leading-normal">Menggunakan material terbaik & nyaman dipakai seharian.</p>
-              </div>
-
-              <div className="bg-white p-3 rounded-lg border border-neutral-100/80 flex flex-col items-center text-center">
-                <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center mb-2.5">
-                  <HeartPulse className="w-5 h-5" />
-                </div>
-                <h4 className="text-[11px] font-black text-slate-950 uppercase tracking-tight mb-1">Safe & Sterile</h4>
-                <p className="text-[10px] text-neutral-500 leading-normal">Sterilisasi berstandar medis untuk kesehatan mata Anda.</p>
-              </div>
-
-              <div className="bg-white p-3 rounded-lg border border-neutral-100/80 flex flex-col items-center text-center">
-                <div className="w-10 h-10 rounded-full bg-slate-900 text-white flex items-center justify-center mb-2.5">
-                  <Clock className="w-5 h-5" />
-                </div>
-                <h4 className="text-[11px] font-black text-slate-950 uppercase tracking-tight mb-1">Instant Support</h4>
-                <p className="text-[10px] text-neutral-500 leading-normal">Konsultasi admin fast response via WhatsApp.</p>
-              </div>
-            </div>
-          </section>
-
           {/* Persistent Footer */}
           <footer className="bg-white border-t border-neutral-100 py-10 px-6 mt-8">
             <div className="max-w-md mx-auto space-y-10 text-center">
@@ -2152,15 +2111,37 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               {/* Social Links Section */}
               <div className="space-y-4">
                 <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-[0.2em] font-display">Ikuti Kami</p>
-                <div className="flex justify-center gap-10">
-                  <a href="https://instagram.com/zendiix" target="_blank" rel="noopener noreferrer" className="text-slate-900 border-b-2 border-transparent hover:border-slate-900 transition-all pb-0.5 text-[10px] uppercase font-black tracking-wider">
-                    Instagram
+                <div className="flex justify-center gap-8">
+                  <a 
+                    href="https://instagram.com/zendiix" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="flex items-center gap-1.5 text-slate-900 hover:text-slate-500 transition-all text-[10px] uppercase font-black tracking-widest cursor-pointer"
+                  >
+                    <Instagram className="w-3.5 h-3.5 text-slate-900" />
+                    <span>Instagram</span>
                   </a>
-                  <a href="https://shopee.co.id/zendiix" target="_blank" rel="noopener noreferrer" className="text-slate-900 border-b-2 border-transparent hover:border-slate-900 transition-all pb-0.5 text-[10px] uppercase font-black tracking-wider">
-                    Shopee
+                  <a 
+                    href="https://shopee.co.id/zendiix" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="flex items-center gap-1.5 text-slate-900 hover:text-slate-500 transition-all text-[10px] uppercase font-black tracking-widest cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M20.25 7h-2.85V5.5C17.4 2.47 14.93 0 11.9 0c-3.03 0-5.5 2.47-5.5 5.5V7H3.55C2.42 7 1.5 7.92 1.5 9.05l1.6 12.15C3.21 22.33 4.17 23 5.3 23h13.2c1.13 0 2.09-.67 2.2-1.8l1.6-12.15C22.3 7.92 21.38 7 20.25 7zM8.3 5.5c0-1.99 1.61-3.6 3.6-3.6s3.6 1.61 3.6 3.6V7H8.3V5.5zm5.1 11.58c0 .33-.06.63-.19.9-.13.27-.3.51-.51.71s-.47.37-.76.49c-.29.12-.6.18-.94.18-.32 0-.61-.06-.88-.17-.27-.11-.51-.27-.72-.47s-.37-.44-.49-.71c-.12-.27-.18-.58-.18-.92h1.63c0 .17.03.32.08.45.05.13.12.24.21.33.09.09.2.16.32.2.12.04.25.06.38.06.14 0 .26-.02.37-.06.11-.04.2-.11.28-.2.08-.09.14-.2.18-.33.04-.13.06-.27.06-.44 0-.17-.03-.31-.08-.43-.05-.12-.13-.23-.23-.31-.1-.08-.22-.16-.36-.23-.14-.07-.3-.15-.47-.23-.25-.11-.49-.24-.72-.39s-.42-.33-.59-.53-.3-.43-.39-.68c-.09-.25-.13-.53-.13-.85 0-.32.06-.61.17-.87.11-.26.27-.49.47-.68s.44-.34.72-.45c.28-.11.58-.16.92-.16.33 0 .63.05.9.15.27.1.51.24.71.43s.36.41.47.67c.11.26.17.55.17.86h-1.63c0-.14-.03-.27-.08-.38-.05-.11-.12-.21-.21-.29s-.2-.14-.32-.18c-.12-.04-.24-.06-.37-.06-.13 0-.24.02-.34.06s-.19.09-.26.16-.13.15-.17.25c-.04.1-.06.21-.06.33 0 .15.03.27.08.38.05.11.12.2.22.28.1.08.21.15.35.22.14.07.29.14.45.21.26.11.51.24.74.39.23.15.42.33.58.53s.28.43.36.68c.08.25.12.52.12.82z"/>
+                    </svg>
+                    <span>Shopee</span>
                   </a>
-                  <a href="https://tiktok.com/@zendiix" target="_blank" rel="noopener noreferrer" className="text-slate-900 border-b-2 border-transparent hover:border-slate-900 transition-all pb-0.5 text-[10px] uppercase font-black tracking-wider">
-                    TikTok
+                  <a 
+                    href="https://tiktok.com/@zendiix" 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="flex items-center gap-1.5 text-slate-900 hover:text-slate-500 transition-all text-[10px] uppercase font-black tracking-widest cursor-pointer"
+                  >
+                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.02 1.63 4.18 1.13 1.2 2.68 1.9 4.3 2.02v3.82c-1.39-.02-2.77-.33-4.01-.93-.76-.37-1.44-.89-2.01-1.52-.02 2.4-.01 4.79-.02 7.19-.05 2.14-.65 4.29-1.97 5.96-1.56 2.05-4.01 3.29-6.58 3.28-2.67.04-5.26-1.21-6.73-3.46-1.55-2.29-1.84-5.28-.79-7.85 1.01-2.58 3.52-4.39 6.29-4.59.01 1.39-.01 2.78 0 4.17-.91.07-1.82.49-2.43 1.18-.8 1.02-.9 2.47-.23 3.59.61.99 1.76 1.6 2.94 1.53 1.2-.02 2.32-.82 2.68-1.95.27-.71.24-1.48.25-2.23V0l.01.02z"/>
+                    </svg>
+                    <span>TikTok</span>
                   </a>
                 </div>
               </div>
