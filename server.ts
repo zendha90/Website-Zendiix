@@ -931,6 +931,201 @@ async function startServer() {
     }
   });
 
+  // Database Pengeluaran Iklan API for Extension Integrations
+  app.post('/api/pengeluaran-iklan', async (req, res) => {
+    // Helper to extract an array of iklan records from various common input formats
+    const extractIklanRecords = (body: any): any[] => {
+      if (!body) return [];
+      if (Array.isArray(body)) {
+        return body;
+      }
+      if (typeof body === 'object') {
+        if (Array.isArray(body.data)) return body.data;
+        if (Array.isArray(body.iklan)) return body.iklan;
+        if (Array.isArray(body.items)) return body.items;
+        // Single object check
+        if (body.tanggal !== undefined || body.totalPembayaran !== undefined || body.noPesanan !== undefined) {
+          return [body];
+        }
+      }
+      return [];
+    };
+
+    const records = extractIklanRecords(req.body);
+    if (records.length === 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: "Format data tidak valid atau kosong. Harap kirimkan data pengeluaran iklan." 
+      });
+    }
+
+    const savedRecords: any[] = [];
+    const updatedRecords: any[] = [];
+
+    // Helper to parse number safely from string formats (like Currency format or dot separated)
+    const parseNumber = (val: any): number => {
+      if (typeof val === 'number') return val;
+      if (typeof val === 'string') {
+        const cleaned = val.replace(/[^0-9.-]/g, '');
+        const num = parseFloat(cleaned);
+        return isNaN(num) ? 0 : num;
+      }
+      return 0;
+    };
+
+    try {
+      if (!isDbOnline) {
+        // Fallback Database offline support
+        for (const item of records) {
+          const rawNoPesanan = item.noPesanan || item.no_pesanan || item.orderNo || item.order_no || item.orderId || item.order_id || item.invoice || item.noInvoice || item.id_pesanan || item.id || '';
+          const finalNoPesanan = String(rawNoPesanan).trim() || `EXT-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+          
+          let tanggalVal = item.tanggal || item.date || item.tanggal_transaksi || item.tanggalTransaksi || '';
+          if (!tanggalVal) {
+            const now = new Date();
+            const yyyy = now.getFullYear();
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            tanggalVal = `${yyyy}-${mm}-${dd}`;
+          } else {
+            tanggalVal = String(tanggalVal).trim();
+          }
+
+          const rawPembayaran = item.totalPembayaran !== undefined ? item.totalPembayaran :
+                               item.total_pembayaran !== undefined ? item.total_pembayaran :
+                               item.amount !== undefined ? item.amount :
+                               item.total !== undefined ? item.total :
+                               item.biaya !== undefined ? item.biaya :
+                               item.cost !== undefined ? item.cost :
+                               item.spend !== undefined ? item.spend :
+                               item.payment !== undefined ? item.payment :
+                               item.pembayaran !== undefined ? item.pembayaran : 0;
+
+          const totalPembayaran = parseNumber(rawPembayaran);
+
+          // Find if duplicate noPesanan exists in fallbackData.iklan
+          const existingIdx = fallbackData.iklan.findIndex((i: any) => String(i.noPesanan).trim() === finalNoPesanan);
+          if (existingIdx !== -1) {
+            fallbackData.iklan[existingIdx].totalPembayaran = totalPembayaran;
+            fallbackData.iklan[existingIdx].tanggal = tanggalVal;
+            updatedRecords.push({ 
+              id: fallbackData.iklan[existingIdx].id, 
+              noPesanan: finalNoPesanan, 
+              totalPembayaran, 
+              tanggal: tanggalVal 
+            });
+          } else {
+            const newId = item.id || Math.random().toString(36).substring(2, 15);
+            const newRecord = {
+              id: newId,
+              noPesanan: finalNoPesanan,
+              tanggal: tanggalVal,
+              totalPembayaran,
+              createdAt: new Date().toISOString()
+            };
+            fallbackData.iklan.push(newRecord);
+            savedRecords.push(newRecord);
+          }
+        }
+        saveFallbackData();
+        return res.json({
+          success: true,
+          status: "fallback",
+          message: `Berhasil memproses ${records.length} data iklan ke penyimpanan lokal (Database Offline).`,
+          summary: {
+            inserted: savedRecords.length,
+            updated: updatedRecords.length
+          },
+          data: [...savedRecords, ...updatedRecords]
+        });
+      }
+
+      // Database is online: Process via Drizzle
+      for (const item of records) {
+        const rawNoPesanan = item.noPesanan || item.no_pesanan || item.orderNo || item.order_no || item.orderId || item.order_id || item.invoice || item.noInvoice || item.id_pesanan || item.id || '';
+        const finalNoPesanan = String(rawNoPesanan).trim() || `EXT-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+        
+        let tanggalVal = item.tanggal || item.date || item.tanggal_transaksi || item.tanggalTransaksi || '';
+        if (!tanggalVal) {
+          const now = new Date();
+          const yyyy = now.getFullYear();
+          const mm = String(now.getMonth() + 1).padStart(2, '0');
+          const dd = String(now.getDate()).padStart(2, '0');
+          tanggalVal = `${yyyy}-${mm}-${dd}`;
+        } else {
+          tanggalVal = String(tanggalVal).trim();
+        }
+
+        const rawPembayaran = item.totalPembayaran !== undefined ? item.totalPembayaran :
+                             item.total_pembayaran !== undefined ? item.total_pembayaran :
+                             item.amount !== undefined ? item.amount :
+                             item.total !== undefined ? item.total :
+                             item.biaya !== undefined ? item.biaya :
+                             item.cost !== undefined ? item.cost :
+                             item.spend !== undefined ? item.spend :
+                             item.payment !== undefined ? item.payment :
+                             item.pembayaran !== undefined ? item.pembayaran : 0;
+
+        const totalPembayaran = parseNumber(rawPembayaran);
+
+        // Check if existing record with same noPesanan is in the database
+        const existingList = await db.select().from(iklan).where(eq(iklan.noPesanan, finalNoPesanan)).limit(1);
+        if (existingList.length > 0) {
+          // Update existing
+          const existing = existingList[0];
+          await db.update(iklan)
+            .set({
+              totalPembayaran,
+              tanggal: tanggalVal
+            })
+            .where(eq(iklan.id, existing.id));
+          updatedRecords.push({ 
+            id: existing.id, 
+            noPesanan: finalNoPesanan, 
+            totalPembayaran, 
+            tanggal: tanggalVal 
+          });
+        } else {
+          // Insert new
+          const newId = item.id || Math.random().toString(36).substring(2, 15);
+          await db.insert(iklan).values({
+            id: newId,
+            noPesanan: finalNoPesanan,
+            tanggal: tanggalVal,
+            totalPembayaran,
+            createdAt: new Date()
+          });
+          savedRecords.push({ 
+            id: newId, 
+            noPesanan: finalNoPesanan, 
+            tanggal: tanggalVal, 
+            totalPembayaran 
+          });
+        }
+      }
+
+      clearCache('iklan');
+
+      res.json({
+        success: true,
+        status: "online",
+        message: `Berhasil menyimpan ${records.length} data iklan ke database.`,
+        summary: {
+          inserted: savedRecords.length,
+          updated: updatedRecords.length
+        },
+        data: [...savedRecords, ...updatedRecords]
+      });
+
+    } catch (error: any) {
+      console.error('Error in POST /api/pengeluaran-iklan:', error);
+      res.status(500).json({
+        success: false,
+        error: error?.message || 'Gagal menyimpan data pengeluaran iklan.'
+      });
+    }
+  });
+
   // Weekly Sales
   app.get('/api/weekly-sales', async (req, res) => {
     try {
