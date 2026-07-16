@@ -38,6 +38,10 @@ if (process.env.DATABASE_URL) {
       connectTimeout: 10000, 
       waitForConnections: true,
       queueLimit: 0,
+      enableKeepAlive: true,
+      keepAliveInitialDelay: 10000,
+      idleTimeout: 15000,
+      maxIdle: 4,
       ...queryParams,
     };
 

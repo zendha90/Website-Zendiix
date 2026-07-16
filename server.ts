@@ -175,6 +175,34 @@ async function startServer() {
 
   loadFallbackData();
 
+  async function executeWithRetry<T>(fn: () => Promise<T>, retries = 1, delayMs = 500): Promise<T> {
+    try {
+      return await fn();
+    } catch (err: any) {
+      const isTransient = err && (
+        err.code === 'PROTOCOL_CONNECTION_LOST' ||
+        err.code === 'ECONNRESET' ||
+        err.code === 'EPIPE' ||
+        err.code === 'ETIMEDOUT' ||
+        err.code === 'ECONNREFUSED' ||
+        (err.message && (
+          err.message.includes('connection lost') ||
+          err.message.includes('lost connection') ||
+          err.message.includes('ECONNRESET') ||
+          err.message.includes('EPIPE') ||
+          err.message.includes('timeout')
+        ))
+      );
+      
+      if (isTransient && retries > 0) {
+        console.warn(`Transient database error encountered (${err.code || err.message}). Retrying in ${delayMs}ms... (Remaining retries: ${retries})`);
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        return executeWithRetry(fn, retries - 1, delayMs * 2);
+      }
+      throw err;
+    }
+  }
+
   let isDbOnline = false;
   let dbCircuitTrippedAt = 0;
   const CIRCUIT_COOLDOWN_MS = 15000; // Keep DB offline for 15 seconds after failing
@@ -194,7 +222,7 @@ async function startServer() {
     console.log('Checking database health in the background...');
     try {
       await Promise.race([
-        db.execute(sql`SELECT 1`),
+        executeWithRetry(() => db.execute(sql`SELECT 1`)),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 3000))
       ]);
       console.log('Database health check succeeded. Restoring database connection.');
@@ -226,7 +254,7 @@ async function startServer() {
     try {
       // Establish a quick ping. If this rejects, we abort the upgrades immediately to avoid blocking pool slots.
       await Promise.race([
-        db.execute(sql`SELECT 1`),
+        executeWithRetry(() => db.execute(sql`SELECT 1`), 2, 500),
         new Promise((_, reject) => setTimeout(() => reject(new Error('Ping timeout')), 4000))
       ]);
       console.log('Database connectivity verified. Proceeding with passive schema checks...');
@@ -460,7 +488,7 @@ async function startServer() {
         const backgroundPromise = (async () => {
           try {
             const fresh = await Promise.race([
-              fetchFn(),
+              executeWithRetry(fetchFn),
               new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 20000))
             ]);
             serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
@@ -483,7 +511,7 @@ async function startServer() {
       pending = (async () => {
         try {
           const fresh = await Promise.race([
-            fetchFn(),
+            executeWithRetry(fetchFn),
             new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 20000))
           ]);
           serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
@@ -510,7 +538,7 @@ async function startServer() {
 
   async function runDbWrite<T>(writeFn: () => Promise<T>): Promise<T> {
     return Promise.race([
-      writeFn(),
+      executeWithRetry(writeFn),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database write operation timed out')), 5000))
     ]);
   }
