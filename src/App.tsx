@@ -6109,7 +6109,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                         required
                         value={namaBarang}
                         onChange={(e) => setNamaBarang(e.target.value)}
-                        className="w-full px-4 py-3 bg-white border-2 border-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 text-sm font-black uppercase tracking-tight"
+                        className="w-full px-4 py-3 bg-white border-2 border-slate-900 focus:outline-none focus:ring-4 focus:ring-indigo-500/20 text-sm font-black tracking-tight"
                         placeholder="e.g. Ocean Blue Series"
                       />
                     </div>
