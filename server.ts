@@ -203,7 +203,7 @@ async function startServer() {
     }
   }
 
-  let isDbOnline = false;
+  let isDbOnline = !!(process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('dummy_user'));
   let dbCircuitTrippedAt = 0;
   const CIRCUIT_COOLDOWN_MS = 15000; // Keep DB offline for 15 seconds after failing
   let isCheckingHealth = false;
@@ -261,6 +261,7 @@ async function startServer() {
       isDbOnline = true;
     } catch (err: any) {
       console.warn('Skipping background database schema bootstrap: Database is offline, unreachable, or timed out:', err?.message || err);
+      tripDbCircuit(`Background startup bootstrap ping failed: ${err?.message || err}`);
       return;
     }
 

@@ -1263,7 +1263,7 @@ function BannerUploadManager({ onAddBanner }: { onAddBanner: (imageUrl: string, 
   );
 }
 
-function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadingProducts = false }: { sharedProducts: Product[]; sharedBanners: StorefrontBanner[]; sharedBranding: BrandingSettings; sharedLoadingProducts?: boolean }) {
+function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadingProducts = false, dbError = null }: { sharedProducts: Product[]; sharedBanners: StorefrontBanner[]; sharedBranding: BrandingSettings; sharedLoadingProducts?: boolean; dbError?: { message: string; suggestedIp?: string } | null }) {
   const [products, setProducts] = useState<Product[]>(sharedProducts);
   const [banners, setBanners] = useState<StorefrontBanner[]>(sharedBanners || []);
   const [branding, setBranding] = useState<BrandingSettings>(sharedBranding);
@@ -5352,6 +5352,21 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                 {isAuthenticated && loadingSalesDS && <span className="block">• Penjualan Dropship</span>}
                 {isAuthenticated && loadingIklan && <span className="block">• Database Iklan</span>}
                 {isAuthenticated && loadingWeekly && <span className="block">• Laporan Mingguan</span>}
+              </div>
+            </div>
+          ) : dbError ? (
+            <div className="bg-rose-50 border-2 border-rose-700 p-3 flex flex-col gap-1.5 shadow-[3px_3px_0px_0px_#be123c] rounded animate-pulse">
+              <div className="flex items-center gap-3">
+                <div className="w-2.5 h-2.5 bg-rose-500 border border-slate-900 rounded-full"></div>
+                <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest leading-none">
+                  DATABASE OFFLINE
+                </span>
+              </div>
+              <div className="text-[8px] font-bold text-rose-600 pl-5.5 space-y-0.5">
+                <span className="block text-rose-700 font-extrabold uppercase">• FALLBACK AKTIF</span>
+                <span className="block">• {products.length} produk terload</span>
+                <span className="block">• {sales.length} data terjual</span>
+                <span className="block">• {incomingGoods.length} data stok masuk</span>
               </div>
             </div>
           ) : (
@@ -11491,7 +11506,7 @@ export default function App() {
         <Routes>
           <Route path="/" element={<Storefront products={products} banners={banners} branding={branding} isLoading={loadingProducts} />} />
           <Route path="/customer/reviews" element={<CustomerReviews branding={branding} dbError={dbError} products={products} />} />
-          <Route path="/admin/*" element={<AppContent sharedProducts={products} sharedBanners={banners} sharedBranding={branding} sharedLoadingProducts={loadingProducts} />} />
+          <Route path="/admin/*" element={<AppContent sharedProducts={products} sharedBanners={banners} sharedBranding={branding} sharedLoadingProducts={loadingProducts} dbError={dbError} />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

@@ -7,7 +7,12 @@ async function migrate() {
     return;
   }
 
-  const connection = await mysql.createConnection(process.env.DATABASE_URL);
+  let dbUrl = process.env.DATABASE_URL;
+  if (dbUrl && dbUrl.includes('@localhost')) {
+    dbUrl = dbUrl.replace('@localhost', '@127.0.0.1');
+    console.log('Mapping localhost to 127.0.0.1 in database URL for faster IPv4 loopback connection.');
+  }
+  const connection = await mysql.createConnection(dbUrl);
   console.log('Connected to MySQL...');
 
   const tables = [

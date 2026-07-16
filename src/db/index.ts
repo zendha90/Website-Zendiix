@@ -29,7 +29,7 @@ if (process.env.DATABASE_URL) {
     }
 
     const poolConfig: mysql.PoolOptions = {
-      host: parsed.hostname,
+      host: parsed.hostname === 'localhost' ? '127.0.0.1' : parsed.hostname,
       port: parsed.port ? parseInt(parsed.port) : 3306,
       user: parsed.username,
       password: safePassword,
