@@ -8077,7 +8077,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                       </td>
                                       
                                       {/* Total Profit column */}
-                                      <td className="px-4 py-3 text-right border-r border-slate-900 font-mono font-black text-slate-900 bg-emerald-50/50">
+                                      <td className="px-4 py-3 text-right border-r border-slate-900 font-mono font-black text-red-600 bg-emerald-50/50">
                                         <div className="flex items-center justify-end gap-2 group/total">
                                           <span>
                                             Rp {row.totalProfit.toLocaleString("id-ID")}
@@ -8104,7 +8104,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                       </td>
                                       
                                       {/* Iklan column */}
-                                      <td className="px-4 py-3 text-right border-r border-slate-900 font-mono text-rose-600">
+                                      <td className="px-4 py-3 text-right border-r border-slate-900 font-mono text-slate-900">
                                         <div className="flex items-center justify-end gap-2 group/iklan">
                                           <span>
                                             Rp {row.iklan.toLocaleString("id-ID")}
