@@ -268,18 +268,18 @@ const parseToDate = (tStr: any): Date | null => {
   const cleanStr = sStr.replace(/\s+/g, ' ');
 
   const indonesianMonths: { [key: string]: number } = {
-    januari: 0, jan: 0,
-    februari: 1, feb: 1,
-    maret: 2, mar: 2,
+    januari: 0, jan: 0, january: 0,
+    februari: 1, feb: 1, february: 1,
+    maret: 2, mar: 2, march: 2,
     april: 3, apr: 3,
     mei: 4, may: 4,
-    juni: 5, jun: 5,
-    juli: 6, jul: 6,
-    agustus: 7, agt: 7, agst: 7, agu: 7,
-    oktober: 9, okt: 9,
-    september: 8, sep: 8,
-    november: 10, nov: 10,
-    desember: 11, des: 11
+    juni: 5, jun: 5, june: 5,
+    juli: 6, jul: 6, july: 6,
+    agustus: 7, agt: 7, agst: 7, agu: 7, aug: 7, august: 7,
+    oktober: 9, okt: 9, oct: 9, october: 9,
+    september: 8, sep: 8, sept: 8,
+    november: 10, nov: 10, nop: 10,
+    desember: 11, des: 11, dec: 11, december: 11
   };
 
   // 1. Check space separated "DD Month YYYY" (e.g. "15 Mei 2026")
@@ -374,6 +374,41 @@ const normalizeOrderDate = (dateStr: any): string => {
     return formatToIndoDateStr(d);
   }
   return String(dateStr).trim();
+};
+
+const getRecordTimestamp = (item: any): number => {
+  if (!item) return 0;
+
+  let orderTime = 0;
+  if (item.tanggalOrder) {
+    const dOrder = parseToDate(item.tanggalOrder);
+    if (dOrder && !isNaN(dOrder.getTime())) {
+      orderTime = dOrder.getTime();
+    }
+  }
+
+  let dbTime = 0;
+  if (item.tanggal) {
+    const dDb = parseToDate(item.tanggal);
+    if (dDb && !isNaN(dDb.getTime())) {
+      dbTime = dDb.getTime();
+    }
+  } else if (item.createdAt) {
+    const dDb = parseToDate(item.createdAt);
+    if (dDb && !isNaN(dDb.getTime())) {
+      dbTime = dDb.getTime();
+    }
+  }
+
+  if (orderTime > 0) {
+    if (dbTime > 0) {
+      const timeOfDay = dbTime % 86400000;
+      return orderTime + timeOfDay;
+    }
+    return orderTime;
+  }
+
+  return dbTime;
 };
 
 
@@ -2565,19 +2600,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
     const orderedKeys: string[] = [];
 
     const sortedSales = [...sales].sort((a, b) => {
-      const getTimestamp = (val: any) => {
-        if (!val) return 0;
-        if (typeof val === 'object' && val !== null) {
-          if (typeof val.toDate === 'function') return val.toDate().getTime();
-          if ('seconds' in val) return val.seconds * 1000;
-        }
-        const date = new Date(val);
-        const time = date.getTime();
-        return isNaN(time) ? 0 : time;
-      };
-      const tA = getTimestamp(a.tanggalOrder || a.tanggal);
-      const tB = getTimestamp(b.tanggalOrder || b.tanggal);
-      return tB - tA;
+      return getRecordTimestamp(b) - getRecordTimestamp(a);
     });
 
     sortedSales.forEach((s) => {
@@ -2680,7 +2703,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
         (s.kodeSupplier && s.kodeSupplier.toLowerCase().includes(q))
       );
     }
-    return result;
+    return result.sort((a, b) => getRecordTimestamp(b) - getRecordTimestamp(a));
   }, [salesDS, salesDSSearch]);
 
   const paginatedSalesDS = React.useMemo(() => {
@@ -2700,19 +2723,8 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
       );
     }
     return result.sort((a, b) => {
-      const getTimestamp = (val: any) => {
-        if (!val) return 0;
-        if (typeof val === 'object' && val !== null) {
-            if (typeof val.toDate === 'function') return val.toDate().getTime();
-            if ('seconds' in val) return val.seconds * 1000;
-        }
-        const date = new Date(val);
-        const time = date.getTime();
-        return isNaN(time) ? 0 : time;
-      };
-
-      const t1 = Math.floor(getTimestamp(a?.tanggal) / 60000);
-      const t2 = Math.floor(getTimestamp(b?.tanggal) / 60000);
+      const t1 = Math.floor(getRecordTimestamp(a) / 60000);
+      const t2 = Math.floor(getRecordTimestamp(b) / 60000);
 
       if (t2 !== t1) {
         return t2 - t1;
@@ -3054,28 +3066,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
     }
 
     // 2. Sort complete items descending by order date or original date to get the absolute last (newest) record
-    const sortedDS = [...completeDS].sort((a, b) => {
-      const getMs = (item: any) => {
-        if (item.tanggal) {
-          if (typeof item.tanggal.seconds === "number") return item.tanggal.seconds * 1000;
-          const dObj = new Date(item.tanggal);
-          if (!isNaN(dObj.getTime())) return dObj.getTime();
-        }
-        if (item.tanggalOrder) {
-          // If in dd/mm/yyyy format we should convert it or parse it
-          const parts = item.tanggalOrder.split("/");
-          if (parts.length === 3) {
-            // Assume dd/mm/yyyy
-            const dObj = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
-            if (!isNaN(dObj.getTime())) return dObj.getTime();
-          }
-          const dObj = new Date(item.tanggalOrder);
-          if (!isNaN(dObj.getTime())) return dObj.getTime();
-        }
-        return 0;
-      };
-      return getMs(b) - getMs(a);
-    });
+    const sortedDS = [...completeDS].sort((a, b) => getRecordTimestamp(b) - getRecordTimestamp(a));
 
     // 3. Take the last entry
     const lastDS = sortedDS[0];
