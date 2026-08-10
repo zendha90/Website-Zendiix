@@ -932,7 +932,7 @@ async function startServer() {
   });
 
   // Database Pengeluaran Iklan API for Extension Integrations
-  app.post('/api/pengeluaran-iklan', async (req, res) => {
+  app.post(['/api/pengeluaran-iklan', '/api/store-pengeluaran-iklan'], async (req, res) => {
     // Helper to extract an array of iklan records from various common input formats
     const extractIklanRecords = (body: any): any[] => {
       if (!body) return [];
@@ -1127,7 +1127,7 @@ async function startServer() {
   });
 
   // Database Pengeluaran Iklan GET API for Extension Integrations
-  app.get('/api/get-pengeluaran-iklan', async (req, res) => {
+  app.get(['/api/get-pengeluaran-iklan', '/api/pengeluaran-iklan'], async (req, res) => {
     try {
       let noPesananList: string[] = [];
       if (!isDbOnline) {
@@ -1429,6 +1429,45 @@ async function startServer() {
   });
 
   // INCOMING GOODS
+  app.put('/api/incoming-goods/:id', async (req, res) => {
+    const { id } = req.params;
+    const data = req.body;
+    try {
+      if (!isDbOnline) {
+        const index = fallbackData.incomingGoods.findIndex((ig: any) => ig.id === id);
+        if (index !== -1) {
+          fallbackData.incomingGoods[index] = { ...fallbackData.incomingGoods[index], ...data };
+          saveFallbackData();
+        }
+        return res.json({ id, ...data });
+      }
+
+      const updateData: any = {};
+      if (data.kodeBarang !== undefined) updateData.kodeBarang = data.kodeBarang;
+      if (data.namaBarang !== undefined) updateData.namaBarang = data.namaBarang;
+      if (data.qty !== undefined) updateData.qty = Number(data.qty);
+      if (data.supplier !== undefined) updateData.supplier = data.supplier;
+      if (data.productId !== undefined) updateData.productId = data.productId;
+      if (data.tanggal !== undefined && data.tanggal !== null) {
+        updateData.tanggal = new Date(data.tanggal);
+      }
+
+      await runDbWrite(async () => {
+        await db.update(incomingGoods).set(updateData).where(eq(incomingGoods.id, id));
+      });
+      clearCache('incoming-goods');
+      res.json({ id, ...data });
+    } catch (error) {
+      console.error('Error updating incoming good in DB, falling back to local storage:', error);
+      const index = fallbackData.incomingGoods.findIndex((ig: any) => ig.id === id);
+      if (index !== -1) {
+        fallbackData.incomingGoods[index] = { ...fallbackData.incomingGoods[index], ...data };
+        saveFallbackData();
+      }
+      res.json({ id, ...data });
+    }
+  });
+
   app.delete('/api/incoming-goods/:id', async (req, res) => {
     const { id } = req.params;
     try {

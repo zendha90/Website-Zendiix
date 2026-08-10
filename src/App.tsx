@@ -58,6 +58,7 @@ import {
   deleteSale,
   updateSale,
   addIncomingGood,
+  updateIncomingGood,
   deleteIncomingGood,
   subscribeToSalesDS,
   addSaleDSRecord,
@@ -2013,27 +2014,76 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
     }
   };
 
+  const handleEditIncomingClick = (g: IncomingGood) => {
+    let dateFormatted = "";
+    if (g.tanggal) {
+      const d = parseToDate(g.tanggal);
+      if (d && !isNaN(d.getTime())) {
+        const pad = (n: number) => String(n).padStart(2, '0');
+        dateFormatted = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      }
+    }
+
+    setIncomingForm({
+      id: g.id,
+      productId: g.productId,
+      kodeBarang: g.kodeBarang,
+      namaBarang: g.namaBarang,
+      qty: g.qty,
+      supplier: g.supplier || "",
+      tanggal: dateFormatted,
+    });
+    setIsIncomingModalOpen(true);
+  };
+
   const handleAddIncoming = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!incomingForm.productId || !incomingForm.qty) return;
     const prod = products.find((p) => p.id === incomingForm.productId);
-    if (!prod) return;
 
-    setSavingProgress({ current: 0, total: 1, title: "Menyimpan Data Barang Masuk" });
+    const kodeBarang = prod ? prod.kodeBarang : (incomingForm.kodeBarang || "");
+    const namaBarang = prod ? prod.namaBarang : (incomingForm.namaBarang || "");
+    const supplier = incomingForm.supplier !== undefined && incomingForm.supplier !== ""
+      ? incomingForm.supplier
+      : (prod ? prod.supplier : "");
+
+    const isEditing = !!incomingForm.id;
+    setSavingProgress({
+      current: 0,
+      total: 1,
+      title: isEditing ? "Memperbarui Data Barang Masuk" : "Menyimpan Data Barang Masuk"
+    });
 
     try {
-      await addIncomingGood({
-        productId: prod.id!,
-        kodeBarang: prod.kodeBarang,
-        namaBarang: prod.namaBarang,
-        qty: Number(incomingForm.qty),
-        tanggal: null,
-        supplier: prod.supplier,
-      });
+      let finalTanggal: any = null;
+      if (incomingForm.tanggal) {
+        finalTanggal = new Date(incomingForm.tanggal).toISOString();
+      }
+
+      if (isEditing) {
+        await updateIncomingGood({
+          id: incomingForm.id,
+          productId: incomingForm.productId,
+          kodeBarang,
+          namaBarang,
+          qty: Number(incomingForm.qty),
+          supplier,
+          tanggal: finalTanggal,
+        });
+      } else {
+        await addIncomingGood({
+          productId: incomingForm.productId,
+          kodeBarang,
+          namaBarang,
+          qty: Number(incomingForm.qty),
+          supplier,
+          tanggal: finalTanggal,
+        });
+      }
       setIsIncomingModalOpen(false);
       setIncomingForm({ qty: 1 });
     } catch (err) {
-      alert("Gagal menambah barang masuk");
+      alert(isEditing ? "Gagal memperbarui barang masuk" : "Gagal menambah barang masuk");
     } finally {
       setSavingProgress(null);
     }
@@ -7594,12 +7644,22 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                   {g.qty}
                                 </td>
                                 <td className="px-6 py-4 text-center">
-                                  <button
-                                    onClick={() => setIncomingToDelete(g)}
-                                    className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white border-2 border-transparent hover:border-slate-900 shadow-none transition-all group-hover:opacity-100"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
+                                  <div className="flex items-center justify-center gap-1">
+                                    <button
+                                      onClick={() => handleEditIncomingClick(g)}
+                                      className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-white border-2 border-transparent hover:border-slate-900 shadow-none transition-all group-hover:opacity-100"
+                                      title="Edit Data Barang Masuk"
+                                    >
+                                      <Pencil className="w-4 h-4" />
+                                    </button>
+                                    <button
+                                      onClick={() => setIncomingToDelete(g)}
+                                      className="p-2 text-slate-400 hover:text-rose-600 hover:bg-white border-2 border-transparent hover:border-slate-900 shadow-none transition-all group-hover:opacity-100"
+                                      title="Hapus Data Barang Masuk"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             );
@@ -8814,14 +8874,14 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
             </div>
           )}
 
-          {/* ADD INCOMING MODAL */}
+          {/* ADD / EDIT INCOMING MODAL */}
           {isIncomingModalOpen && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
               <div className="bg-white border-4 border-slate-900 w-full max-w-lg shadow-[16px_16px_0px_0px_#0f172a] my-auto">
                 <div className="p-6 border-b-4 border-slate-900 flex items-center justify-between bg-slate-50">
                   <h3 className="text-xl font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest">
                     <ArrowDown className="w-6 h-6 border-2 border-slate-900 bg-emerald-100 p-1 shadow-[2px_2px_0px_0px_#0f172a]" />{" "}
-                    Tambah Barang Masuk
+                    {incomingForm.id ? "Edit Barang Masuk" : "Tambah Barang Masuk"}
                   </h3>
                   <button
                     onClick={() => setIsIncomingModalOpen(false)}
@@ -8838,12 +8898,16 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                     <select
                       required
                       value={incomingForm.productId || ""}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const selectedProd = products.find(p => p.id === e.target.value);
                         setIncomingForm({
                           ...incomingForm,
                           productId: e.target.value,
-                        })
-                      }
+                          kodeBarang: selectedProd ? selectedProd.kodeBarang : (incomingForm.kodeBarang || ""),
+                          namaBarang: selectedProd ? selectedProd.namaBarang : (incomingForm.namaBarang || ""),
+                          supplier: selectedProd ? selectedProd.supplier : (incomingForm.supplier || ""),
+                        });
+                      }}
                       className="w-full px-4 py-4 bg-white border-2 border-slate-900 font-black shadow-[4px_4px_0px_0px_#0f172a] focus:outline-none"
                     >
                       <option value="">-- Pilih Barang --</option>
@@ -8854,6 +8918,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                       ))}
                     </select>
                   </div>
+
                   <div className="space-y-1">
                     <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
                       Jumlah Masuk
@@ -8862,7 +8927,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                       type="number"
                       required
                       min="1"
-                      value={incomingForm.qty}
+                      value={incomingForm.qty || 1}
                       onChange={(e) =>
                         setIncomingForm({
                           ...incomingForm,
@@ -8872,6 +8937,42 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                       className="w-full px-4 py-4 bg-white border-2 border-slate-900 font-black font-mono shadow-[4px_4px_0px_0px_#0f172a]"
                     />
                   </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                      Supplier (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      value={incomingForm.supplier || ""}
+                      onChange={(e) =>
+                        setIncomingForm({
+                          ...incomingForm,
+                          supplier: e.target.value,
+                        })
+                      }
+                      placeholder="Masukkan nama supplier..."
+                      className="w-full px-4 py-4 bg-white border-2 border-slate-900 font-black shadow-[4px_4px_0px_0px_#0f172a]"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                      Tanggal Input (Opsional)
+                    </label>
+                    <input
+                      type="datetime-local"
+                      value={incomingForm.tanggal || ""}
+                      onChange={(e) =>
+                        setIncomingForm({
+                          ...incomingForm,
+                          tanggal: e.target.value,
+                        })
+                      }
+                      className="w-full px-4 py-4 bg-white border-2 border-slate-900 font-black shadow-[4px_4px_0px_0px_#0f172a]"
+                    />
+                  </div>
+
                   <div className="pt-6 flex gap-4">
                     <button
                       type="button"
@@ -8884,7 +8985,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                       type="submit"
                       className="flex-1 py-4 bg-indigo-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
                     >
-                      SIMPAN RECORD
+                      {incomingForm.id ? "SIMPAN PERUBAHAN" : "SIMPAN RECORD"}
                     </button>
                   </div>
                 </form>

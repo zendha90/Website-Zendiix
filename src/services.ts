@@ -276,6 +276,18 @@ export async function addIncomingGood(good: Omit<IncomingGood, 'id'>) {
   triggerFetch('/api/products');
 }
 
+export async function updateIncomingGood(good: IncomingGood) {
+  if (good.id) {
+    await fetchApi(`/api/incoming-goods/${good.id}`, {
+      method: 'PUT',
+      body: JSON.stringify(good),
+    });
+    queryClient.invalidateQueries({ queryKey: ["incomingGoods"] });
+    triggerFetch('/api/incoming-goods');
+    triggerFetch('/api/products');
+  }
+}
+
 export function subscribeToSalesDS(callback: (salesDS: SaleDS[]) => void) {
   return createSmartSubscriber<SaleDS[]>('/api/sales-ds', callback, 60000);
 }
