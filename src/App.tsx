@@ -56,6 +56,7 @@ import {
   deleteAllSales,
   deleteAllIncomingGoods,
   deleteSale,
+  deleteSalesBatch,
   updateSale,
   addIncomingGood,
   updateIncomingGood,
@@ -1820,7 +1821,13 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
   const [editSaleId, setEditSaleId] = useState<string | null>(null);
   const [saleForm, setSaleForm] = useState<Partial<Sale>>({});
   const [saleToDelete, setSaleToDelete] = useState<Sale | null>(null);
+  const [groupToDelete, setGroupToDelete] = useState<any | null>(null);
   const [saleDSToDelete, setSaleDSToDelete] = useState<SaleDS | null>(null);
+
+  // Edit Sale DS states
+  const [isSaleDSModalOpen, setIsSaleDSModalOpen] = useState(false);
+  const [editSaleDSId, setEditSaleDSId] = useState<string | null>(null);
+  const [saleDSForm, setSaleDSForm] = useState<Partial<SaleDS>>({});
   
   // Export last Dropship entry states
   const [isExportDSModalOpen, setIsExportDSModalOpen] = useState(false);
@@ -2002,6 +2009,20 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
     }
   };
 
+  const handleDeleteGroupConfirm = async () => {
+    if (!groupToDelete || !groupToDelete.items) return;
+    try {
+      const saleIds = groupToDelete.items.map((it: any) => it.id).filter(Boolean);
+      if (saleIds.length > 0) {
+        await deleteSalesBatch(saleIds);
+      }
+      setGroupToDelete(null);
+    } catch (err) {
+      console.error("Gagal menghapus seluruh grup pesanan:", err);
+      alert("Gagal menghapus paket penjualan");
+    }
+  };
+
   const handleDeleteDSConfirm = async () => {
     if (!saleDSToDelete) return;
     try {
@@ -2011,6 +2032,60 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
     } catch (err) {
       console.error("Delete error:", err);
       alert("Gagal menghapus transaksi dropship.");
+    }
+  };
+
+  const handleEditSaleDS = (s: SaleDS) => {
+    setEditSaleDSId(s.id || null);
+    setSaleDSForm({ ...s });
+    setIsSaleDSModalOpen(true);
+  };
+
+  const handleUpdateSaleDSSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editSaleDSId) return;
+
+    setSavingProgress({ current: 0, total: 1, title: "Mengupdate Data Penjualan DS" });
+    try {
+      const qty = Number(saleDSForm.qty) || 1;
+      const hpp = Number(saleDSForm.hpp) || 0;
+      const totalPenjualan = Number(saleDSForm.totalPenjualan) || 0;
+      const ongkosKirim = Number(saleDSForm.ongkosKirim) || 0;
+      const laba =
+        saleDSForm.laba !== undefined && !isNaN(Number(saleDSForm.laba))
+          ? Number(saleDSForm.laba)
+          : totalPenjualan - hpp * qty - ongkosKirim;
+
+      const updatedRecord: SaleDS = {
+        id: editSaleDSId,
+        kodeSupplier: (saleDSForm.kodeSupplier || "").trim(),
+        tanggalOrder: (saleDSForm.tanggalOrder || "").trim(),
+        channel: (saleDSForm.channel || "").trim(),
+        noPesanan: (saleDSForm.noPesanan || "").trim(),
+        noResi: (saleDSForm.noResi || "").trim(),
+        namaPelanggan: (saleDSForm.namaPelanggan || "").trim(),
+        alamatPelanggan: (saleDSForm.alamatPelanggan || "").trim(),
+        namaProduk: (saleDSForm.namaProduk || "").trim(),
+        qty,
+        hpp,
+        totalPenjualan,
+        ongkosKirim,
+        laba,
+        tanggal: saleDSForm.tanggal || new Date().toISOString(),
+      };
+
+      await updateSaleDS(updatedRecord);
+      setSalesDS((prev) =>
+        prev.map((item) => (item.id === editSaleDSId ? { ...item, ...updatedRecord } : item))
+      );
+      setIsSaleDSModalOpen(false);
+      setEditSaleDSId(null);
+      setSaleDSForm({});
+    } catch (err) {
+      console.error("Gagal mengupdate transaksi dropship:", err);
+      alert("Gagal mengupdate transaksi dropship.");
+    } finally {
+      setSavingProgress(null);
     }
   };
 
@@ -6384,6 +6459,277 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
             </div>
           )}
 
+          {/* SALE DS EDIT MODAL */}
+          {isSaleDSModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm overflow-y-auto">
+              <div className="bg-white border-4 border-slate-900 w-full max-w-lg my-8 relative shadow-[16px_16px_0px_0px_#0f172a] flex flex-col overflow-hidden max-h-[92vh]">
+                <div className="p-6 border-b-4 border-slate-900 bg-slate-50 flex items-center justify-between">
+                  <div>
+                    <h2 className="text-xl font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest leading-none">
+                      <FileText className="w-5 h-5 text-indigo-600" /> Edit Penjualan DS
+                    </h2>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mt-1">
+                      Perbarui Data Transaksi Dropship
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setIsSaleDSModalOpen(false)}
+                    className="p-1 border-2 border-slate-900 hover:bg-slate-100 transition-colors"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="overflow-y-auto p-6 flex flex-col gap-4">
+                  <form onSubmit={handleUpdateSaleDSSubmit} className="space-y-4">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                          Tgl. Order
+                        </label>
+                        <input
+                          type="text"
+                          value={saleDSForm.tanggalOrder || ""}
+                          onChange={(e) =>
+                            setSaleDSForm({ ...saleDSForm, tanggalOrder: e.target.value })
+                          }
+                          placeholder="e.g. 2026-08-17"
+                          className="w-full px-3 py-2.5 bg-white border-2 border-slate-900 text-xs font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                          Kode Supplier
+                        </label>
+                        <input
+                          type="text"
+                          value={saleDSForm.kodeSupplier || ""}
+                          onChange={(e) =>
+                            setSaleDSForm({ ...saleDSForm, kodeSupplier: e.target.value })
+                          }
+                          placeholder="e.g. S-KIM / S-LINA"
+                          className="w-full px-3 py-2.5 bg-white border-2 border-slate-900 text-xs font-mono font-bold uppercase text-indigo-700"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                          Channel
+                        </label>
+                        <input
+                          type="text"
+                          value={saleDSForm.channel || ""}
+                          onChange={(e) =>
+                            setSaleDSForm({ ...saleDSForm, channel: e.target.value })
+                          }
+                          placeholder="e.g. SHOPEE / TIKTOK"
+                          className="w-full px-3 py-2.5 bg-white border-2 border-slate-900 text-xs font-bold uppercase"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                          No. Pesanan
+                        </label>
+                        <input
+                          type="text"
+                          value={saleDSForm.noPesanan || ""}
+                          onChange={(e) =>
+                            setSaleDSForm({ ...saleDSForm, noPesanan: e.target.value })
+                          }
+                          className="w-full px-3 py-2.5 bg-white border-2 border-slate-900 text-xs font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                          No. Resi
+                        </label>
+                        <input
+                          type="text"
+                          value={saleDSForm.noResi || ""}
+                          onChange={(e) =>
+                            setSaleDSForm({ ...saleDSForm, noResi: e.target.value })
+                          }
+                          className="w-full px-3 py-2.5 bg-white border-2 border-slate-900 text-xs font-mono font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                          Nama Pelanggan
+                        </label>
+                        <input
+                          type="text"
+                          value={saleDSForm.namaPelanggan || ""}
+                          onChange={(e) =>
+                            setSaleDSForm({ ...saleDSForm, namaPelanggan: e.target.value })
+                          }
+                          className="w-full px-3 py-2.5 bg-white border-2 border-slate-900 text-xs font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                        Alamat Pelanggan
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={saleDSForm.alamatPelanggan || ""}
+                        onChange={(e) =>
+                          setSaleDSForm({ ...saleDSForm, alamatPelanggan: e.target.value })
+                        }
+                        className="w-full px-3 py-2 bg-white border-2 border-slate-900 text-xs font-medium resize-none leading-relaxed"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                        Nama Produk
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={saleDSForm.namaProduk || ""}
+                        onChange={(e) =>
+                          setSaleDSForm({ ...saleDSForm, namaProduk: e.target.value })
+                        }
+                        className="w-full px-3 py-2 bg-white border-2 border-slate-900 text-xs font-bold leading-relaxed resize-none"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2 border-t border-slate-200">
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                          Qty
+                        </label>
+                        <input
+                          type="number"
+                          min="1"
+                          value={saleDSForm.qty ?? 1}
+                          onChange={(e) => {
+                            const newQty = Number(e.target.value);
+                            const hpp = Number(saleDSForm.hpp) || 0;
+                            const tot = Number(saleDSForm.totalPenjualan) || 0;
+                            const ongkir = Number(saleDSForm.ongkosKirim) || 0;
+                            setSaleDSForm({
+                              ...saleDSForm,
+                              qty: newQty,
+                              laba: tot - hpp * newQty - ongkir,
+                            });
+                          }}
+                          className="w-full px-3 py-2 bg-white border-2 border-slate-900 text-xs font-mono font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                          HPP
+                        </label>
+                        <input
+                          type="number"
+                          value={saleDSForm.hpp ?? 0}
+                          onChange={(e) => {
+                            const newHpp = Number(e.target.value);
+                            const qty = Number(saleDSForm.qty) || 1;
+                            const tot = Number(saleDSForm.totalPenjualan) || 0;
+                            const ongkir = Number(saleDSForm.ongkosKirim) || 0;
+                            setSaleDSForm({
+                              ...saleDSForm,
+                              hpp: newHpp,
+                              laba: tot - newHpp * qty - ongkir,
+                            });
+                          }}
+                          className="w-full px-3 py-2 bg-white border-2 border-slate-900 text-xs font-mono font-bold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                          Total Penjualan
+                        </label>
+                        <input
+                          type="number"
+                          value={saleDSForm.totalPenjualan ?? 0}
+                          onChange={(e) => {
+                            const newTot = Number(e.target.value);
+                            const qty = Number(saleDSForm.qty) || 1;
+                            const hpp = Number(saleDSForm.hpp) || 0;
+                            const ongkir = Number(saleDSForm.ongkosKirim) || 0;
+                            setSaleDSForm({
+                              ...saleDSForm,
+                              totalPenjualan: newTot,
+                              laba: newTot - hpp * qty - ongkir,
+                            });
+                          }}
+                          className="w-full px-3 py-2 bg-white border-2 border-slate-900 text-xs font-mono font-bold text-indigo-700"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
+                          Ongkir
+                        </label>
+                        <input
+                          type="number"
+                          value={saleDSForm.ongkosKirim ?? 0}
+                          onChange={(e) => {
+                            const newOngkir = Number(e.target.value);
+                            const qty = Number(saleDSForm.qty) || 1;
+                            const hpp = Number(saleDSForm.hpp) || 0;
+                            const tot = Number(saleDSForm.totalPenjualan) || 0;
+                            setSaleDSForm({
+                              ...saleDSForm,
+                              ongkosKirim: newOngkir,
+                              laba: tot - hpp * qty - newOngkir,
+                            });
+                          }}
+                          className="w-full px-3 py-2 bg-white border-2 border-slate-900 text-xs font-mono font-bold"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="p-3 bg-emerald-50 border-2 border-emerald-300 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider block">
+                          Estimasi Laba DS:
+                        </span>
+                        <span className="text-[9px] text-emerald-600 font-bold">
+                          Rumus: Total Penjualan - (HPP × Qty) - Ongkir
+                        </span>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-base font-black font-mono text-emerald-700">
+                          Rp {(
+                            saleDSForm.laba !== undefined && !isNaN(Number(saleDSForm.laba))
+                              ? Number(saleDSForm.laba)
+                              : (Number(saleDSForm.totalPenjualan) || 0) -
+                                (Number(saleDSForm.hpp) || 0) * (Number(saleDSForm.qty) || 1) -
+                                (Number(saleDSForm.ongkosKirim) || 0)
+                          ).toLocaleString("id-ID")}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="pt-4 border-t-2 border-slate-900 flex gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setIsSaleDSModalOpen(false)}
+                        className="flex-1 py-3 bg-white text-slate-900 font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] hover:bg-slate-50 transition-all"
+                      >
+                        Batal
+                      </button>
+                      <button
+                        type="submit"
+                        className="flex-1 py-3 bg-indigo-600 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[1px] hover:translate-x-[1px] transition-all"
+                      >
+                        Update Data DS
+                      </button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* INVENTORY TAB */}
           {activeTab === "stok_barang" && (
             <section className="col-span-12 min-h-[500px] pt-8 min-w-0">
@@ -6965,14 +7311,6 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                         </button>
                       )}
                     </div>
-                    {databaseSubTab === "dropship" && (
-                      <button
-                        onClick={handleExportLastDropship}
-                        className="w-full sm:w-auto h-8 whitespace-nowrap px-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-widest border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[1px_1px_0px_0px_#000] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center gap-1.5 shrink-0"
-                      >
-                        <Copy className="w-3.5 h-3.5 text-white" /> Export Data Terakhir
-                      </button>
-                    )}
                   </div>
                   
                   <div className="flex flex-wrap items-center gap-2">
@@ -7205,9 +7543,20 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                           </button>
                                         </div>
                                       ))}
-                                      {s.items.length > 1 && (
-                                        <div className="text-[9px] font-extrabold py-1 border-t-2 border-dashed border-slate-300 w-full text-center text-slate-400 bg-slate-50/50 leading-tight">
-                                          {s.items.length} Items
+                                      {s.items.length > 1 ? (
+                                        <div className="p-1 w-full border-t-2 border-dashed border-slate-300 bg-slate-50/50 flex flex-col items-center">
+                                          <button
+                                            onClick={() => setGroupToDelete(s)}
+                                            className="w-full flex items-center justify-center gap-1 py-1 px-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-200 hover:border-slate-900 rounded text-[9px] font-black uppercase tracking-wider transition-all shadow-none"
+                                            title="Hapus Seluruh Paket/Grup Pesanan Ini (Semua Item)"
+                                          >
+                                            <Trash2 className="w-3 h-3" />
+                                            Hapus Paket ({s.items.length})
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="text-[9px] font-extrabold py-0.5 border-t border-dashed border-slate-200 w-full text-center text-slate-400 bg-slate-50/30 leading-tight">
+                                          1 Item
                                         </div>
                                       )}
                                     </div>
@@ -7243,10 +7592,21 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                </span>
                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">{s.channel || "NO CHANNEL"}</span>
                              </div>
-                             <div className="text-right">
+                             <div className="flex items-center gap-2">
                                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-600 bg-indigo-50 border border-indigo-200 px-1.5 py-0.5 rounded">
                                  {s.items.length} Barang
                                </span>
+                               <button
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   setGroupToDelete(s);
+                                 }}
+                                 className="flex items-center gap-1 px-2 py-0.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white border border-rose-300 hover:border-slate-900 rounded text-[9px] font-black uppercase tracking-wider transition-all shadow-none"
+                                 title="Hapus Seluruh Paket Pesanan"
+                               >
+                                 <Trash2 className="w-3 h-3" />
+                                 Hapus Paket
+                               </button>
                              </div>
                           </div>
                           <div className="p-4 space-y-4">
@@ -7319,7 +7679,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                             <th className="px-3 py-4 border-r border-slate-700 text-right w-32">Total Penjualan</th>
                             <th className="px-3 py-4 border-r border-slate-700 text-right w-24">Ongkir</th>
                             <th className="px-3 py-4 text-right w-28 bg-slate-800">Laba DS</th>
-                            <th className="px-3 py-4 text-center w-16">Aksi</th>
+                            <th className="px-3 py-4 text-center w-24">Aksi</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white">
@@ -7355,7 +7715,29 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                     <td className="px-3 py-4 text-[11px] text-right font-mono text-slate-500 border-r border-slate-200">{(s.ongkosKirim || 0).toLocaleString("id-ID")}</td>
                                     <td className="px-3 py-4 text-[11px] text-right font-bold font-mono text-emerald-600 border-r border-slate-200 bg-emerald-50/25">{(s.laba || 0).toLocaleString("id-ID")}</td>
                                     <td className="px-3 py-4 text-center">
-                                      <button onClick={() => setSaleDSToDelete(s)} className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-50 border border-transparent hover:border-slate-300 transition-all shadow-none"><Trash2 className="w-3.5 h-3.5" /></button>
+                                      <div className="flex items-center justify-center gap-1">
+                                        <button
+                                          onClick={() => handleEditSaleDS(s)}
+                                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 border border-transparent hover:border-slate-300 transition-all shadow-none"
+                                          title="Edit Transaksi DS"
+                                        >
+                                          <Pencil className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={() => prepareExportTextForDS(s)}
+                                          className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 border border-transparent hover:border-slate-300 transition-all shadow-none"
+                                          title="Export / Salin Format Order Dropship Ini"
+                                        >
+                                          <Copy className="w-3.5 h-3.5" />
+                                        </button>
+                                        <button
+                                          onClick={() => setSaleDSToDelete(s)}
+                                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-slate-50 border border-transparent hover:border-slate-300 transition-all shadow-none"
+                                          title="Hapus Transaksi DS"
+                                        >
+                                          <Trash2 className="w-3.5 h-3.5" />
+                                        </button>
+                                      </div>
                                     </td>
                                   </tr>
                                 );
@@ -7386,7 +7768,29 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                  <span className="text-[10px] font-black uppercase tracking-widest text-indigo-600">{s.tanggalOrder} • DS</span>
                                  <span className="text-[9px] font-bold text-indigo-700 font-mono uppercase">Supplier: {s.kodeSupplier || "-"}</span>
                                </div>
-                               <button onClick={() => setSaleDSToDelete(s)} className="p-2 bg-rose-50 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:shadow-none hover:bg-rose-100 transition-all"><Trash2 className="w-3.5 h-3.5 text-rose-600" /></button>
+                               <div className="flex items-center gap-1.5">
+                                 <button
+                                   onClick={(e) => {
+                                     e.stopPropagation();
+                                     handleEditSaleDS(s);
+                                   }}
+                                   className="p-1.5 bg-white border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:shadow-none hover:bg-slate-100 transition-all flex items-center justify-center"
+                                   title="Edit Transaksi DS"
+                                 >
+                                   <Pencil className="w-3.5 h-3.5 text-slate-800" />
+                                 </button>
+                                 <button
+                                   onClick={(e) => {
+                                     e.stopPropagation();
+                                     prepareExportTextForDS(s);
+                                   }}
+                                   className="p-1.5 bg-indigo-50 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:shadow-none hover:bg-indigo-100 transition-all flex items-center justify-center"
+                                   title="Export / Salin Format Order Dropship Ini"
+                                 >
+                                   <Copy className="w-3.5 h-3.5 text-indigo-600" />
+                                 </button>
+                                 <button onClick={() => setSaleDSToDelete(s)} className="p-1.5 bg-rose-50 border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:shadow-none hover:bg-rose-100 transition-all flex items-center justify-center" title="Hapus Transaksi DS"><Trash2 className="w-3.5 h-3.5 text-rose-600" /></button>
+                               </div>
                             </div>
                             <div className="p-4 space-y-4">
                                <div className="space-y-1">
@@ -8775,6 +9179,63 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                     className="flex-1 py-4 bg-rose-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
                   >
                     YA, HAPUS
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* GROUP / PAKET SALE DELETE CONFIRM MODAL */}
+          {groupToDelete && (
+            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
+              <div className="bg-white border-4 border-slate-900 w-full max-w-md p-8 shadow-[16px_16px_0px_0px_#0f172a] flex flex-col gap-6 max-h-[90vh] overflow-y-auto">
+                <div>
+                  <h3 className="text-2xl font-black text-rose-600 mb-1 flex items-center gap-2 uppercase tracking-widest">
+                    HAPUS SELURUH PAKET?
+                  </h3>
+                  <p className="text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-4">
+                    Grup Pesanan / Paket Resi
+                  </p>
+                  <div className="p-4 bg-rose-50 border-2 border-rose-200 text-slate-900 font-bold text-sm space-y-3">
+                    <p>Apakah Anda yakin ingin menghapus seluruh transaksi dalam paket pesanan ini?</p>
+                    <div className="text-xs font-medium text-slate-600 space-y-1 bg-white p-3 border border-rose-200 shadow-sm">
+                      <div><span className="font-bold text-slate-400">No. Resi:</span> <span className="font-mono font-black text-slate-900">{groupToDelete.noResi || "-"}</span></div>
+                      <div><span className="font-bold text-slate-400">No. Pesanan:</span> <span className="font-mono font-black text-slate-900">{groupToDelete.noPesanan || "-"}</span></div>
+                      <div><span className="font-bold text-slate-400">Channel:</span> <span className="font-black text-slate-900">{groupToDelete.channel || "-"}</span></div>
+                      <div><span className="font-bold text-slate-400">Ekspedisi:</span> <span className="font-black text-slate-900">{groupToDelete.namaEkspedisi || "-"}</span></div>
+                      <div><span className="font-bold text-slate-400">Total Qty:</span> <span className="font-black text-indigo-700">{groupToDelete.qty} pcs ({groupToDelete.items?.length || 0} barang)</span></div>
+                      <div><span className="font-bold text-slate-400">Total Nilai:</span> <span className="font-black text-indigo-700">Rp {Number(groupToDelete.totalHarga || 0).toLocaleString("id-ID")}</span></div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest">Daftar Barang dalam Paket:</p>
+                      <div className="max-h-32 overflow-y-auto space-y-1 divide-y divide-rose-100 pr-1">
+                        {groupToDelete.items?.map((it: any, idx: number) => (
+                          <div key={it.id || idx} className="pt-1 flex justify-between items-center text-xs">
+                            <span className="font-bold text-slate-800 truncate pr-2" title={it.namaBarang}>{it.namaBarang}</span>
+                            <span className="shrink-0 font-black text-indigo-600 font-mono">{it.qty} pcs</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    <p className="text-xs italic text-rose-600 font-bold border-t border-rose-200 pt-2">
+                      Semua stok barang di atas akan dikembalikan secara otomatis.
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-4 pt-2 border-t-2 border-slate-900">
+                  <button
+                    onClick={() => setGroupToDelete(null)}
+                    className="flex-1 py-4 bg-white border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
+                  >
+                    BATAL
+                  </button>
+                  <button
+                    onClick={handleDeleteGroupConfirm}
+                    className="flex-1 py-4 bg-rose-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
+                  >
+                    YA, HAPUS PAKET
                   </button>
                 </div>
               </div>
@@ -10333,10 +10794,10 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
               <div className="bg-white border-4 border-slate-900 w-full max-w-lg p-6 md:p-8 shadow-[16px_16px_0px_0px_#0f172a] flex flex-col gap-6 relative">
                 <div>
                   <h3 className="text-xl md:text-2xl font-black text-indigo-600 mb-4 flex items-center gap-2 uppercase tracking-widest">
-                    📁 EXPORT DATA DROPSHIP TERAKHIR
+                    📁 EXPORT DATA ORDERAN DROPSHIP
                   </h3>
                   <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    Format Data Transaksi Dropship Terakhir (DS)
+                    Format Teks Order Dropship (Siap Kirim ke Supplier)
                   </p>
                   
                   <div className="relative bg-slate-50 border-2 border-slate-900 p-4 rounded-none font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed shadow-[inner_0_2px_4px_rgba(0,0,0,0.06)] min-h-[140px] select-all">

@@ -1358,6 +1358,28 @@ async function startServer() {
     }
   });
 
+  app.post('/api/sales/batch-delete', async (req, res) => {
+    const { ids } = req.body;
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({ error: 'IDs must be a non-empty array' });
+    }
+    try {
+      if (!isDbOnline) {
+        fallbackData.sales = fallbackData.sales.filter((s: any) => !ids.includes(s.id));
+        saveFallbackData();
+        return res.json({ success: true });
+      }
+      await db.delete(sales).where(inArray(sales.id, ids));
+      clearCache('sales');
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error batch deleting sales in DB, falling back to local storage:', error);
+      fallbackData.sales = fallbackData.sales.filter((s: any) => !ids.includes(s.id));
+      saveFallbackData();
+      res.json({ success: true });
+    }
+  });
+
   // SALES DS
   app.put('/api/sales-ds/:id', async (req, res) => {
     const { id } = req.params;

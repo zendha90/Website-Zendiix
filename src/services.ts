@@ -419,6 +419,19 @@ export async function deleteSale(sale: Sale) {
   }
 }
 
+export async function deleteSalesBatch(ids: string[]) {
+  if (ids.length > 0) {
+    await fetchApi('/api/sales/batch-delete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ids }),
+    });
+    queryClient.invalidateQueries({ queryKey: ["sales"] });
+    triggerFetch('/api/sales');
+    triggerFetch('/api/products');
+  }
+}
+
 export async function updateSale(sale: Sale) {
   if (sale.id) {
     await fetchApi(`/api/sales/${sale.id}`, {
