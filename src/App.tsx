@@ -961,12 +961,40 @@ function parseFormatAnna(text: string, replacements: { old: string; new: string 
 }
 
 const GENERIC_MATCH_WORDS = new Set([
-  "softlens", "softlen", "soflens", "lens", "lensa", "kontak", "contact",
-  "normal", "plano", "warna", "color", "minus", "min", "plus",
+  "softlens", "softlen", "soflens", "lens", "lensa", "kontak", "contact", "sl",
+  "warna", "color", "minus", "min", "plus",
   "btl", "botol", "box", "kotak", "psg", "pasang", "pcs", "pc", "item",
   "barang", "diskon", "original", "ori", "cod", "natural", "series",
-  "by", "ctk", "irislab", "exoticon", "dreamcolor"
+  "by", "ctk", "irislab", "exoticon", "dreamcolor", "jisseo"
 ]);
+
+function normalizeLensTokens(str: string): string[] {
+  if (!str) return [];
+  let s = str.toLowerCase();
+  
+  // 1. Power normalizations (0.00, 0,00, 00, plano, normal)
+  s = s.replace(/[-–—]?0[\.,]00\b|[-–—]?000\b|\b0\s+00\b|\bplano\b/g, " normal ");
+  
+  // 2. Minus power standardization (e.g. -3.50, -3,50, 3.50 -> min350)
+  s = s.replace(/[-–—](\d+)[\.,](\d{2})\b/g, " min$1$2 ");
+  s = s.replace(/(\d+)[\.,](\d{2})\b/g, " min$1$2 ");
+  s = s.replace(/[-–—](\d+)\b/g, " min$1 ");
+
+  // 3. Standardize acronyms, variants, and synonyms
+  s = s.replace(/\bgrey\b/g, "gray");
+  s = s.replace(/\bchoco\b/g, "chocolate");
+  s = s.replace(/\bi\s*[-_]?\s*dol\b/g, "idol");
+  s = s.replace(/\bsoftlen\b|\bsoflens\b|\blenses\b|\bcontact\s*lens\b/g, "softlens");
+  s = s.replace(/\bblak\b/g, "black");
+  s = s.replace(/\bcharcol\b/g, "charcoal");
+  s = s.replace(/\bocen\b/g, "ocean");
+  s = s.replace(/\bambur\b/g, "amber");
+  
+  // 4. Clean separators
+  s = s.replace(/[^a-z0-9]+/g, " ");
+  
+  return s.trim().split(/\s+/).filter(w => w.length > 0);
+}
 
 function findAutoMatch(
   rawName: string,
@@ -976,7 +1004,6 @@ function findAutoMatch(
   
   const cleanRaw = rawName.toLowerCase().trim();
   const slugRaw = cleanRaw.replace(/[^a-z0-9]/g, "");
-  const inputHasMl = /\d+ml\b|\bml\b/i.test(cleanRaw);
 
   // Helper to extract ml volumes
   const getMlValues = (str: string): number[] => {
@@ -1000,129 +1027,90 @@ function findAutoMatch(
   });
   if (slugMatch) return slugMatch;
 
-  // 4. Advanced Token Match with Distinctive Word & Strict Numeric/Liquid Enforcement
-  const cleanRawSpaced = cleanRaw.replace(/(\d+)/g, " $1 ");
-  const inputWords = cleanRawSpaced.split(/[^a-z0-9]+/).filter(w => w.length >= 1);
-  if (inputWords.length === 0) return undefined;
+  // 4. Normalized Token Matching with Power Verification & Volume Checking
+  const inputTokens = normalizeLensTokens(rawName);
+  if (inputTokens.length === 0) return undefined;
 
-  const inputDistinctiveWords = inputWords.filter(w => !GENERIC_MATCH_WORDS.has(w) && !/^\d+$/.test(w));
-  const inputNumericWords = inputWords.filter(w => /^\d+$/.test(w));
+  const inputDistinctive = inputTokens.filter(w => !GENERIC_MATCH_WORDS.has(w));
+  const inputPowerTokens = inputTokens.filter(w => w === "normal" || w.startsWith("min") || /^\d+$/.test(w));
+  const inputHasMl = /\d+ml\b|\bml\b/i.test(cleanRaw);
+  const inputMls = getMlValues(cleanRaw);
 
   let bestMatch: Product | undefined = undefined;
   let bestScore = 0;
   let minLengthDiff = 999;
 
   for (const p of productList) {
-    const pName = (p.namaBarang || "").toLowerCase();
-    const pCode = (p.kodeBarang || "").toLowerCase();
-    const pFullName = (pCode + " " + pName);
-    
-    const pFullNameSpaced = pFullName.replace(/(\d+)/g, " $1 ");
-    const pWords = pFullNameSpaced.split(/[^a-z0-9]+/).filter(w => w.length >= 1);
-    const pWordsSet = new Set(pWords);
-    const pDigitsOnly = pFullName.replace(/[^0-9]/g, "");
-    const pDistinctiveWords = pWords.filter(w => !GENERIC_MATCH_WORDS.has(w) && !/^\d+$/.test(w));
-    
-    // Check distinctive word matching (core model / brand / color words)
-    let matchedDistinctiveCount = 0;
-    let unmatchedInputDistinctive = 0;
-    for (const dw of inputDistinctiveWords) {
-      if (pWordsSet.has(dw)) {
-        matchedDistinctiveCount++;
+    const pName = p.namaBarang || "";
+    const pCode = p.kodeBarang || "";
+    const pFullName = pCode + " " + pName;
+    const pTokens = normalizeLensTokens(pFullName);
+    const pTokenSet = new Set(pTokens);
+    const pDistinctive = pTokens.filter(w => !GENERIC_MATCH_WORDS.has(w));
+    const pPowerTokens = pTokens.filter(w => w === "normal" || w.startsWith("min") || /^\d+$/.test(w));
+    const productHasMl = /\d+ml\b|\bml\b/i.test(pFullName);
+    const productMls = getMlValues(pFullName);
+
+    // Liquid volume constraint: Keep liquids with liquids, lenses with lenses
+    if (inputHasMl && !productHasMl) continue;
+    if (!inputHasMl && productHasMl) continue;
+    if (inputMls.length > 0 && productMls.length > 0) {
+      if (!productMls.some(m => inputMls.includes(m))) continue;
+    }
+
+    // Distinctive keywords check (e.g. idol, roze, charcoal, neverland, desire)
+    let matchedDistinctive = 0;
+    for (const idw of inputDistinctive) {
+      if (pTokenSet.has(idw)) {
+        matchedDistinctive++;
       } else {
-        let foundPartial = false;
-        if (dw.length >= 3) {
-          for (const pw of pWords) {
-            if (!GENERIC_MATCH_WORDS.has(pw) && pw.length >= 3 && (pw.includes(dw) || dw.includes(pw))) {
-              matchedDistinctiveCount += 0.8;
-              foundPartial = true;
-              break;
-            }
-          }
-        }
-        if (!foundPartial) {
-          unmatchedInputDistinctive++;
+        if (idw.length >= 3 && pDistinctive.some(pw => pw.includes(idw) || idw.includes(pw))) {
+          matchedDistinctive += 0.8;
         }
       }
     }
 
-    // If input has distinctive words, must match at least 1 and pass threshold
-    if (inputDistinctiveWords.length > 0 && matchedDistinctiveCount < 1) {
+    // Must match at least 1 distinctive keyword if present
+    if (inputDistinctive.length > 0 && matchedDistinctive < 1) {
       continue;
     }
 
-    // Unmatched candidate distinctive words
-    let unmatchedCandidateDistinctive = 0;
-    for (const pw of pDistinctiveWords) {
-      if (!inputWords.includes(pw)) {
-        const found = inputDistinctiveWords.some(dw => dw.length >= 3 && pw.length >= 3 && (pw.includes(dw) || dw.includes(pw)));
-        if (!found) unmatchedCandidateDistinctive++;
+    // Power verification (Normal vs Normal, -3.50 vs -3.50)
+    let powerBonus = 0;
+    let powerMismatch = false;
+    if (inputPowerTokens.length > 0 && pPowerTokens.length > 0) {
+      const hasPowerMatch = inputPowerTokens.some(ip => pPowerTokens.includes(ip));
+      if (hasPowerMatch) {
+        powerBonus += 5; // Strong bonus for power alignment
+      } else {
+        powerMismatch = true;
       }
     }
 
-    let score = 0;
-    let numericMismatches = 0;
+    // Prevent matching different powers (e.g. Normal must not match -3.50)
+    if (powerMismatch) {
+      continue;
+    }
 
-    for (const iw of inputWords) {
-      const isNumber = /^\d+$/.test(iw);
-      const isGeneric = GENERIC_MATCH_WORDS.has(iw);
-      
-      if (pWordsSet.has(iw)) {
-        if (isNumber) score += 4;
-        else if (isGeneric) score += 0.5; // Minimal weight for generic words like softlens/normal
-        else score += 3; // Strong weight for unique identifiers
-      } else if (isNumber) {
-        // Number not found directly, check if it's part of the product's digits
-        if (pDigitsOnly.includes(iw) || iw.includes(pDigitsOnly)) {
-          score += 2;
-        } else {
-          numericMismatches++;
-        }
-      } else if (!isGeneric && iw.length >= 3) {
-        // Fuzzy word match ONLY on non-generic words
-        for (const pw of pWords) {
-          if (!GENERIC_MATCH_WORDS.has(pw) && pw.length >= 3 && (pw.includes(iw) || iw.includes(pw))) {
-            score += 1;
-            break;
-          }
+    let score = matchedDistinctive * 4 + powerBonus;
+
+    // Penalty for extra unmatched distinctive words in candidate
+    for (const pdw of pDistinctive) {
+      if (!inputDistinctive.includes(pdw)) {
+        const isPartial = inputDistinctive.some(idw => idw.length >= 3 && (pdw.includes(idw) || idw.includes(pdw)));
+        if (!isPartial) {
+          score -= 3;
         }
       }
     }
 
-    // Penalty for mismatched variation tokens & distinctive words
-    score -= unmatchedInputDistinctive * 4;
-    score -= unmatchedCandidateDistinctive * 4;
-    score -= numericMismatches * 5;
-
-    // Strict requirement: If input has numbers, the match MUST have at least one numeric intersection
-    if (inputNumericWords.length > 0) {
-      let numericSatisfied = false;
-      for (const inw of inputNumericWords) {
-        if (pWordsSet.has(inw) || pDigitsOnly.includes(inw)) {
-          numericSatisfied = true;
-          break;
+    // Penalty for unmatched distinctive words from input
+    for (const idw of inputDistinctive) {
+      if (!pTokenSet.has(idw)) {
+        const isPartial = pDistinctive.some(pdw => pdw.length >= 3 && (pdw.includes(idw) || idw.includes(pdw)));
+        if (!isPartial) {
+          score -= 3;
         }
-      }
-      if (!numericSatisfied) {
-        score -= 10; // Extra heavy penalty if no numbers match but input has numbers
-      }
-    }
-
-    // ML volume check: Keep liquids with liquids, lenses with lenses
-    const productHasMl = /\d+ml\b|\bml\b/i.test(pFullName);
-    if (inputHasMl && !productHasMl) {
-      score -= 15;
-    } else if (!inputHasMl && productHasMl) {
-      score -= 15;
-    }
-
-    // Hard liquid volume verification
-    const inputMls = getMlValues(cleanRaw);
-    const productMls = getMlValues(pFullName);
-    if (inputMls.length > 0 && productMls.length > 0) {
-      const hasIntersection = productMls.some(m => inputMls.includes(m));
-      if (!hasIntersection) {
-        score -= 20;
       }
     }
 
@@ -1141,8 +1129,7 @@ function findAutoMatch(
     }
   }
 
-  // Threshold for solid matching
-  if (bestScore >= 5) {
+  if (bestScore >= 3) {
     return bestMatch;
   }
 
