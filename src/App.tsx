@@ -802,60 +802,115 @@ function parseFormatSisse(text: string, replacements: { old: string; new: string
   const lines = text.split(/\r?\n/);
   const list: { rawName: string; qty: number; detectedUnit?: string; isAlreadyDoubled?: boolean }[] = [];
 
+  const doubleUnits = config.doubleUnits || [];
+  const doubleKeywords = config.doubleKeywords || [];
+
   for (let line of lines) {
-    const trimLine = line.trim();
-    if (!trimLine) continue;
+    let cleanLine = line.trim();
+    if (!cleanLine) continue;
 
-    if (/^MINUS/i.test(trimLine)) {
-      const match = trimLine.match(/^MINUS\s+([\s\S]*?)\s+(\d+)\s+(\d+)\s*Rp/i);
+    // 1. Skip jika ada tanda silang (❌)
+    if (/❌/.test(cleanLine)) continue;
+
+    // 2. Bersihkan emoji centang / bullet point
+    cleanLine = cleanLine.replace(/^[•\-\*]\s*/, "");
+    cleanLine = cleanLine.replace(/✅|[\u2705\u2611\uFE0F\u2611]/g, "");
+    cleanLine = cleanLine.replace(/\s+/g, " ").trim();
+    if (!cleanLine) continue;
+
+    // A. Format MINUS Legacy: MINUS [name] [power] [qty] [Rp...]
+    if (/^MINUS\b/i.test(cleanLine)) {
+      const match = cleanLine.match(/^MINUS\s+([\s\S]*?)\s+(\d+(?:\.\d+)?)\s+(\d+)(?:\s*Rp.*)?$/i);
       if (match) {
-        const name = match[1]
-          .trim()
-          .toLowerCase()
-          .replace(/\b\w/g, (l) => l.toUpperCase());
-        const power = parseInt(match[2], 10);
+        let name = match[1].trim();
+        let powerNum = parseFloat(match[2]);
+        let minusValue = "";
+        if (match[2].includes(".")) {
+          minusValue = "-" + powerNum.toFixed(2);
+        } else if (powerNum >= 50) {
+          minusValue = "-" + (powerNum / 100).toFixed(2);
+        } else {
+          minusValue = "-" + powerNum.toFixed(2);
+        }
         let qty = parseInt(match[3], 10);
-        const minusValue = "-" + (power / 100).toFixed(2);
-        let finalName = `${name} ${minusValue}`;
+        let finalName = `${name} ${minusValue}`.trim();
         finalName = applyGlobalReplacements(finalName, replacements);
 
         let isAlreadyDoubled = false;
-        // Check dynamic doubling keywords for Sisse
-        const shouldDouble = config.doubleKeywords.some(
-          (kw) => finalName.toLowerCase().includes(kw.toLowerCase().trim())
+        const shouldDouble = doubleKeywords.length > 0 && doubleKeywords.some(
+          (kw) => kw && finalName.toLowerCase().includes(kw.toLowerCase().trim())
         );
         if (shouldDouble) {
           qty *= 2;
           isAlreadyDoubled = true;
         }
 
-        list.push({ rawName: finalName, qty, isAlreadyDoubled });
-      }
-    } else if (/^NORMAL/i.test(trimLine)) {
-      const match = trimLine.match(/^NORMAL\s+([\s\S]*?)\s+(\d+)\s*Rp/i);
-      if (match) {
-        const name = match[1]
-          .trim()
-          .toLowerCase()
-          .replace(/\b\w/g, (l) => l.toUpperCase());
-        let qty = parseInt(match[2], 10);
-        let finalName = `${name} -0.00`;
-        finalName = applyGlobalReplacements(finalName, replacements);
-
-        let isAlreadyDoubled = false;
-        // Check dynamic doubling keywords for Sisse
-        const shouldDouble = config.doubleKeywords.some(
-          (kw) => finalName.toLowerCase().includes(kw.toLowerCase().trim())
-        );
-        if (shouldDouble) {
-          qty *= 2;
-          isAlreadyDoubled = true;
-        }
-
-        list.push({ rawName: finalName, qty, isAlreadyDoubled });
+        list.push({ rawName: finalName, qty, detectedUnit: "btl", isAlreadyDoubled });
+        continue;
       }
     }
+
+    // B. Format NORMAL Legacy: NORMAL [name] [qty] [Rp...]
+    if (/^NORMAL\b/i.test(cleanLine)) {
+      const match = cleanLine.match(/^NORMAL\s+([\s\S]*?)\s+(\d+)(?:\s*Rp.*)?$/i);
+      if (match) {
+        let name = match[1].trim();
+        let qty = parseInt(match[2], 10);
+        let finalName = `${name} -0.00`.trim();
+        finalName = applyGlobalReplacements(finalName, replacements);
+
+        let isAlreadyDoubled = false;
+        const shouldDouble = doubleKeywords.length > 0 && doubleKeywords.some(
+          (kw) => kw && finalName.toLowerCase().includes(kw.toLowerCase().trim())
+        );
+        if (shouldDouble) {
+          qty *= 2;
+          isAlreadyDoubled = true;
+        }
+
+        list.push({ rawName: finalName, qty, detectedUnit: "btl", isAlreadyDoubled });
+        continue;
+      }
+    }
+
+    // C. Format Langsung / Direct: [qty][unit] [Nama Produk...]
+    // e.g. "1psg Softlens JISSEO Idol Desire Ocean Blue -3.50"
+    // e.g. "5psg Softlens JISSEO Idol Desire Amber Gray -0.00"
+    // e.g. "3psg Softlens JISSEO Idol Desire Euro Gray -0.00"
+    // e.g. "1 psg Softlens ...", "2 pasang ...", "10 btl ...", "1 ..."
+    const directMatch = cleanLine.match(/^(\d+)\s*(pasang|psg|ps|pair|pairs|botol|btl|pcs|pc|box|kotak|x)?\s*(.+)$/i);
+    if (directMatch) {
+      let qty = parseInt(directMatch[1], 10);
+      const unit = directMatch[2] ? directMatch[2].toLowerCase() : "";
+      let name = directMatch[3].trim();
+
+      // Bersihkan harga di ujung baris jika ada (e.g. Rp 50.000 atau @ 50000)
+      name = name.replace(/\s*(?:@\s*|Rp\s*)[\d\.\,]+$/i, "").trim();
+
+      let isAlreadyDoubled = false;
+      const isDoubleUnit = doubleUnits.length > 0 && doubleUnits.some((u) => u && u.toLowerCase().trim() === unit);
+      const hasDoubleKeyword = doubleKeywords.length > 0 && doubleKeywords.some(
+        (kw) => kw && name.toLowerCase().includes(kw.toLowerCase().trim())
+      );
+
+      // Hanya double jika unit terdaftar di aturan doubleUnits Sisse
+      if (isDoubleUnit) {
+        if (doubleKeywords.length === 0 || hasDoubleKeyword) {
+          qty *= 2;
+          isAlreadyDoubled = true;
+        }
+      }
+
+      name = applyGlobalReplacements(name, replacements);
+      list.push({ rawName: name, qty, detectedUnit: unit, isAlreadyDoubled });
+      continue;
+    }
+
+    // D. Fallback jika hanya nama produk tanpa awalan angka
+    let fallbackName = applyGlobalReplacements(cleanLine, replacements);
+    list.push({ rawName: fallbackName, qty: 1, isAlreadyDoubled: false });
   }
+
   return list;
 }
 
@@ -905,6 +960,14 @@ function parseFormatAnna(text: string, replacements: { old: string; new: string 
   return list;
 }
 
+const GENERIC_MATCH_WORDS = new Set([
+  "softlens", "softlen", "soflens", "lens", "lensa", "kontak", "contact",
+  "normal", "plano", "warna", "color", "minus", "min", "plus",
+  "btl", "botol", "box", "kotak", "psg", "pasang", "pcs", "pc", "item",
+  "barang", "diskon", "original", "ori", "cod", "natural", "series",
+  "by", "ctk", "irislab", "exoticon", "dreamcolor"
+]);
+
 function findAutoMatch(
   rawName: string,
   productList: Product[],
@@ -937,11 +1000,13 @@ function findAutoMatch(
   });
   if (slugMatch) return slugMatch;
 
-  // 4. Advanced Word Intersection
-  // Insert spaces around digit sequences to cleanly isolate numeric and alphabetic parts
+  // 4. Advanced Token Match with Distinctive Word & Strict Numeric/Liquid Enforcement
   const cleanRawSpaced = cleanRaw.replace(/(\d+)/g, " $1 ");
   const inputWords = cleanRawSpaced.split(/[^a-z0-9]+/).filter(w => w.length >= 1);
   if (inputWords.length === 0) return undefined;
+
+  const inputDistinctiveWords = inputWords.filter(w => !GENERIC_MATCH_WORDS.has(w) && !/^\d+$/.test(w));
+  const inputNumericWords = inputWords.filter(w => /^\d+$/.test(w));
 
   let bestMatch: Product | undefined = undefined;
   let bestScore = 0;
@@ -952,49 +1017,84 @@ function findAutoMatch(
     const pCode = (p.kodeBarang || "").toLowerCase();
     const pFullName = (pCode + " " + pName);
     
-    // Also space-split candidate product name/code
     const pFullNameSpaced = pFullName.replace(/(\d+)/g, " $1 ");
     const pWords = pFullNameSpaced.split(/[^a-z0-9]+/).filter(w => w.length >= 1);
     const pWordsSet = new Set(pWords);
     const pDigitsOnly = pFullName.replace(/[^0-9]/g, "");
+    const pDistinctiveWords = pWords.filter(w => !GENERIC_MATCH_WORDS.has(w) && !/^\d+$/.test(w));
     
-    let score = 0;
-    let numericMismatches = 0;
-
-    for (const iw of inputWords) {
-      const isNumber = /^\d+$/.test(iw);
-      
-      if (pWordsSet.has(iw)) {
-        score += isNumber ? 4 : 2; 
-      } else if (isNumber) {
-        // Number not found directly, check if it's part of the product's digits
-        // e.g., "150" vs "1,50"
-        if (pDigitsOnly.includes(iw) || iw.includes(pDigitsOnly)) {
-          score += 2;
-        } else {
-          numericMismatches++;
-        }
+    // Check distinctive word matching (core model / brand / color words)
+    let matchedDistinctiveCount = 0;
+    let unmatchedInputDistinctive = 0;
+    for (const dw of inputDistinctiveWords) {
+      if (pWordsSet.has(dw)) {
+        matchedDistinctiveCount++;
       } else {
-        // Fuzzy word match
         let foundPartial = false;
-        // ONLY allow partial matching if both words are at least 3 characters long
-        if (iw.length >= 3) {
+        if (dw.length >= 3) {
           for (const pw of pWords) {
-            if (pw.length >= 3 && (pw.includes(iw) || iw.includes(pw))) {
-              score += 0.5;
+            if (!GENERIC_MATCH_WORDS.has(pw) && pw.length >= 3 && (pw.includes(dw) || dw.includes(pw))) {
+              matchedDistinctiveCount += 0.8;
               foundPartial = true;
               break;
             }
           }
         }
+        if (!foundPartial) {
+          unmatchedInputDistinctive++;
+        }
       }
     }
 
-    // Heavy penalty for variation mismatches
+    // If input has distinctive words, must match at least 1 and pass threshold
+    if (inputDistinctiveWords.length > 0 && matchedDistinctiveCount < 1) {
+      continue;
+    }
+
+    // Unmatched candidate distinctive words
+    let unmatchedCandidateDistinctive = 0;
+    for (const pw of pDistinctiveWords) {
+      if (!inputWords.includes(pw)) {
+        const found = inputDistinctiveWords.some(dw => dw.length >= 3 && pw.length >= 3 && (pw.includes(dw) || dw.includes(pw)));
+        if (!found) unmatchedCandidateDistinctive++;
+      }
+    }
+
+    let score = 0;
+    let numericMismatches = 0;
+
+    for (const iw of inputWords) {
+      const isNumber = /^\d+$/.test(iw);
+      const isGeneric = GENERIC_MATCH_WORDS.has(iw);
+      
+      if (pWordsSet.has(iw)) {
+        if (isNumber) score += 4;
+        else if (isGeneric) score += 0.5; // Minimal weight for generic words like softlens/normal
+        else score += 3; // Strong weight for unique identifiers
+      } else if (isNumber) {
+        // Number not found directly, check if it's part of the product's digits
+        if (pDigitsOnly.includes(iw) || iw.includes(pDigitsOnly)) {
+          score += 2;
+        } else {
+          numericMismatches++;
+        }
+      } else if (!isGeneric && iw.length >= 3) {
+        // Fuzzy word match ONLY on non-generic words
+        for (const pw of pWords) {
+          if (!GENERIC_MATCH_WORDS.has(pw) && pw.length >= 3 && (pw.includes(iw) || iw.includes(pw))) {
+            score += 1;
+            break;
+          }
+        }
+      }
+    }
+
+    // Penalty for mismatched variation tokens & distinctive words
+    score -= unmatchedInputDistinctive * 4;
+    score -= unmatchedCandidateDistinctive * 4;
     score -= numericMismatches * 5;
 
     // Strict requirement: If input has numbers, the match MUST have at least one numeric intersection
-    const inputNumericWords = inputWords.filter(w => /^\d+$/.test(w));
     if (inputNumericWords.length > 0) {
       let numericSatisfied = false;
       for (const inw of inputNumericWords) {
@@ -1011,9 +1111,9 @@ function findAutoMatch(
     // ML volume check: Keep liquids with liquids, lenses with lenses
     const productHasMl = /\d+ml\b|\bml\b/i.test(pFullName);
     if (inputHasMl && !productHasMl) {
-      score -= 15; // Heavy penalty if input is a liquid (has ml) but product is not
+      score -= 15;
     } else if (!inputHasMl && productHasMl) {
-      score -= 15; // Heavy penalty if input is not a liquid but product is
+      score -= 15;
     }
 
     // Hard liquid volume verification
@@ -1022,7 +1122,7 @@ function findAutoMatch(
     if (inputMls.length > 0 && productMls.length > 0) {
       const hasIntersection = productMls.some(m => inputMls.includes(m));
       if (!hasIntersection) {
-        score -= 20; // Massive penalty for volume mismatch
+        score -= 20;
       }
     }
 
@@ -1041,8 +1141,8 @@ function findAutoMatch(
     }
   }
 
-  // Reasonable threshold for fuzzy matching
-  if (bestScore >= 3) {
+  // Threshold for solid matching
+  if (bestScore >= 5) {
     return bestMatch;
   }
 
@@ -2188,89 +2288,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
       newList = parseFormatAnna(rawText, replacementGlobal, supplierConfigs.anna);
     }
 
-    // Smart double quantity detection based on dynamic supplier & brand keywords
-    const processedList = newList.map((item) => {
-      if (item.isAlreadyDoubled) {
-        return item;
-      }
-
-      const cleanName = item.rawName.trim();
-      const matched = findAutoMatch(cleanName, products);
-
-      // Check if unit is a pair (defined in supplierConfigs or standard default)
-      const unit = (item.detectedUnit || "").toLowerCase().trim();
-      
-      // Collect all double units configured across suppliers
-      const allDoubleUnits = Array.from(new Set([
-        ...supplierConfigs.akumaucantik.doubleUnits,
-        ...supplierConfigs.anna.doubleUnits,
-        ...supplierConfigs.shopee.doubleUnits,
-        ...supplierConfigs.sisse.doubleUnits,
-        ...supplierConfigs.kim.doubleUnits,
-        "pasang", "psg", "ps", "pair", "pairs", "set" // defaults
-      ])).map(u => u.toLowerCase().trim());
-
-      const isPairUnit = allDoubleUnits.includes(unit);
-      
-      // Check if name contains pair indicators
-      const hasPairInName = allDoubleUnits.some(u => {
-        if (!u) return false;
-        const regex = new RegExp(`\\b${u}\\b|${u}`, 'i');
-        return regex.test(cleanName);
-      }) || /pasang|psg|\bps\b|pair/i.test(cleanName);
-
-      let shouldDouble = false;
-
-      // Extract all double keywords configured across suppliers for brand matching
-      const allDoubleKeywords = Array.from(new Set([
-        ...supplierConfigs.akumaucantik.doubleKeywords,
-        ...supplierConfigs.anna.doubleKeywords,
-        ...supplierConfigs.shopee.doubleKeywords,
-        ...supplierConfigs.sisse.doubleKeywords,
-        ...supplierConfigs.kim.doubleKeywords,
-        "maki", "matake", "emma", "veronica", "clear", "anna", "sisse", "avenue", "trapz" // defaults
-      ])).map(k => k.toLowerCase().trim());
-
-      if (matched) {
-        const supplier = (matched.supplier || "").toLowerCase().trim();
-        // Check if supplier is one of our configs or contains "akumaucantik", "lina", "sisse", "anna"
-        const isBottleSupplier =
-          supplier.includes("akumaucantik") ||
-          supplier.includes("lina") ||
-          supplier.includes("sisse") ||
-          supplier.includes("anna");
-
-        // Or if matched product name contains any of our dynamic double keywords
-        const hasDoubleKeyword = allDoubleKeywords.some(
-          (kw) => kw && cleanName.toLowerCase().includes(kw)
-        );
-
-        if ((isBottleSupplier || hasDoubleKeyword) && (isPairUnit || hasPairInName)) {
-          shouldDouble = true;
-        }
-      } else {
-        // Fallback for new products not yet in the catalog: check brand keywords dynamically from supplier configs
-        const hasDoubleKeyword = allDoubleKeywords.some(
-          (kw) => kw && cleanName.toLowerCase().includes(kw)
-        );
-
-        if (hasDoubleKeyword && (isPairUnit || hasPairInName)) {
-          shouldDouble = true;
-        }
-      }
-
-      if (shouldDouble) {
-        return {
-          ...item,
-          qty: item.qty * 2,
-          isAlreadyDoubled: true,
-        };
-      }
-
-      return item;
-    });
-
-    setParsedItems(processedList);
+    setParsedItems(newList);
   };
 
   const handleSaveBulkIncoming = async () => {
@@ -10050,20 +10068,97 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                               Supplier: Sisse
                             </span>
                           </div>
+
+                          {/* Units */}
+                          <div className="space-y-1.5">
+                            <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider leading-none">
+                              Satuan Yang Di-double (e.g. pasang, psg)
+                            </label>
+                            <div className="flex flex-wrap gap-1 border-2 border-slate-200 p-2 min-h-[40px] bg-slate-50">
+                              {(supplierConfigs.sisse.doubleUnits || []).map((unit, idx) => (
+                                <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-rose-600 text-white text-[10px] font-bold uppercase">
+                                  {unit}
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const next = [...(supplierConfigs.sisse.doubleUnits || [])];
+                                      next.splice(idx, 1);
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        sisse: { ...supplierConfigs.sisse, doubleUnits: next }
+                                      });
+                                    }}
+                                    className="text-white hover:text-rose-200 font-black ml-1 text-[9px]"
+                                  >
+                                    ✕
+                                  </button>
+                                </span>
+                              ))}
+                              {(!supplierConfigs.sisse.doubleUnits || supplierConfigs.sisse.doubleUnits.length === 0) && (
+                                <span className="text-[10px] text-slate-400 italic">Belum ada satuan</span>
+                              )}
+                            </div>
+                            <div className="flex gap-1.5">
+                              <input
+                                id="add-unit-sisse"
+                                type="text"
+                                placeholder="Ketik lalu tekan Tambah"
+                                className="flex-1 px-2 py-1 border-2 border-slate-900 text-xs font-bold focus:outline-none"
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') {
+                                    e.preventDefault();
+                                    const val = e.currentTarget.value.trim();
+                                    const curr = supplierConfigs.sisse.doubleUnits || [];
+                                    if (val && !curr.includes(val)) {
+                                      setSupplierConfigs({
+                                        ...supplierConfigs,
+                                        sisse: {
+                                          ...supplierConfigs.sisse,
+                                          doubleUnits: [...curr, val]
+                                        }
+                                      });
+                                      e.currentTarget.value = '';
+                                    }
+                                  }
+                                }}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const input = document.getElementById('add-unit-sisse') as HTMLInputElement;
+                                  const val = input?.value.trim();
+                                  const curr = supplierConfigs.sisse.doubleUnits || [];
+                                  if (val && !curr.includes(val)) {
+                                    setSupplierConfigs({
+                                      ...supplierConfigs,
+                                      sisse: {
+                                        ...supplierConfigs.sisse,
+                                        doubleUnits: [...curr, val]
+                                      }
+                                    });
+                                    input.value = '';
+                                  }
+                                }}
+                                className="px-3 py-1 bg-slate-900 text-white font-black text-xs uppercase"
+                              >
+                                Tambah
+                              </button>
+                            </div>
+                          </div>
                           
                           {/* Keywords */}
-                          <div className="space-y-1.5">
+                          <div className="space-y-1.5 pt-2 border-t border-slate-100">
                             <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider leading-none">
                               Kata Kunci Lensa (Double Qty)
                             </label>
                             <div className="flex flex-wrap gap-1 border-2 border-slate-200 p-2 min-h-[40px] bg-slate-50">
-                              {supplierConfigs.sisse.doubleKeywords.map((kw, idx) => (
+                              {(supplierConfigs.sisse.doubleKeywords || []).map((kw, idx) => (
                                 <span key={idx} className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-900 text-white text-[10px] font-bold uppercase">
                                   {kw}
                                   <button
                                     type="button"
                                     onClick={() => {
-                                      const next = [...supplierConfigs.sisse.doubleKeywords];
+                                      const next = [...(supplierConfigs.sisse.doubleKeywords || [])];
                                       next.splice(idx, 1);
                                       setSupplierConfigs({
                                         ...supplierConfigs,
@@ -10076,7 +10171,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                   </button>
                                 </span>
                               ))}
-                              {supplierConfigs.sisse.doubleKeywords.length === 0 && (
+                              {(!supplierConfigs.sisse.doubleKeywords || supplierConfigs.sisse.doubleKeywords.length === 0) && (
                                 <span className="text-[10px] text-slate-400 italic">Belum ada kata kunci</span>
                               )}
                             </div>
@@ -10090,12 +10185,13 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                   if (e.key === 'Enter') {
                                     e.preventDefault();
                                     const val = e.currentTarget.value.trim();
-                                    if (val && !supplierConfigs.sisse.doubleKeywords.includes(val)) {
+                                    const curr = supplierConfigs.sisse.doubleKeywords || [];
+                                    if (val && !curr.includes(val)) {
                                       setSupplierConfigs({
                                         ...supplierConfigs,
                                         sisse: {
                                           ...supplierConfigs.sisse,
-                                          doubleKeywords: [...supplierConfigs.sisse.doubleKeywords, val]
+                                          doubleKeywords: [...curr, val]
                                         }
                                       });
                                       e.currentTarget.value = '';
@@ -10108,12 +10204,13 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                 onClick={() => {
                                   const input = document.getElementById('add-kw-sisse') as HTMLInputElement;
                                   const val = input?.value.trim();
-                                  if (val && !supplierConfigs.sisse.doubleKeywords.includes(val)) {
+                                  const curr = supplierConfigs.sisse.doubleKeywords || [];
+                                  if (val && !curr.includes(val)) {
                                     setSupplierConfigs({
                                       ...supplierConfigs,
                                       sisse: {
                                         ...supplierConfigs.sisse,
-                                        doubleKeywords: [...supplierConfigs.sisse.doubleKeywords, val]
+                                        doubleKeywords: [...curr, val]
                                       }
                                     });
                                     input.value = '';
@@ -10146,7 +10243,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                             : selectedFormat === "shopee"
                               ? "Contoh:\nMSBS Softlens Maki\nVariasi: Gray -1.00\nx1\nRp45.000"
                               : selectedFormat === "sisse"
-                                ? "Contoh:\nNORMAL sisse gray 10 Rp50000\nMINUS sisse blue 350 5 Rp60000"
+                                ? "Contoh:\n1psg Softlens JISSEO Idol Desire Ocean Blue -3.50\n5psg Softlens JISSEO Idol Desire Amber Gray -0.00\n3psg Softlens JISSEO Idol Desire Euro Gray -0.00\nNORMAL sisse gray 10 Rp50000\nMINUS sisse blue 350 5 Rp60000"
                                 : "Contoh:\nNORMAL anna black 10 Rp50000\nMINUS anna gray 150 5 Rp60000"
                       }
                       rows={6}
