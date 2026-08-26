@@ -961,19 +961,19 @@ function parseFormatAnna(text: string, replacements: { old: string; new: string 
 }
 
 const GENERIC_MATCH_WORDS = new Set([
-  "softlens", "softlen", "soflens", "lens", "lensa", "kontak", "contact", "sl",
+  "softlens", "softlen", "soflens", "lens", "lensa", "kontak", "contact", "sl", "kk", "ctk",
   "warna", "color", "minus", "min", "plus",
   "btl", "botol", "box", "kotak", "psg", "pasang", "pcs", "pc", "item",
   "barang", "diskon", "original", "ori", "cod", "natural", "series",
-  "by", "ctk", "irislab", "exoticon", "dreamcolor", "jisseo"
+  "by", "irislab", "exoticon", "dreamcolor", "jisseo", "eos", "x2"
 ]);
 
 function normalizeLensTokens(str: string): string[] {
   if (!str) return [];
   let s = str.toLowerCase();
   
-  // 1. Power normalizations (0.00, 0,00, 00, plano, normal)
-  s = s.replace(/[-â€“â€”]?0[\.,]00\b|[-â€“â€”]?000\b|\b0\s+00\b|\bplano\b/g, " normal ");
+  // 1. Power normalizations (0.00, 0,00, 00, plano, normal, N, nor, norm)
+  s = s.replace(/[-â€“â€”]?0[\.,]00\b|[-â€“â€”]?000\b|\b0\s+00\b|\bplano\b|\bn\b|\bnor\b|\bnorm\b/g, " normal ");
   
   // 2. Minus power standardization (e.g. -3.50, -3,50, 3.50 -> min350)
   s = s.replace(/[-â€“â€”](\d+)[\.,](\d{2})\b/g, " min$1$2 ");
@@ -3052,25 +3052,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
   const findMatchedProduct = (jenisBarang: string, productId?: string) => {
     if (productId) return products.find((p) => p.id === productId);
     if (!jenisBarang) return undefined;
-    const search = jenisBarang.trim().toLowerCase();
-
-    // 1. Exact match Nama
-    let match = products.find(
-      (p) => p.namaBarang?.trim().toLowerCase() === search,
-    );
-    if (match) return match;
-
-    // 2. Exact match Kode
-    match = products.find((p) => p.kodeBarang?.trim().toLowerCase() === search);
-    if (match) return match;
-
-    // 3. Partial match
-    match = products.find((p) => {
-      const nama = p.namaBarang?.trim().toLowerCase();
-      if (!nama || nama.length < 3) return false;
-      return search.includes(nama) || nama.includes(search);
-    });
-    return match;
+    return findAutoMatch(jenisBarang, products);
   };
 
   const handleSaveDraftSales = async () => {
@@ -10170,2028 +10152,80 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                 className="flex-1 px-2 py-1 border-2 border-slate-900 text-xs font-bold focus:outline-none"
                                 onKeyDown={(e) => {
                                   if (e.key === 'Enter') {
-                                    e.preventDefault();
-                                    const val = e.currentTarget.value.trim();
-                                    const curr = supplierConfigs.sisse.doubleKeywords || [];
-                                    if (val && !curr.includes(val)) {
-                                      setSupplierConfigs({
-                                        ...supplierConfigs,
-                                        sisse: {
-                                          ...supplierConfigs.sisse,
-                                          doubleKeywords: [...curr, val]
-                                        }
-                                      });
-                                      e.currentTarget.value = '';
-                                    }
-                                  }
-                                }}
-                              />
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const input = document.getElementById('add-kw-sisse') as HTMLInputElement;
-                                  const val = input?.value.trim();
-                                  const curr = supplierConfigs.sisse.doubleKeywords || [];
-                                  if (val && !curr.includes(val)) {
-                                    setSupplierConfigs({
-                                      ...supplierConfigs,
-                                      sisse: {
-                                        ...supplierConfigs.sisse,
-                                        doubleKeywords: [...curr, val]
-                                      }
-                                    });
-                                    input.value = '';
-                                  }
-                                }}
-                                className="px-3 py-1 bg-slate-900 text-white font-black text-xs uppercase"
-                              >
-                                Tambah
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Raw Text Input */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-black text-slate-700 uppercase tracking-widest">
-                      Paste Daftar Teks Di Sini
-                    </label>
-                    <textarea
-                      value={rawText}
-                      onChange={(e) => setRawText(e.target.value)}
-                      placeholder={
-                        selectedFormat === "akumaucantik"
-                          ? "Contoh:\n2 psg maki\n1 psg matake\nâŒ 1 psg emma (ini diskip karena silang)"
-                          : selectedFormat === "kim"
-                            ? "Contoh:\nKIM TRAPZ GRAY\n1 X Rp50000\nITEM LAIN\n-2"
-                            : selectedFormat === "shopee"
-                              ? "Contoh:\nMSBS Softlens Maki\nVariasi: Gray -1.00\nx1\nRp45.000"
-                              : selectedFormat === "sisse"
-                                ? "Contoh:\n1psg Softlens JISSEO Idol Desire Ocean Blue -3.50\n5psg Softlens JISSEO Idol Desire Amber Gray -0.00\n3psg Softlens JISSEO Idol Desire Euro Gray -0.00\nNORMAL sisse gray 10 Rp50000\nMINUS sisse blue 350 5 Rp60000"
-                                : "Contoh:\nNORMAL anna black 10 Rp50000\nMINUS anna gray 150 5 Rp60000"
-                      }
-                      rows={6}
-                      className="w-full p-4 border-2 border-slate-900 font-mono text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                    />
-                    <div className="flex justify-end">
-                      <button
-                        type="button"
-                        onClick={handleProcessText}
-                        className="px-6 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] hover:translate-y-[1px] hover:translate-x-[1px] hover:shadow-[3px_3px_0px_0px_#0f172a] active:translate-y-[3px] active:translate-x-[3px] active:shadow-none transition-all flex items-center gap-1.5"
-                      >
-                        Proses Teks & Deteksi{" "}
-                        <ArrowRight className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Parsed Items List */}
-                  {parsedItems.length > 0 && (
-                    <div className="space-y-3 pt-4 border-t-2 border-slate-200">
-                      <div className="flex items-center justify-between">
-                        <label className="text-xs font-black text-slate-700 uppercase tracking-widest">
-                          Hasil Deteksi ({parsedItems.length} Baris)
-                        </label>
-                        <span className="text-[10px] text-slate-500 font-bold">
-                          Tekan tombol sinkronisasi untuk menyimpan seluruh
-                          daftar
-                        </span>
-                      </div>
-
-                      <div className="border-2 border-slate-900 overflow-hidden">
-                        <div className="max-h-[300px] overflow-y-auto">
-                          <table className="w-full text-left whitespace-nowrap text-xs">
-                            <thead className="bg-slate-900 text-white font-black sticky top-0 z-10 uppercase tracking-widest text-[9px]">
-                              <tr>
-                                <th className="px-4 py-3">
-                                  Nama Barang (Hasil Deteksi)
-                                </th>
-                                <th className="px-4 py-3 text-center w-24">
-                                  Qty
-                                </th>
-                                <th className="px-4 py-3">
-                                  Status Pemetaan Katalog
-                                </th>
-                                <th className="px-4 py-3 text-center w-24">
-                                  Aksi
-                                </th>
-                              </tr>
-                            </thead>
-                            <tbody className="divide-y divide-slate-200">
-                              {parsedItems.map((item, idx) => {
-                                const matched = findAutoMatch(
-                                  item.rawName,
-                                  products,
-                                );
-                                return (
-                                  <React.Fragment key={idx}>
-                                    <tr className="hover:bg-slate-50">
-                                      <td className="px-4 py-2.5">
-                                        <input
-                                          type="text"
-                                          value={item.rawName}
-                                          onChange={(e) =>
-                                            handleParsedItemNameChange(
-                                              idx,
-                                              e.target.value,
-                                            )
-                                          }
-                                          className="w-full px-2.5 py-1.5 border-2 border-slate-900 font-bold text-slate-700 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                                        />
-                                      </td>
-                                      <td className="px-4 py-2.5">
-                                        <input
-                                          type="number"
-                                          min="1"
-                                          value={item.qty}
-                                          onChange={(e) =>
-                                            handleParsedItemQtyChange(
-                                              idx,
-                                              Number(e.target.value),
-                                            )
-                                          }
-                                          className="w-16 px-1.5 py-1 text-center font-mono border-2 border-slate-900 font-bold focus:ring-2 focus:ring-emerald-500/20 focus:outline-none"
-                                        />
-                                      </td>
-                                      <td className="px-4 py-2.5">
-                                        {item.isEditingMapping ? (
-                                          <div className="flex items-center gap-1.5 w-[320px]">
-                                            <div className="flex-1 min-w-0">
-                                              <SearchableProductSelect
-                                                products={products}
-                                                value={item.overrideProductId || ""}
-                                                onChange={(val) =>
-                                                  handleParsedItemOverrideChange(idx, val)
-                                                }
-                                              />
-                                            </div>
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                handleParsedItemToggleEditMapping(
-                                                  idx,
-                                                )
-                                              }
-                                              className="px-2.5 py-1.5 text-xs font-black bg-slate-900 text-white border border-slate-900 transition-all active:translate-y-[1px] shrink-0"
-                                            >
-                                              Selesai
-                                            </button>
-                                          </div>
-                                        ) : (
-                                          <div>
-                                            {item.overrideProductId ===
-                                            "new" ? (
-                                              <span className="text-[10px] font-black text-indigo-700 bg-indigo-50 border border-indigo-200 px-2.5 py-1.5 rounded-sm uppercase tracking-wider">
-                                                ğŸ†• Paksa Buat Baru di Katalog
-                                              </span>
-                                            ) : item.overrideProductId ? (
-                                              (() => {
-                                                const ovrP = products.find(
-                                                  (p) =>
-                                                    p.id ===
-                                                    item.overrideProductId,
-                                                );
-                                                return (
-                                                  <span className="text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-300 px-2.5 py-1.5 rounded-sm uppercase tracking-wider">
-                                                    âœ… Pemetaan Manual:{" "}
-                                                    {ovrP
-                                                      ? ovrP.kodeBarang
-                                                      : item.overrideProductId}
-                                                  </span>
-                                                );
-                                              })()
-                                            ) : matched ? (
-                                              <span className="text-[10px] font-black text-emerald-700 bg-emerald-50 border border-emerald-300 px-2.5 py-1.5 rounded-sm uppercase tracking-wider">
-                                                âœ… Terpetakan ke:{" "}
-                                                {matched.kodeBarang}
-                                              </span>
-                                            ) : (
-                                              <span className="text-[10px] font-black text-blue-600 bg-blue-50 border border-blue-200 px-2.5 py-1.5 rounded-sm uppercase tracking-wider animate-pulse">
-                                                âœ¨ Akan dibuat baru di katalog
-                                              </span>
-                                            )}
-                                          </div>
-                                        )}
-                                      </td>
-                                      <td className="px-4 py-2.5 text-center flex items-center justify-center gap-1">
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleParsedItemToggleEditMapping(
-                                              idx,
-                                            )
-                                          }
-                                          className={`p-1 px-2 border-2 ${item.isEditingMapping ? "bg-amber-100 border-slate-900 text-slate-900" : "border-transparent hover:border-slate-900 hover:bg-slate-100 text-indigo-600"}`}
-                                          title="Ubah Pemetaan Katalog"
-                                        >
-                                          <Pencil className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleParsedItemToggleEditDetails(
-                                              idx,
-                                            )
-                                          }
-                                          className={`p-1 px-2 border-2 ${item.isEditingProductDetails ? "bg-emerald-100 border-slate-900 text-slate-900" : "border-transparent hover:border-slate-900 hover:bg-slate-100 text-emerald-600"}`}
-                                          title="Edit Detail Barang (Katalog)"
-                                        >
-                                          <Settings className="w-4 h-4" />
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() =>
-                                            handleParsedItemDelete(idx)
-                                          }
-                                          className="p-1 px-2 border-2 border-transparent hover:border-slate-900 hover:bg-slate-100 text-rose-600"
-                                          title="Hapus baris ini"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </button>
-                                      </td>
-                                    </tr>
-                                    {item.isEditingProductDetails &&
-                                      item.customProductDetails && (
-                                        <tr className="bg-slate-50">
-                                          <td
-                                            colSpan={4}
-                                            className="px-6 py-4 border-l-4 border-l-emerald-500 border-b-2 border-slate-900"
-                                          >
-                                            <div className="space-y-3 whitespace-normal">
-                                              <div className="text-xs font-black uppercase text-emerald-800 tracking-wider flex items-center gap-1">
-                                                <Settings className="w-3.5 h-3.5" />{" "}
-                                                Konfigurasi Detail Katalog untuk
-                                                "{item.rawName}"
-                                              </div>
-                                              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-slate-700">
-                                                <div className="space-y-1">
-                                                  <label className="block text-[10px] font-black uppercase text-slate-500">
-                                                    Kode Barang
-                                                  </label>
-                                                  <input
-                                                    type="text"
-                                                    value={
-                                                      item.customProductDetails
-                                                        .kodeBarang || ""
-                                                    }
-                                                    onChange={(e) =>
-                                                      handleCustomProductDetailsChange(
-                                                        idx,
-                                                        "kodeBarang",
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1 text-xs font-bold border-2 border-slate-900 bg-white text-slate-800 focus:outline-none"
-                                                  />
-                                                </div>
-                                                <div className="space-y-1">
-                                                  <label className="block text-[10px] font-black uppercase text-slate-500">
-                                                    Nama Barang
-                                                  </label>
-                                                  <input
-                                                    type="text"
-                                                    value={
-                                                      item.customProductDetails
-                                                        .namaBarang || ""
-                                                    }
-                                                    onChange={(e) =>
-                                                      handleCustomProductDetailsChange(
-                                                        idx,
-                                                        "namaBarang",
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1 text-xs font-bold border-2 border-slate-900 bg-white text-slate-800 focus:outline-none"
-                                                  />
-                                                </div>
-                                                <div className="space-y-1">
-                                                  <label className="block text-[10px] font-black uppercase text-slate-500">
-                                                    Supplier
-                                                  </label>
-                                                  <input
-                                                    type="text"
-                                                    value={
-                                                      item.customProductDetails
-                                                        .supplier || ""
-                                                    }
-                                                    onChange={(e) =>
-                                                      handleCustomProductDetailsChange(
-                                                        idx,
-                                                        "supplier",
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1 text-xs font-bold border-2 border-slate-900 bg-white text-slate-800 focus:outline-none"
-                                                  />
-                                                </div>
-                                                <div className="space-y-1">
-                                                  <label className="block text-[10px] font-black uppercase text-slate-500">
-                                                    Harga Beli
-                                                  </label>
-                                                  <input
-                                                    type="number"
-                                                    value={
-                                                      item.customProductDetails
-                                                        .hargaBeli || 0
-                                                    }
-                                                    onChange={(e) =>
-                                                      handleCustomProductDetailsChange(
-                                                        idx,
-                                                        "hargaBeli",
-                                                        Number(e.target.value),
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1 text-xs font-mono font-bold border-2 border-slate-900 bg-white text-slate-800 focus:outline-none"
-                                                  />
-                                                </div>
-                                                <div className="space-y-1">
-                                                  <label className="block text-[10px] font-black uppercase text-slate-500">
-                                                    Harga Jual
-                                                  </label>
-                                                  <input
-                                                    type="number"
-                                                    value={
-                                                      item.customProductDetails
-                                                        .hargaJual || 0
-                                                    }
-                                                    onChange={(e) =>
-                                                      handleCustomProductDetailsChange(
-                                                        idx,
-                                                        "hargaJual",
-                                                        Number(e.target.value),
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1 text-xs font-mono font-bold border-2 border-slate-900 bg-white text-slate-800 focus:outline-none"
-                                                  />
-                                                </div>
-                                                <div className="space-y-1">
-                                                  <label className="block text-[10px] font-black uppercase text-slate-500">
-                                                    Warna
-                                                  </label>
-                                                  <input
-                                                    type="text"
-                                                    value={
-                                                      item.customProductDetails
-                                                        .color || ""
-                                                    }
-                                                    onChange={(e) =>
-                                                      handleCustomProductDetailsChange(
-                                                        idx,
-                                                        "color",
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1 text-xs font-bold border-2 border-slate-900 bg-white text-slate-800 focus:outline-none"
-                                                  />
-                                                </div>
-                                                <div className="space-y-1">
-                                                  <label className="block text-[10px] font-black uppercase text-slate-500">
-                                                    BC
-                                                  </label>
-                                                  <input
-                                                    type="text"
-                                                    value={
-                                                      item.customProductDetails
-                                                        .bc || ""
-                                                    }
-                                                    onChange={(e) =>
-                                                      handleCustomProductDetailsChange(
-                                                        idx,
-                                                        "bc",
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1 text-xs font-bold border-2 border-slate-900 bg-white text-slate-800 focus:outline-none"
-                                                  />
-                                                </div>
-                                                <div className="space-y-1">
-                                                  <label className="block text-[10px] font-black uppercase text-slate-500">
-                                                    Kadar Air
-                                                  </label>
-                                                  <input
-                                                    type="text"
-                                                    value={
-                                                      item.customProductDetails
-                                                        .kadarAir || ""
-                                                    }
-                                                    onChange={(e) =>
-                                                      handleCustomProductDetailsChange(
-                                                        idx,
-                                                        "kadarAir",
-                                                        e.target.value,
-                                                      )
-                                                    }
-                                                    className="w-full px-2 py-1 text-xs font-bold border-2 border-slate-900 bg-white text-slate-800 focus:outline-none"
-                                                  />
-                                                </div>
-                                              </div>
-                                              <div className="flex justify-end pt-1">
-                                                <button
-                                                  type="button"
-                                                  onClick={() =>
-                                                    handleParsedItemToggleEditDetails(
-                                                      idx,
-                                                    )
-                                                  }
-                                                  className="px-3 py-1.5 text-[10px] font-black uppercase bg-emerald-600 hover:bg-emerald-700 text-white border-2 border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] transition-all"
-                                                >
-                                                  Selesai Mengisi
-                                                </button>
-                                              </div>
-                                            </div>
-                                          </td>
-                                        </tr>
-                                      )}
-                                  </React.Fragment>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
-                <div className="p-6 border-t-4 border-slate-900 bg-slate-50 flex flex-col md:flex-row md:items-center justify-between shrink-0 gap-4">
-                  <div className="text-xs text-slate-500 font-bold">
-                    {parsedItems.length > 0 &&
-                      (() => {
-                        const total = parsedItems.length;
-                        const mappedCount = parsedItems.filter(
-                          (i) =>
-                            (i.overrideProductId &&
-                              i.overrideProductId !== "new") ||
-                            (!i.overrideProductId &&
-                              findAutoMatch(i.rawName, products)),
-                        ).length;
-                        const newCount = total - mappedCount;
-                        return (
-                          <p>
-                            Terdeteksi{" "}
-                            <span className="font-black text-slate-900">
-                              {total}
-                            </span>{" "}
-                            baris.{" "}
-                            <span className="font-black text-emerald-600">
-                              {mappedCount}
-                            </span>{" "}
-                            terpetakan ke katalog,{" "}
-                            <span className="font-black text-indigo-600">
-                              {newCount}
-                            </span>{" "}
-                            akan dibuat baru.
-                          </p>
-                        );
-                      })()}
-                  </div>
-                  <div className="flex gap-3">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsIncomingTextModalOpen(false);
-                        setRawText("");
-                        setParsedItems([]);
-                      }}
-                      className="px-6 py-3 bg-white border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
-                    >
-                      BATAL
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleSaveBulkIncoming}
-                      disabled={parsedItems.length === 0}
-                      className={`px-8 py-3 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all ${parsedItems.length === 0 ? "bg-slate-400 cursor-not-allowed shadow-none" : "bg-emerald-600 hover:bg-emerald-700"}`}
-                    >
-                      SINKRONISASI DATA MASUK
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* WEEKLY SALE MANUAL MODAL */}
-          {isWeeklyModalOpen && (
-            <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto font-sans">
-              <div className="bg-white border-4 border-slate-900 w-full max-w-2xl shadow-[16px_16px_0px_0px_#0f172a] my-auto">
-                <div className="p-6 border-b-4 border-slate-900 flex items-center justify-between bg-indigo-50">
-                  <h3 className="text-xl font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest">
-                    <Pencil className="w-6 h-6 border-2 border-slate-900 bg-white p-1 shadow-[2px_2px_0px_0px_#0f172a]" />{" "}
-                    Edit Data Manual Mingguan
-                  </h3>
-                  <button
-                    onClick={() => setIsWeeklyModalOpen(false)}
-                    className="p-1 hover:bg-slate-200 rounded transition-colors"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
-                </div>
-                <div className="p-4 bg-slate-100 border-b-2 border-slate-900 flex justify-between items-center text-[10px] font-black uppercase tracking-widest text-slate-600">
-                   <span>Tahun: {editingWeekly.tahun}</span>
-                   <span>Bulan: {editingWeekly.bulan}</span>
-                   <span>Minggu: {editingWeekly.minggu}</span>
-                </div>
-                <form onSubmit={handleSaveWeekly} className="p-8 space-y-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                        Profit Regular (Rp)
-                      </label>
-                      <input
-                        type="text"
-                        value={editingWeekly.profit || ""}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "");
-                          setEditingWeekly({ ...editingWeekly, profit: val ? Number(val) : "" });
-                        }}
-                        placeholder="Contoh: 5000000"
-                        className="w-full px-4 py-4 bg-white border-2 border-slate-900 font-black font-mono shadow-[4px_4px_0px_0px_#0f172a] focus:outline-none focus:translate-x-[1px] focus:translate-y-[1px] focus:shadow-[2px_2px_0px_0px_#0f172a] transition-all"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                        Profit Dropship (Rp)
-                      </label>
-                      <input
-                        type="text"
-                        value={editingWeekly.profitDS || ""}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "");
-                          setEditingWeekly({ ...editingWeekly, profitDS: val ? Number(val) : "" });
-                        }}
-                        placeholder="Contoh: 2000000"
-                        className="w-full px-4 py-4 bg-white border-2 border-slate-900 font-black font-mono shadow-[4px_4px_0px_0px_#0f172a] focus:outline-none focus:translate-x-[1px] focus:translate-y-[1px] focus:shadow-[2px_2px_0px_0px_#0f172a] transition-all"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                        Iklan (Rp)
-                      </label>
-                      <input
-                        type="text"
-                        value={editingWeekly.iklan || ""}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "");
-                          setEditingWeekly({ ...editingWeekly, iklan: val ? Number(val) : "" });
-                        }}
-                        placeholder="Contoh: 1000000"
-                        className="w-full px-4 py-4 bg-white border-2 border-slate-900 font-black font-mono shadow-[4px_4px_0px_0px_#0f172a] focus:outline-none focus:translate-x-[1px] focus:translate-y-[1px] focus:shadow-[2px_2px_0px_0px_#0f172a] transition-all"
-                      />
-                    </div>
-                    <div className="space-y-1">
-                      <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                        HPP (Rp)
-                      </label>
-                      <input
-                        type="text"
-                        value={editingWeekly.hpp || ""}
-                        onChange={(e) => {
-                          const val = e.target.value.replace(/\D/g, "");
-                          setEditingWeekly({ ...editingWeekly, hpp: val ? Number(val) : "" });
-                        }}
-                        placeholder="Contoh: 3000000"
-                        className="w-full px-4 py-4 bg-white border-2 border-slate-900 font-black font-mono shadow-[4px_4px_0px_0px_#0f172a] focus:outline-none focus:translate-x-[1px] focus:translate-y-[1px] focus:shadow-[2px_2px_0px_0px_#0f172a] transition-all"
-                      />
-                    </div>
-                  </div>
-                  <p className="text-[9px] font-bold text-rose-500 uppercase">
-                    * MENGEDIT DATA DI ATAS AKAN MENIMPA HASIL KALKULASI OTOMATIS DARI TRANSAKSI HARIAN UNTUK MINGGU INI.
-                  </p>
-                  <div className="pt-6 flex gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setIsWeeklyModalOpen(false)}
-                      className="flex-1 py-4 bg-white border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
-                    >
-                      BATAL
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-1 py-4 bg-indigo-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
-                    >
-                      SIMPAN PERUBAHAN
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* IKLAN ADD/EDIT MODAL */}
-          {isIklanModalOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm overflow-y-auto">
-              <div className="bg-white border-4 border-slate-900 w-full max-w-lg shadow-[16px_16px_0px_0px_#0f172a] my-auto">
-                <div className="p-6 border-b-4 border-slate-900 flex items-center justify-between bg-slate-50">
-                  <h3 className="text-xl font-black text-slate-900 flex items-center gap-2 uppercase tracking-widest">
-                    <Megaphone className="w-6 h-6 border-2 border-slate-900 bg-emerald-100 p-1 shadow-[2px_2px_0px_0px_#0f172a]" />{" "}
-                    {editingIklan.id ? "Edit Pengeluaran Iklan" : "Tambah Pengeluaran Iklan"}
-                  </h3>
-                  <button
-                    onClick={() => setIsIklanModalOpen(false)}
-                    className="p-1 hover:bg-slate-200 rounded transition-colors"
-                  >
-                    <X className="w-6 h-6" />
-                  </button>
-                </div>
-                <form onPaste={handlePasteInIklanModal} onSubmit={handleSaveIklan} className="p-8 space-y-6">
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                      Tanggal (DD/MM/YYYY)
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Contoh: 15/05/2026"
-                      value={editingIklan.tanggal || ""}
-                      onChange={(e) =>
-                        setEditingIklan({
-                          ...editingIklan,
-                          tanggal: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-4 bg-white border-2 border-slate-900 font-black shadow-[4px_4px_0px_0px_#0f172a] focus:outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                      Total Pembayaran (Rp)
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder="Contoh: 150000"
-                      value={editingIklan.totalPembayaran || ""}
-                      onChange={(e) => {
-                        const cleanVal = e.target.value.replace(/\D/g, "");
-                        setEditingIklan({
-                          ...editingIklan,
-                          totalPembayaran: cleanVal ? Number(cleanVal) : "",
-                        });
-                      }}
-                      className="w-full px-4 py-4 bg-white border-2 border-slate-900 font-black font-mono shadow-[4px_4px_0px_0px_#0f172a] focus:outline-none"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="block text-[10px] font-black text-slate-500 uppercase tracking-widest leading-none">
-                      No. Pesanan (Opsional)
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Masukkan nomor pesanan..."
-                      value={editingIklan.noPesanan || ""}
-                      onChange={(e) =>
-                        setEditingIklan({
-                          ...editingIklan,
-                          noPesanan: e.target.value,
-                        })
-                      }
-                      className="w-full px-4 py-4 bg-white border-2 border-slate-900 font-black font-mono shadow-[4px_4px_0px_0px_#0f172a] focus:outline-none"
-                    />
-                  </div>
-                  <div className="pt-6 flex gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setIsIklanModalOpen(false)}
-                      className="flex-1 py-4 bg-white border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
-                    >
-                      BATAL
-                    </button>
-                    <button
-                      type="submit"
-                      className="flex-1 py-4 bg-emerald-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
-                    >
-                      SIMPAN DATA
-                    </button>
-                  </div>
-                </form>
-              </div>
-            </div>
-          )}
-
-          {/* EXPORT DROPSHIP MODAL */}
-          {isExportDSModalOpen && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
-              <div className="bg-white border-4 border-slate-900 w-full max-w-lg p-6 md:p-8 shadow-[16px_16px_0px_0px_#0f172a] flex flex-col gap-6 relative">
-                <div>
-                  <h3 className="text-xl md:text-2xl font-black text-indigo-600 mb-4 flex items-center gap-2 uppercase tracking-widest">
-                    ğŸ“ EXPORT DATA ORDERAN DROPSHIP
-                  </h3>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    Format Teks Order Dropship (Siap Kirim ke Supplier)
-                  </p>
-                  
-                  <div className="relative bg-slate-50 border-2 border-slate-900 p-4 rounded-none font-mono text-xs text-slate-800 whitespace-pre-wrap leading-relaxed shadow-[inner_0_2px_4px_rgba(0,0,0,0.06)] min-h-[140px] select-all">
-                    {exportDSText}
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t-2 border-slate-900">
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(exportDSText);
-                      setExportDSToast(true);
-                      setTimeout(() => setExportDSToast(false), 2500);
-                      setIsExportDSModalOpen(false);
-                    }}
-                    className="flex-1 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#000] active:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all flex items-center justify-center gap-2"
-                  >
-                    <Copy className="w-4 h-4" /> Copy to Clipboard
-                  </button>
-                  <button
-                    onClick={() => setIsExportDSModalOpen(false)}
-                    className="py-3 px-6 bg-white hover:bg-slate-50 text-slate-900 font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#000] active:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all"
-                  >
-                    TUTUP
-                  </button>
-                </div>
-
-                {/* Copied Toast Alert */}
-                {exportDSToast && (
-                  <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 font-black text-xs uppercase tracking-widest border border-white shadow-lg rounded animate-bounce">
-                    âœ“ Copied to clipboard!
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* EXPORT STOCK TEXT MODAL */}
-          {isExportStockModalOpen && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
-              <div className="bg-white border-4 border-slate-900 w-full max-w-lg p-6 md:p-8 shadow-[16px_16px_0px_0px_#0f172a] flex flex-col gap-6 relative">
-                <div>
-                  <h3 className="text-xl md:text-2xl font-black text-emerald-600 mb-4 flex items-center gap-2 uppercase tracking-widest">
-                    ğŸ“¦ EXPORT DATA STOK & BARANG (TEXT)
-                  </h3>
-                  <p className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-2">
-                    Hanya menampilkan stok sekarang dan kode barang (sesuai filter aktif)
-                  </p>
-                  
-                  <div className="relative bg-slate-50 border-2 border-slate-900 p-4 rounded-none font-mono text-xs text-slate-800 whitespace-pre leading-relaxed shadow-[inner_0_2px_4px_rgba(0,0,0,0.06)] max-h-72 overflow-y-auto select-all">
-                    {exportStockText || "Tidak ada data produk yang sesuai filter."}
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t-2 border-slate-900">
-                  <button
-                    onClick={() => {
-                      navigator.clipboard.writeText(exportStockText);
-                      setExportStockToast(true);
-                      setTimeout(() => setExportStockToast(false), 2500);
-                    }}
-                    className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#000] active:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all flex items-center justify-center gap-2"
-                  >
-                    <Copy className="w-4 h-4" /> Copy to Clipboard
-                  </button>
-                  <button
-                    onClick={() => setIsExportStockModalOpen(false)}
-                    className="py-3 px-6 bg-white hover:bg-slate-50 text-slate-900 font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#000] active:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all"
-                  >
-                    TUTUP
-                  </button>
-                </div>
-
-                {/* Copied Toast Alert */}
-                {exportStockToast && (
-                  <div className="absolute bottom-20 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 font-black text-xs uppercase tracking-widest border border-white shadow-lg rounded animate-bounce">
-                    âœ“ Copied to clipboard!
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-            {isSupplierExportModalOpen && (() => {
-            const uniqueProductSuppliers = Array.from(new Set(products.map((p) => p.supplier).filter(Boolean))) as string[];
-            const suppliersList = Array.from(new Set([...DROPSHIP_SUPPLIERS, ...uniqueProductSuppliers]))
-              .filter(s => s && s.trim().toUpperCase() !== "KIM")
-              .sort((a, b) => a.localeCompare(b));
-            
-            const activePreset = exportPresets.find(p => p.id === selectedPresetId) || exportPresets[0];
-            
-            const handleCreatePreset = () => {
-              setActivePresetAction("create");
-              setPresetActionValue("");
-            };
-
-            const handleRenamePreset = () => {
-              if (!activePreset) return;
-              setActivePresetAction("rename");
-              setPresetActionValue(activePreset.name);
-            };
-
-            const handleDeletePreset = () => {
-              if (!activePreset) return;
-              setActivePresetAction("delete");
-            };
-
-            const submitPresetAction = () => {
-              if (activePresetAction === "create") {
-                const name = presetActionValue.trim();
-                if (!name) return;
-                const id = `preset-${Math.random().toString(36).substring(2, 9)}`;
-                const newPreset: ExportPreset = {
-                  id,
-                  name,
-                  selectedSuppliers: [],
-                  supplierConfigs: []
-                };
-                setExportPresets(prev => [...prev, newPreset]);
-                setSelectedPresetId(id);
-              } else if (activePresetAction === "rename") {
-                const name = presetActionValue.trim();
-                if (!name || !activePreset) return;
-                setExportPresets(prev => prev.map(p => p.id === activePreset.id ? { ...p, name } : p));
-              } else if (activePresetAction === "delete") {
-                if (!activePreset) return;
-                const remaining = exportPresets.filter(p => p.id !== activePreset.id);
-                setExportPresets(remaining);
-                if (remaining.length > 0) {
-                  setSelectedPresetId(remaining[0].id);
-                } else {
-                  const defaults = [
-                    {
-                      id: "preset-all-dropship",
-                      name: "Semua Dropship",
-                      selectedSuppliers: ["S-KIM", "S-akumaucantik", "S-LINA"],
-                      supplierConfigs: JSON.parse(JSON.stringify(DEFAULT_SUPPLIER_EXPORT_CONFIGS.filter(c => ["S-KIM", "S-akumaucantik", "S-LINA"].includes(c.supplier))))
-                    }
-                  ];
-                  setExportPresets(defaults);
-                  setSelectedPresetId("preset-all-dropship");
-                }
-              }
-              setActivePresetAction(null);
-              setPresetActionValue("");
-            };
-
-            const cancelPresetAction = () => {
-              setActivePresetAction(null);
-              setPresetActionValue("");
-            };
-
-            const handleTogglePresetSupplier = (supplierName: string) => {
-              setExportPresets(prev => prev.map(p => {
-                if (p.id === selectedPresetId) {
-                  const exists = p.selectedSuppliers.includes(supplierName);
-                  let newSeps = [];
-                  if (exists) {
-                    newSeps = p.selectedSuppliers.filter(s => s !== supplierName);
-                  } else {
-                    newSeps = [...p.selectedSuppliers, supplierName];
-                  }
-                  return { ...p, selectedSuppliers: newSeps };
-                }
-                return p;
-              }));
-            };
-
-            const editSupplier = exportMode === "preset"
-              ? (activePreset?.selectedSuppliers.includes(presetActiveSupplierEdit)
-                  ? presetActiveSupplierEdit
-                  : (activePreset?.selectedSuppliers[0] || ""))
-              : selectedSupplierForExport;
-
-            const activeConfig = getActiveConfigForEdit(editSupplier);
-            const previewText = getExportPreviewText(selectedSupplierForExport);
-
-            let totalMatchedProducts = 0;
-            if (exportMode === "preset") {
-              const activeSuppliers = activePreset ? activePreset.selectedSuppliers : [];
-              totalMatchedProducts = products.filter(p => p.supplier && activeSuppliers.some(s => s.trim().toLowerCase() === p.supplier?.trim().toLowerCase())).length;
-            } else {
-              totalMatchedProducts = products.filter(p => p.supplier?.trim().toLowerCase() === selectedSupplierForExport.trim().toLowerCase()).length;
-            }
-
-            return (
-              <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md overflow-y-auto">
-                <div className="bg-white border-4 border-slate-900 w-full max-w-5xl p-6 md:p-8 shadow-[16px_16px_0px_0px_#0f172a] flex flex-col gap-6 relative my-8">
-                  <div className="flex items-center justify-between border-b-2 border-slate-900 pb-4">
-                    <div>
-                      <h3 className="text-xl md:text-2xl font-black text-violet-600 flex items-center gap-2 uppercase tracking-widest">
-                        <Sparkles className="w-6 h-6 shrink-0" /> EXPORT STOK BERDASARKAN SUPPLIER
-                      </h3>
-                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mt-1">
-                        Sistem export data stok terformat. Pilih supplier tunggal atau gunakan model preset multi-supplier.
-                      </p>
-                    </div>
-                    <button 
-                      onClick={() => setIsSupplierExportModalOpen(false)}
-                      className="text-slate-500 hover:text-slate-900 font-bold text-lg p-1 border-2 border-transparent hover:border-slate-900"
-                    >
-                      <X className="w-6 h-6" />
-                    </button>
-                  </div>
-
-                  {/* Mode Tabs */}
-                  <div className="flex border-4 border-slate-900 overflow-hidden shadow-[4px_4px_0px_0px_#000]">
-                    <button
-                      onClick={() => setExportMode("single")}
-                      className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest transition-all ${
-                        exportMode === "single" ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
-                    >
-                      ğŸ‘¤ Supplier Tunggal
-                    </button>
-                    <button
-                      onClick={() => setExportMode("preset")}
-                      className={`flex-1 py-3 text-center text-xs font-black uppercase tracking-widest transition-all ${
-                        exportMode === "preset" ? "bg-violet-600 text-white" : "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                      }`}
-                    >
-                      ğŸ—‚ï¸ Model Preset (Multi-Supplier)
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                    {/* Left Panel: Configuration */}
-                    <div className="space-y-6 max-h-[55vh] overflow-y-auto pr-2">
-                      
-                      {/* SINGLE SUPPLIER MODE CONTROLS */}
-                      {exportMode === "single" && (
-                        <div className="p-4 bg-slate-50 border-2 border-slate-900 space-y-2 shadow-[2px_2px_0px_0px_#000]">
-                          <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
-                            Pilih Supplier:
-                          </label>
-                          <select
-                            value={selectedSupplierForExport}
-                            onChange={(e) => setSelectedSupplierForExport(e.target.value)}
-                            className="w-full px-3 py-2 bg-white border-2 border-slate-900 text-xs font-bold uppercase tracking-wide focus:outline-none"
-                          >
-                            {suppliersList.map(sup => (
-                              <option key={sup} value={sup}>{sup}</option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
-                      {/* PRESET MULTI-SUPPLIER MODE CONTROLS */}
-                      {exportMode === "preset" && (
-                        <div className="space-y-4">
-                          {/* Preset Manager Card */}
-                          <div className="p-4 bg-slate-50 border-2 border-slate-900 space-y-3 shadow-[2px_2px_0px_0px_#000]">
-                            <label className="block text-xs font-black text-slate-700 uppercase tracking-wider">
-                              Pilih Model Preset:
-                            </label>
-                            
-                            {activePresetAction ? (
-                              <div className="bg-amber-50 border-2 border-slate-900 p-3 space-y-2.5 shadow-[2px_2px_0px_0px_#000] rounded">
-                                {activePresetAction === "delete" ? (
-                                  <div className="space-y-2">
-                                    <p className="text-xs font-bold text-rose-700">
-                                      Yakin ingin menghapus preset <span className="font-black underline">"{activePreset?.name}"</span>?
-                                    </p>
-                                    <div className="flex gap-2">
-                                      <button
-                                        type="button"
-                                        onClick={submitPresetAction}
-                                        className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-wider text-[10px] border-2 border-slate-900 shadow-[1px_1px_0px_0px_#000] active:translate-y-[1px] active:shadow-none"
-                                      >
-                                        Ya, Hapus
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={cancelPresetAction}
-                                        className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 font-bold uppercase tracking-wider text-[10px] border-2 border-slate-900 shadow-[1px_1px_0px_0px_#000] active:translate-y-[1px] active:shadow-none"
-                                      >
-                                        Batal
-                                      </button>
-                                    </div>
-                                  </div>
-                                ) : (
-                                  <div className="space-y-2">
-                                    <label className="block text-[10px] font-black text-slate-700 uppercase tracking-wider">
-                                      {activePresetAction === "create" ? "Nama Preset Baru:" : "Ubah Nama Preset:"}
-                                    </label>
-                                    <div className="flex flex-col sm:flex-row gap-2">
-                                      <input
-                                        type="text"
-                                        value={presetActionValue}
-                                        onChange={(e) => setPresetActionValue(e.target.value)}
-                                        placeholder="Contoh: Shopee Premium"
-                                        className="flex-1 px-2.5 py-1.5 bg-white border-2 border-slate-900 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-slate-900"
-                                        autoFocus
-                                        onKeyDown={(e) => {
-                                          if (e.key === "Enter") submitPresetAction();
-                                          if (e.key === "Escape") cancelPresetAction();
-                                        }}
-                                      />
-                                      <div className="flex gap-1">
-                                        <button
-                                          type="button"
-                                          onClick={submitPresetAction}
-                                          className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-wider text-[10px] border-2 border-slate-900 shadow-[1px_1px_0px_0px_#000] active:translate-y-[1px] active:shadow-none"
-                                        >
-                                          Simpan
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={cancelPresetAction}
-                                          className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 font-bold uppercase tracking-wider text-[10px] border-2 border-slate-900 shadow-[1px_1px_0px_0px_#000] active:translate-y-[1px] active:shadow-none"
-                                        >
-                                          Batal
-                                        </button>
-                                      </div>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            ) : (
-                              <div className="flex flex-col sm:flex-row gap-2">
-                                <select
-                                  value={selectedPresetId}
-                                  onChange={(e) => {
-                                    const pid = e.target.value;
-                                    setSelectedPresetId(pid);
-                                    const pr = exportPresets.find(p => p.id === pid);
-                                    if (pr && pr.selectedSuppliers.length > 0) {
-                                      setPresetActiveSupplierEdit(pr.selectedSuppliers[0]);
-                                    }
-                                  }}
-                                  className="flex-1 px-3 py-2 bg-white border-2 border-slate-900 text-xs font-bold uppercase tracking-wide focus:outline-none"
-                                >
-                                  {exportPresets.map(preset => (
-                                    <option key={preset.id} value={preset.id}>{preset.name}</option>
-                                  ))}
-                                </select>
-                                <div className="flex gap-1">
-                                  <button
-                                    onClick={handleCreatePreset}
-                                    className="p-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:translate-y-[1px] active:translate-x-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
-                                    title="Buat Preset Baru"
-                                  >
-                                    <Plus className="w-4 h-4" /> <span className="sm:hidden lg:inline text-[10px]">Baru</span>
-                                  </button>
-                                  <button
-                                    onClick={handleRenamePreset}
-                                    className="p-2 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:translate-y-[1px] active:translate-x-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
-                                    title="Rename Preset"
-                                  >
-                                    <Pencil className="w-4 h-4" /> <span className="sm:hidden lg:inline text-[10px]">Ubah</span>
-                                  </button>
-                                  <button
-                                    onClick={handleDeletePreset}
-                                    className="p-2 bg-rose-600 hover:bg-rose-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:translate-y-[1px] active:translate-x-[1px] active:shadow-none transition-all flex items-center justify-center gap-1"
-                                    title="Hapus Preset"
-                                  >
-                                    <Trash2 className="w-4 h-4" /> <span className="sm:hidden lg:inline text-[10px]">Hapus</span>
-                                  </button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-
-                          {/* Preset Supplier Selector Grid */}
-                          <div className="p-4 bg-white border-2 border-slate-900 space-y-2 shadow-[2px_2px_0px_0px_#000]">
-                            <div className="flex justify-between items-center">
-                              <span className="block text-xs font-black text-slate-700 uppercase tracking-wider">
-                                Aturan Pilih Supplier ({activePreset?.selectedSuppliers.length || 0} dipilih):
-                              </span>
-                              <span className="text-[10px] text-amber-600 font-bold uppercase tracking-wider">
-                                Aturan Custom disimpan per preset
-                              </span>
-                            </div>
-                            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 pt-1 max-h-[160px] overflow-y-auto border border-dashed border-slate-200 p-2">
-                              {suppliersList.map(sup => {
-                                const isChecked = activePreset?.selectedSuppliers.includes(sup);
-                                return (
-                                  <label 
-                                    key={sup} 
-                                    className={`flex items-center gap-2 text-xs font-bold p-1.5 border cursor-pointer select-none transition-all ${
-                                      isChecked 
-                                        ? "bg-violet-50 border-violet-300 text-violet-700" 
-                                        : "bg-slate-50/50 border-slate-200 text-slate-600 hover:bg-slate-50 hover:border-slate-300"
-                                    }`}
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked || false}
-                                      onChange={() => {
-                                        handleTogglePresetSupplier(sup);
-                                        if (!isChecked) {
-                                          setPresetActiveSupplierEdit(sup);
-                                        }
-                                      }}
-                                      className="rounded border-2 border-slate-900 text-violet-600 focus:ring-violet-500 w-3.5 h-3.5 cursor-pointer"
-                                    />
-                                    <span className="truncate">{sup}</span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Select Supplier to Edit in Preset */}
-                          {activePreset && activePreset.selectedSuppliers.length > 0 && (
-                            <div className="p-4 bg-violet-50/50 border-2 border-slate-900 space-y-2 shadow-[2px_2px_0px_0px_#000]">
-                              <label className="block text-xs font-black text-violet-800 uppercase tracking-wider">
-                                âš™ï¸ Konfigurasi Aturan untuk Supplier di Preset ini:
-                              </label>
-                              <select
-                                value={editSupplier}
-                                onChange={(e) => setPresetActiveSupplierEdit(e.target.value)}
-                                className="w-full px-3 py-2 bg-white border-2 border-slate-900 text-xs font-bold uppercase tracking-wide focus:outline-none cursor-pointer"
-                              >
-                                {activePreset.selectedSuppliers.map(sup => (
-                                  <option key={sup} value={sup}>{sup}</option>
-                                ))}
-                              </select>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* NO FORMAT TEMPLATE SELECTOR (ALWAYS USE DEFAULT) */}
-                      {!editSupplier && exportMode === "preset" && (
-                        <div className="p-8 text-center border-2 border-dashed border-slate-300 text-slate-400 font-bold text-xs">
-                          Belum ada supplier yang dipilih dalam preset ini. Silakan centang 1 atau lebih supplier di atas.
-                        </div>
-                      )}
-
-                      {/* RULES LIST FOR THE SELECTED SUPPLIER */}
-                      {editSupplier && (
-                        <div className="space-y-4">
-                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b-2 border-slate-200 pb-2">
-                            <div>
-                              <h4 className="text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                                <Settings className="w-4 h-4 text-violet-600" /> Aturan Custom ({activeConfig.rules.length})
-                              </h4>
-                              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                                Aturan pencocokan nama & konversi stok {editSupplier}
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-2 shrink-0">
-                              <button
-                                onClick={() => {
-                                  if (confirm(`Apakah Anda yakin ingin me-reset aturan export untuk "${editSupplier}" ke setelan bawaan?`)) {
-                                    resetSupplierConfigPresetOrGlobal(editSupplier);
-                                  }
-                                }}
-                                className="px-2.5 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-black uppercase tracking-widest text-[9px] border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:translate-y-[1px] active:translate-x-[1px] active:shadow-none transition-all flex items-center gap-1"
-                                title="Reset aturan ke setelan pabrik default"
-                              >
-                                <RefreshCcw className="w-3 h-3" /> Reset
-                              </button>
-                              <button
-                                onClick={() => addCustomRulePresetOrGlobal(editSupplier)}
-                                className="px-2.5 py-1.5 bg-violet-600 hover:bg-violet-700 text-white font-black uppercase tracking-widest text-[9px] border-2 border-slate-900 shadow-[2px_2px_0px_0px_#000] active:translate-y-[1px] active:translate-x-[1px] active:shadow-none transition-all flex items-center gap-1"
-                              >
-                                <Plus className="w-3 h-3" /> Tambah
-                              </button>
-                            </div>
-                          </div>
-
-                          <div className="space-y-4">
-                            {activeConfig.rules.map((rule, idx) => (
-                              <div 
-                                key={rule.id} 
-                                className={`p-4 border-2 border-slate-900 relative transition-all shadow-[4px_4px_0px_0px_#000] ${
-                                  rule.isDefault 
-                                    ? "bg-amber-50/70 border-amber-900" 
-                                    : "bg-white border-slate-900"
-                                }`}
-                              >
-                                {!rule.isDefault && (
-                                  <button
-                                    onClick={() => deleteRulePresetOrGlobal(editSupplier, rule.id)}
-                                    className="absolute right-3 top-3 text-rose-400 hover:text-rose-600 hover:bg-rose-50 p-1.5 border border-transparent hover:border-rose-200 rounded transition-all"
-                                    title="Hapus Aturan"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                  </button>
-                                )}
-
-                                <div className="space-y-4">
-                                  {rule.isDefault ? (
-                                    <div className="space-y-1">
-                                      <div className="flex items-center gap-1.5 text-xs font-black text-amber-800 uppercase tracking-widest">
-                                        <Sparkles className="w-4 h-4 shrink-0 text-amber-600" /> â­ Aturan Default Bawaan
-                                      </div>
-                                      <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">
-                                        Digunakan otomatis jika nama barang tidak cocok dengan aturan khusus manapun di bawah.
-                                      </p>
-                                    </div>
-                                  ) : (
-                                    <div className="space-y-1.5">
-                                      <div className="text-xs font-black text-indigo-600 uppercase tracking-wider flex items-center gap-1">
-                                        <Settings className="w-3.5 h-3.5" /> Aturan Khusus #{idx}
-                                      </div>
-                                      <label className="block text-[10px] font-black text-slate-600 uppercase tracking-wider flex items-center gap-1">
-                                        <Search className="w-3.5 h-3.5 text-slate-400" /> Keyword Pencarian Nama / Kode Barang:
-                                      </label>
-                                      <input
-                                        type="text"
-                                        value={rule.namePattern}
-                                        onChange={(e) => updateRuleFieldPresetOrGlobal(editSupplier, rule.id, "namePattern", e.target.value)}
-                                        className="w-full px-2.5 py-1.5 bg-white border-2 border-slate-900 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 transition-all placeholder-slate-300"
-                                        placeholder="Contoh: Clear, Plano, Normal, 0,00"
-                                      />
-                                    </div>
-                                  )}
-
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                                    <div className="space-y-1.5">
-                                      <label className="block text-[10px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                                        <Package className="w-3.5 h-3.5 text-slate-400" /> Satuan Barang (Unit):
-                                      </label>
-                                      <input
-                                        type="text"
-                                        value={rule.unit}
-                                        onChange={(e) => updateRuleFieldPresetOrGlobal(editSupplier, rule.id, "unit", e.target.value)}
-                                        className="w-full px-2.5 py-1.5 bg-white border-2 border-slate-900 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 transition-all placeholder-slate-300"
-                                        placeholder="Contoh: pasang / botol"
-                                      />
-                                    </div>
-
-                                    <div className="space-y-1.5">
-                                      <label className="block text-[10px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
-                                        <AlertTriangle className="w-3.5 h-3.5 text-rose-500" /> Stok Minus (&lt; 0):
-                                      </label>
-                                      <div className="flex gap-1.5">
-                                        <select
-                                          value={rule.minusStockQtyType}
-                                          onChange={(e) => updateRuleFieldPresetOrGlobal(editSupplier, rule.id, "minusStockQtyType", e.target.value)}
-                                          className="px-2 py-1.5 bg-white border-2 border-slate-900 text-[10px] font-bold focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 transition-all w-1/2 cursor-pointer"
-                                        >
-                                          <option value="fixed">Jumlah Tetap</option>
-                                          <option value="formula">Formula Target</option>
-                                        </select>
-                                        {rule.minusStockQtyType === "formula" ? (
-                                          <input
-                                            type="number"
-                                            value={rule.minusStockFormulaTarget}
-                                            onChange={(e) => updateRuleFieldPresetOrGlobal(editSupplier, rule.id, "minusStockFormulaTarget", Number(e.target.value))}
-                                            className="px-2 py-1.5 bg-white border-2 border-slate-900 text-xs font-mono font-bold w-1/2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 transition-all"
-                                            placeholder="Target"
-                                            title="Hasil akhir = Target - Stok Sekarang"
-                                          />
-                                        ) : (
-                                          <input
-                                            type="number"
-                                            value={rule.minusStockFixedQty}
-                                            onChange={(e) => updateRuleFieldPresetOrGlobal(editSupplier, rule.id, "minusStockFixedQty", Number(e.target.value))}
-                                            className="px-2 py-1.5 bg-white border-2 border-slate-900 text-xs font-mono font-bold w-1/2 focus:outline-none focus:ring-2 focus:ring-indigo-100 focus:border-indigo-600 transition-all"
-                                            placeholder="Qty"
-                                          />
-                                        )}
-                                      </div>
-                                    </div>
-                                  </div>
-
-                                  <div className="pt-3.5 border-t-2 border-dashed border-slate-200">
-                                    <div className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-2 flex items-center gap-1">
-                                      ğŸ“Š Jml Export Sesuai Stok Sekarang:
-                                    </div>
-                                    <div className="grid grid-cols-3 gap-2.5">
-                                      {/* Stok 0 */}
-                                      <div className="bg-rose-50/50 border border-rose-100 p-2 space-y-1">
-                                        <label className="block text-[10px] font-bold text-rose-700 uppercase tracking-wide flex items-center gap-1">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-rose-500 inline-block"></span> Stok = 0
-                                        </label>
-                                        <input
-                                          type="number"
-                                          value={rule.stockZeroQty}
-                                          onChange={(e) => updateRuleFieldPresetOrGlobal(editSupplier, rule.id, "stockZeroQty", Number(e.target.value))}
-                                          className="w-full px-2 py-1 bg-white border border-slate-300 text-xs font-mono font-bold focus:border-rose-500 focus:outline-none focus:ring-1 focus:ring-rose-200"
-                                        />
-                                      </div>
-
-                                      {/* Stok 1 */}
-                                      <div className="bg-amber-50/50 border border-amber-100 p-2 space-y-1">
-                                        <label className="block text-[10px] font-bold text-amber-700 uppercase tracking-wide flex items-center gap-1">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block"></span> Stok = 1
-                                        </label>
-                                        <input
-                                          type="number"
-                                          value={rule.stockOneQty}
-                                          onChange={(e) => updateRuleFieldPresetOrGlobal(editSupplier, rule.id, "stockOneQty", Number(e.target.value))}
-                                          className="w-full px-2 py-1 bg-white border border-slate-300 text-xs font-mono font-bold focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-200"
-                                        />
-                                      </div>
-
-                                      {/* Stok 2 */}
-                                      <div className="bg-emerald-50/50 border border-emerald-100 p-2 space-y-1">
-                                        <label className="block text-[10px] font-bold text-emerald-700 uppercase tracking-wide flex items-center gap-1">
-                                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block"></span> Stok = 2
-                                        </label>
-                                        <input
-                                          type="number"
-                                          value={rule.stockTwoQty}
-                                          onChange={(e) => updateRuleFieldPresetOrGlobal(editSupplier, rule.id, "stockTwoQty", Number(e.target.value))}
-                                          className="w-full px-2 py-1 bg-white border border-slate-300 text-xs font-mono font-bold focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-200"
-                                        />
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Right Panel: Live Preview */}
-                    <div className="flex flex-col gap-4">
-                      {/* Live Preview Header */}
-                      <div className="bg-slate-900 text-white p-4 font-black text-xs uppercase tracking-widest flex items-center justify-between shadow-[4px_4px_0px_0px_#475569]">
-                        <span>ğŸ‘ï¸ Live Preview Hasil Export</span>
-                        <span className="bg-violet-700 px-2 py-0.5 text-[10px]">
-                          {previewText ? previewText.split("\n").filter(Boolean).length : 0} / {totalMatchedProducts} Barang
-                        </span>
-                      </div>
-
-                      {/* Align Columns Setting Selector */}
-                      <div className="flex flex-col sm:flex-row sm:items-center justify-between bg-slate-100 border-2 border-slate-900 p-3 shadow-[2px_2px_0px_0px_#000] gap-2">
-                        <span className="text-[10px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-                          <Settings className="w-3.5 h-3.5 text-slate-500" /> Pemisah Kolom (Separator):
-                        </span>
-                        <div className="flex gap-2 shrink-0">
-                          <button
-                            onClick={() => setSeparatorType("tab")}
-                            className={`px-3 py-1.5 text-[10px] font-black uppercase border-2 border-slate-900 transition-all ${
-                              separatorType === "tab" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50"
-                            }`}
-                            title="Format Tabulasi. Sangat cocok dan bersih saat di-paste langsung ke Microsoft Excel atau Google Sheets (tanpa spasi berlebih)."
-                          >
-                            Tab (\t) - Excel / Sheets
-                          </button>
-                          <button
-                            onClick={() => setSeparatorType("space")}
-                            className={`px-3 py-1.5 text-[10px] font-black uppercase border-2 border-slate-900 transition-all ${
-                              separatorType === "space" ? "bg-slate-900 text-white" : "bg-white text-slate-700 hover:bg-slate-50"
-                            }`}
-                            title="Format Spasi Rata Kiri. Membuat tampilan kolom sejajar dan rapi saat dibagikan ke WhatsApp, chat, atau catatan teks."
-                          >
-                            Spasi Rata - Chat WA
-                          </button>
-                        </div>
-                      </div>
-                      
-                      {/* Export Text Block */}
-                      <div className="flex-1 min-h-[250px] relative bg-slate-50 border-2 border-slate-900 p-4 font-mono text-xs text-slate-800 whitespace-pre leading-relaxed max-h-[40vh] overflow-y-auto select-all shadow-[inner_0_2px_4px_rgba(0,0,0,0.06)]">
-                        {previewText || (
-                          <div className="text-slate-400 space-y-2 font-bold py-8 text-center uppercase">
-                            <AlertTriangle className="w-8 h-8 text-amber-500 mx-auto mb-2" />
-                            <p>Tidak ada data produk yang diexport.</p>
-                            <p className="text-[10px] normal-case text-slate-500">
-                              {exportMode === "preset" 
-                                ? "Pastikan Anda telah mencentang supplier di atas dan produk yang sesuai ada di katalog."
-                                : `Pastikan nama supplier barang di tabel sesuai dengan pilihan "${selectedSupplierForExport}".`}
-                            </p>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Download Buttons */}
-                      <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t-2 border-slate-900">
-                        <button
-                          onClick={() => {
-                            if (!previewText) return;
-                            navigator.clipboard.writeText(previewText);
-                            setSupplierExportToast(true);
-                            setTimeout(() => setSupplierExportToast(false), 2500);
-                          }}
-                          disabled={!previewText}
-                          className="flex-1 py-3 bg-violet-600 hover:bg-violet-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#000] active:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all flex items-center justify-center gap-2"
-                        >
-                          <Copy className="w-4 h-4" /> Copy to Clipboard
-                        </button>
-                        <button
-                          onClick={() => {
-                            if (!previewText) return;
-                            const blob = new Blob([previewText], { type: "text/plain;charset=utf-8;" });
-                            const link = document.createElement("a");
-                            link.href = URL.createObjectURL(blob);
-                            const downloadName = exportMode === "preset"
-                              ? `Export_Stok_Preset_${activePreset ? activePreset.name.replace(/\s+/g, "_") : "Preset"}.txt`
-                              : `Export_Stok_${selectedSupplierForExport}.txt`;
-                            link.setAttribute("download", downloadName);
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                          }}
-                          disabled={!previewText}
-                          className="flex-1 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-300 disabled:cursor-not-allowed text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#000] active:shadow-none hover:translate-x-[1px] hover:translate-y-[1px] active:translate-x-[2px] active:translate-y-[2px] transition-all flex items-center justify-center gap-2"
-                        >
-                          <Download className="w-4 h-4" /> Download .TXT
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Copied Toast Alert */}
-                  {supplierExportToast && (
-                    <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2 font-black text-xs uppercase tracking-widest border border-white shadow-lg rounded animate-bounce">
-                      âœ“ Copied to clipboard!
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* IKLAN DELETE CONFIRM MODAL */}
-          {iklanToDelete && (
-            <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
-              <div className="bg-white border-4 border-slate-900 w-full max-w-md p-8 shadow-[16px_16px_0px_0px_#0f172a] flex flex-col gap-8">
-                <div>
-                  <h3 className="text-2xl font-black text-rose-600 mb-4 flex items-center gap-2 uppercase tracking-widest">
-                    HAPUS DATA IKLAN?
-                  </h3>
-                  <div className="p-4 bg-rose-50 border-2 border-rose-200 text-slate-900 font-bold text-sm space-y-4">
-                    <p>Apakah Anda yakin ingin menghapus data pengeluaran iklan ini?</p>
-                    <div className="text-xs font-medium text-slate-600 space-y-1">
-                      <p>Tanggal: <span className="font-black text-slate-900">{iklanToDelete.tanggal}</span></p>
-                      <p>Total: <span className="font-black text-slate-900">Rp {iklanToDelete.totalPembayaran.toLocaleString("id-ID")}</span></p>
-                      {iklanToDelete.noPesanan && <p>No Pesanan: <span className="font-black text-slate-900">{iklanToDelete.noPesanan}</span></p>}
-                    </div>
-                  </div>
-                </div>
-                <div className="flex gap-4 pt-4 border-t-2 border-slate-900">
-                  <button
-                    onClick={() => setIklanToDelete(null)}
-                    className="flex-1 py-4 bg-white border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
-                  >
-                    BATAL
-                  </button>
-                  <button
-                    onClick={handleDeleteIklanLocal}
-                    className="flex-1 py-4 bg-rose-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
-                  >
-                    YA, HAPUS
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* CONFIRM DELETE MODAL */}
-          {isConfirmDeleteModalOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/90 backdrop-blur-md">
-              <div className="bg-white border-4 border-slate-900 w-full max-w-md p-8 shadow-[16px_16px_0px_0px_#0f172a] flex flex-col gap-8">
-                <div>
-                  <h3 className="text-2xl font-black text-rose-600 mb-4 flex items-center gap-2 uppercase tracking-widest">
-                    <Trash2 className="w-8 h-8" /> PERINGATAN!
-                  </h3>
-                  <div className="p-4 bg-rose-50 border-2 border-rose-200 text-slate-900 font-bold text-sm space-y-4">
-                    <p>
-                      Apakah Anda yakin ingin{" "}
-                      <span className="text-rose-600 font-black">
-                        MENGHAPUS SELURUH DATABASE
-                      </span>
-                      ?
-                    </p>
-                    <p className="text-xs text-rose-500">
-                      Tindakan ini akan mengosongkan database stok, barang
-                      masuk, penjualan, penjualan dropship (DS), iklan, dan penjualan mingguan. Data tidak dapat dibatalkan.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-4 pt-4 border-t-2 border-slate-900">
-                  <button
-                    onClick={() => setIsConfirmDeleteModalOpen(false)}
-                    disabled={isDeleting}
-                    className="flex-1 py-4 bg-white border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all"
-                  >
-                    BATAL
-                  </button>
-                  <button
-                    onClick={async () => {
-                      setIsDeleting(true);
-                      try {
-                        await deleteAllProducts();
-                        await deleteAllSales();
-                        await deleteAllIncomingGoods();
-                        await deleteAllSalesDS();
-                        await deleteAllIklan();
-                        await deleteAllWeeklySales();
-                        setIsConfirmDeleteModalOpen(false);
-                      } catch (e) {
-                        console.error("Error deleting all data", e);
-                      } finally {
-                        setIsDeleting(false);
-                      }
-                    }}
-                    disabled={isDeleting}
-                    className="flex-1 py-4 bg-rose-600 border-2 border-slate-900 text-white font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all flex items-center justify-center gap-2"
-                  >
-                    {isDeleting ? "MENGHAPUS..." : "YA, HAPUS SEMUA"}
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </main>
-
-      {/* IMPORT PROGRESS MODAL */}
-      {importProgress && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white border-4 border-slate-900 w-full max-w-sm p-8 shadow-[12px_12px_0px_0px_#0f172a] flex flex-col items-center text-center gap-6">
-            <UploadCloud className="w-12 h-12 text-indigo-600 animate-bounce" />
-            <div>
-              <h3 className="text-xl font-black text-slate-900 mb-2 flex items-center justify-center gap-2 uppercase tracking-widest">
-                <UploadCloud className="w-5 h-5" /> Mengimport Data...
-              </h3>
-              <p className="text-sm text-slate-500">
-                Memproses {importProgress.current} dari {importProgress.total}{" "}
-                baris.
-              </p>
-            </div>
-            <div className="w-full bg-slate-100 rounded-full h-3 mb-2 overflow-hidden">
-              <div
-                className="bg-indigo-600 h-3 rounded-full transition-all duration-300 ease-out"
-                style={{
-                  width: `${Math.round((importProgress.current / importProgress.total) * 100)}%`,
-                }}
-              ></div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* SAVING PROGRESS MODAL */}
-      {savingProgress && (
-        <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm">
-          <div className="bg-white border-4 border-slate-900 w-full max-w-sm p-8 shadow-[12px_12px_0px_0px_#0f172a] flex flex-col items-center text-center gap-6">
-            <div className="relative flex items-center justify-center">
-              <div className="w-12 h-12 border-4 border-slate-200 border-t-indigo-600 rounded-full animate-spin"></div>
-              <Save className="w-5 h-5 text-indigo-600 absolute" />
-            </div>
-            <div>
-              <h3 className="text-xl font-black text-slate-900 mb-2 flex items-center justify-center gap-2 uppercase tracking-widest">
-                {savingProgress.title || "Menyimpan..."}
-              </h3>
-              {savingProgress.total > 1 ? (
-                <p className="text-sm text-slate-500 font-bold">
-                  Memproses {savingProgress.current} dari {savingProgress.total} baris.
-                </p>
-              ) : (
-                <p className="text-sm text-slate-500 font-bold">
-                  Sedang memproses, harap tunggu...
-                </p>
-              )}
-            </div>
-            {savingProgress.total > 1 && (
-              <div className="w-full bg-slate-100 rounded-full h-3 mb-2 overflow-hidden">
-                <div
-                  className="bg-indigo-600 h-3 rounded-full transition-all duration-300 ease-out"
-                  style={{
-                    width: `${Math.round((savingProgress.current / savingProgress.total) * 100)}%`,
-                  }}
-                ></div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-interface SearchableProductSelectProps {
-  products: Product[];
-  value: string;
-  onChange: (value: string) => void;
-}
-
-function SearchableProductSelect({ products, value, onChange }: SearchableProductSelectProps) {
-  const [isOpen, setIsOpen] = React.useState(false);
-  const [search, setSearch] = React.useState("");
-  const dropdownRef = React.useRef<HTMLDivElement>(null);
-
-  // Close dropdown on click outside
-  React.useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => {
-      document.removeEventListener("mousedown", handleClickOutside);
-    };
-  }, []);
-
-  const selectedProduct = React.useMemo(() => {
-    return products.find(p => p.id === value);
-  }, [products, value]);
-
-  // Filter products based on search term
-  const filteredProducts = React.useMemo(() => {
-    if (!search.trim()) return products.slice(0, 50); // limit to keep responsive
-    const query = search.toLowerCase();
-    return products
-      .filter(p => {
-        const code = (p.kodeBarang || "").toLowerCase();
-        const name = (p.namaBarang || "").toLowerCase();
-        return code.includes(query) || name.includes(query);
-      })
-      .slice(0, 100); // limit to top 100 matches to prevent lagging
-  }, [products, search]);
-
-  return (
-    <div className="relative w-full" ref={dropdownRef}>
-      <button
-        type="button"
-        onClick={() => {
-          setIsOpen(!isOpen);
-          if (!isOpen) setSearch(""); // Reset search on open
-        }}
-        className="w-full flex items-center justify-between px-2 py-1 border border-slate-900 bg-white font-bold text-slate-800 text-[11px] focus:outline-none focus:ring-1 focus:ring-emerald-500/20 text-left cursor-pointer"
-      >
-        <span className="truncate font-mono">
-          {value === "" && "âœ¨ OTOMATIS (AUTO-MATCH)"}
-          {value === "new" && "ğŸ†• PAKSA BUAT BARU DI KATALOG"}
-          {value !== "" && value !== "new" && selectedProduct && `${selectedProduct.kodeBarang} - ${selectedProduct.namaBarang}`}
-          {value !== "" && value !== "new" && !selectedProduct && value}
-        </span>
-        <ChevronDown className="w-3.5 h-3.5 ml-1 shrink-0 text-slate-500" />
-      </button>
-
-      {isOpen && (
-        <div className="absolute left-0 right-0 mt-1 z-[120] bg-white border border-slate-900 shadow-[2px_2px_0px_0px_#0f172a] max-h-[220px] flex flex-col">
-          {/* Search Input Box */}
-          <div className="p-1 border-b border-slate-900 bg-slate-50 flex items-center gap-1">
-            <Search className="w-3 h-3 text-slate-500 shrink-0" />
-            <input
-              type="text"
-              placeholder="Cari kode / nama barang..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full px-1.5 py-0.5 text-[10px] font-bold border border-slate-400 bg-white text-slate-800 focus:outline-none focus:border-slate-900 font-sans"
-              autoFocus
-            />
-          </div>
-
-          {/* List of Options */}
-          <div className="overflow-y-auto flex-1 max-h-[160px]">
-            {/* Automatic match option */}
-            <button
-              type="button"
-              onClick={() => {
-                onChange("");
-                setIsOpen(false);
-              }}
-              className={`w-full px-2 py-1 text-left text-[10px] font-bold border-b border-slate-100 hover:bg-emerald-50 hover:text-emerald-800 flex items-center gap-1 transition-colors ${value === "" ? "bg-emerald-50 text-emerald-900" : "text-slate-700"}`}
-            >
-              <span>âœ¨</span>
-              <span className="font-mono">-- OTOMATIS (AUTO-MATCH) --</span>
-            </button>
-
-            {/* Force new option */}
-            <button
-              type="button"
-              onClick={() => {
-                onChange("new");
-                setIsOpen(false);
-              }}
-              className={`w-full px-2 py-1 text-left text-[10px] font-bold border-b border-slate-100 hover:bg-indigo-50 hover:text-indigo-800 flex items-center gap-1 transition-colors ${value === "new" ? "bg-indigo-50 text-indigo-900" : "text-slate-700"}`}
-            >
-              <span>ğŸ†•</span>
-              <span className="font-mono">ğŸ†• PAKSA BUAT BARU DI KATALOG</span>
-            </button>
-
-            {/* Filtered products */}
-            {filteredProducts.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                onClick={() => {
-                  onChange(p.id);
-                  setIsOpen(false);
-                }}
-                className={`w-full px-2 py-1 text-left text-[10px] font-bold border-b border-slate-100 hover:bg-slate-50 flex flex-col transition-colors ${value === p.id ? "bg-indigo-50 text-indigo-900 border-l-2 border-l-slate-900 pl-1.5" : "text-slate-800"}`}
-              >
-                <span className="font-mono text-slate-900 font-extrabold">{p.kodeBarang}</span>
-                <span className="text-[9px] text-slate-500 font-medium truncate">{p.namaBarang}</span>
-              </button>
-            ))}
-
-            {filteredProducts.length === 0 && (
-              <div className="p-2 text-center text-[10px] text-slate-400 font-bold font-sans">
-                Barang tidak ditemukan ğŸ˜¢
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-export default function App() {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [banners, setBanners] = useState<StorefrontBanner[]>([]);
-  const [loadingProducts, setLoadingProducts] = useState(true);
-  const [branding, setBranding] = useState<BrandingSettings>({
-    announcementTexts: ["FLASH SALE! DISKON HINGGA 50% UNTUK SEMUA PRODUK"],
-    logoText: "ZENDIIX",
-    footerAboutText: "Zendiix adalah destinasi utama untuk koleksi softlens premium yang menggabungkan kenyamanan maksimal dengan estetika modern. Kami berkomitmen untuk memberikan kualitas terbaik bagi mata Anda.",
-  });
-  
-  // Database health diagnostics
-  const [dbError, setDbError] = useState<{ message: string; suggestedIp?: string } | null>(null);
-  const [isCopied, setIsCopied] = useState(false);
-  const [isDismissed, setIsDismissed] = useState(false);
-  const [toasts, setToasts] = useState<{ id: string; message: string; type: "success" | "error" | "info" }[]>([]);
-
-  useEffect(() => {
-    const originalAlert = window.alert;
-
-    window.alert = (message: string) => {
-      if (!message || typeof message !== "string") return;
-
-      const id = Math.random().toString(36).substring(2, 9);
-      let type: "success" | "error" | "info" = "info";
-      
-      const lowercaseMsg = message.toLowerCase();
-      if (
-        lowercaseMsg.includes("berhasil") || 
-        lowercaseMsg.includes("sukses") || 
-        lowercaseMsg.includes("tersimpan") || 
-        lowercaseMsg.includes("saved") || 
-        lowercaseMsg.includes("success") || 
-        lowercaseMsg.includes("tersalin") ||
-        lowercaseMsg.includes("disalin") ||
-        lowercaseMsg.includes("cocok") ||
-        lowercaseMsg.includes("ditambahkan")
-      ) {
-        type = "success";
-      } else if (
-        lowercaseMsg.includes("gagal") || 
-        lowercaseMsg.includes("error") || 
-        lowercaseMsg.includes("failed") || 
-        lowercaseMsg.includes("salah") ||
-        lowercaseMsg.includes("tidak") ||
-        lowercaseMsg.includes("belum") ||
-        lowercaseMsg.includes("wajib") ||
-        lowercaseMsg.includes("pastikan")
-      ) {
-        type = "error";
-      }
-
-      setToasts((prev) => [...prev, { id, message, type }]);
-
-      setTimeout(() => {
-        setToasts((prev) => prev.filter((t) => t.id !== id));
-      }, 5000);
-    };
-
-    return () => {
-      window.alert = originalAlert;
-    };
-  }, []);
-
-  useEffect(() => {
-    fetch('/api/health-check')
-      .then(async (res) => {
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || res.statusText);
-        }
-        return res.json();
-      })
-      .then(data => {
-        if (data.status === 'error') {
-          setDbError({
-            message: data.details || data.message,
-            suggestedIp: data.suggestedIp || '34.96.48.15'
-          });
-        } else {
-          setDbError(null);
-        }
-      })
-      .catch(err => {
-        console.error('Failed to run database health check:', err.message);
-      });
-  }, []);
-
-  const handleCopyIp = () => {
-    if (dbError?.suggestedIp) {
-      navigator.clipboard.writeText(dbError.suggestedIp)
-        .then(() => {
-          setIsCopied(true);
-          setTimeout(() => setIsCopied(false), 3000);
-        })
-        .catch(err => {
-          console.error('Could not copy IP:', err);
-        });
-    }
-  };
-
-  const location = useLocation();
-
-  useEffect(() => {
-    const unsub = subscribeToProducts((loadedProducts) => {
-      const mapped = loadedProducts.map(p => {
-        if (p.supplier && p.supplier.trim().toUpperCase() === "KIM") {
-          return { ...p, supplier: "S-KIM" };
-        }
-        return p;
-      });
-      setProducts(mapped);
-      setLoadingProducts(false);
-    });
-    return () => unsub();
-  }, []);
-
-  useEffect(() => {
-    const unsubB = subscribeToBanners(setBanners);
-    return () => unsubB();
-  }, []);
-
-  useEffect(() => {
-    const unsubBr = subscribeToBranding(setBranding);
-    return () => unsubBr();
-  }, []);
-
-  useEffect(() => {
-    if (branding) {
-      if (branding.browserTitle) {
-        document.title = branding.browserTitle;
-      } else if (branding.logoText) {
-        document.title = branding.logoText;
-      }
-
-      if (branding.faviconUrl) {
-        let link: HTMLLinkElement | null = document.querySelector("link[rel*='icon']");
-        if (!link) {
-          link = document.createElement('link');
-          link.rel = 'icon';
-          document.getElementsByTagName('head')[0].appendChild(link);
-        }
-        link.href = branding.faviconUrl;
-      }
-    }
-  }, [branding]);
-
-  return (
-    <div className="min-h-screen flex flex-col relative">
-      {/* Toast Notifications Overlay */}
-      <div className="fixed top-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full pointer-events-none px-4 sm:px-0">
-        {toasts.map((t) => (
-          <div
-            key={t.id}
-            className={`pointer-events-auto w-full flex items-start gap-3 p-4 bg-white border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] rounded-lg transition-all duration-300 animate-slide-in`}
-          >
-            <div className="shrink-0 mt-0.5">
-              {t.type === "success" && (
-                <div className="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 border border-emerald-300">
-                  <Check className="w-3.5 h-3.5" />
-                </div>
-              )}
-              {t.type === "error" && (
-                <div className="w-6 h-6 rounded-full bg-rose-100 flex items-center justify-center text-rose-600 border border-rose-300">
-                  <AlertTriangle className="w-3.5 h-3.5" />
-                </div>
-              )}
-              {t.type === "info" && (
-                <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 border border-blue-300">
-                  <Sparkles className="w-3.5 h-3.5" />
-                </div>
-              )}
-            </div>
-            
-            <div className="flex-1 min-w-0">
-              <span className="text-[10px] font-black uppercase tracking-widest block mb-0.5 text-slate-400">
-                {t.type === "success" ? "Sukses" : t.type === "error" ? "Peringatan" : "Info"}
-              </span>
-              <p className="text-xs font-bold text-slate-800 leading-relaxed break-words">
-                {t.message}
-              </p>
-            </div>
-
-            <button
-              onClick={() => setToasts((prev) => prev.filter((x) => x.id !== t.id))}
-              className="shrink-0 p-1 text-neutral-400 hover:text-slate-800 hover:bg-neutral-100 rounded transition-all cursor-pointer"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
-      </div>
-
-      {/* Troubleshooting Banner for Remote cPanel MySQL */}
-      {dbError && !isDismissed && (
-        <div className="bg-gradient-to-r from-amber-50 to-orange-50 border-b border-amber-200 text-amber-900 p-4 md:p-6 shadow-sm z-50">
-          <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-start gap-4 justify-between">
-            <div className="flex gap-4 items-start">
-              <div className="p-2.5 bg-amber-100 rounded-xl text-amber-700 font-bold shrink-0 self-start md:self-auto">
-                <AlertTriangle className="w-6 h-6 animate-pulse" />
-              </div>
-              <div className="space-y-1">
-                <h3 className="font-extrabold text-base tracking-tight flex items-center gap-2">
-                  <Database className="w-5 h-5 text-amber-600 inline" />
-                  Masalah Koneksi Database MySQL cPanel Terdeteksi
-                </h3>
-                <p className="text-sm text-amber-800 leading-relaxed max-w-4xl">
-                  Aplikasi gagal menghubungi server MySQL Anda karena <span className="font-semibold text-red-700">Akses Ditolak (Remote Access Blocked)</span>. 
-                  Hosting cPanel Anda membutuhkan izin agar server Cloud Run ini dapat membaca dan menulis data.
-                </p>
-                <div className="mt-3 bg-white/70 border border-amber-200/50 rounded-lg p-3 text-xs text-amber-900 font-mono space-y-2">
-                  <p className="font-semibold text-amber-950 flex items-center gap-1.5">
-                    ğŸ’¡ Cara Mengatasi dalam 1 Menit:
-                  </p>
-                  <ol className="list-decimal pl-5 space-y-1 text-amber-900 leading-normal">
-                    <li>Masuk ke akun <strong>cPanel</strong> Anda.</li>
-                    <li>Cari dan pilih menu <strong>Remote MySQL</strong> (atau <strong>Basis Data MySQL Klien Jauh</strong>).</li>
-                    <li>Masukkan IP berikut ke kolom <strong>Host</strong>: <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-950 font-bold">{dbError.suggestedIp}</code> (atau gunakan tanda persen <code className="bg-amber-100 px-1 py-0.5 rounded text-amber-950 font-bold">%</code> agar aman dari IP dinamis).</li>
-                    <li>Klik <strong>Add Host</strong> / <strong>Tambah Host</strong>. Segarkan kembali halaman ini!</li>
-                  </ol>
-                </div>
-              </div>
-            </div>
-            
-            <div className="flex flex-col sm:flex-row md:flex-col lg:flex-row gap-2 self-stretch md:self-center shrink-0 items-stretch md:items-end lg:items-center">
-              <button
-                onClick={handleCopyIp}
-                className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white text-xs font-bold rounded-lg shadow-sm transition-all cursor-pointer select-none"
-              >
-                {isCopied ? (
-                  <>
-                    <Check className="w-4 h-4 text-white" />
-                    Tersalin!
-                  </>
-                ) : (
-                  <>
-                    <Copy className="w-4 h-4" />
-                    Salin IP Server ({dbError.suggestedIp})
-                  </>
-                )}
-              </button>
-              
-              <button
-                onClick={() => setIsDismissed(true)}
-                className="flex items-center justify-center gap-1.5 px-4 py-2.5 bg-amber-100 hover:bg-amber-200 active:scale-95 text-amber-800 text-xs font-semibold rounded-lg transition-all cursor-pointer select-none"
-                title="Sembunyikan peringatan sementara"
-              >
-                <X className="w-4 h-4" />
-                Sembunyikan
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <div className="flex-1 flex flex-col">
-        <Routes>
-          <Route path="/" element={<Storefront products={products} banners={banners} branding={branding} isLoading={loadingProducts} />} />
-          <Route path="/customer/reviews" element={<CustomerReviews branding={branding} dbError={dbError} products={products} />} />
-          <Route path="/admin/*" element={<AppContent sharedProducts={products} sharedBanners={banners} sharedBranding={branding} sharedLoadingProducts={loadingProducts} dbError={dbError} />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </div>
-    </div>
-  );
-}
-
-function SortableHeader({
-  label,
-  sortKey,
-  sortConfig,
-  onSort,
-  align = "left",
-  className = "",
-}: {
-  label: string;
-  sortKey: string;
-  sortConfig: { key: any; direction: "asc" | "desc" } | null;
-  onSort: (k: any) => void;
-  align?: "left" | "center" | "right";
-  className?: string;
-}) {
-  const isActive = sortConfig?.key === sortKey;
-  return (
-    <th
-      className={`px-6 py-4 text-xs font-black uppercase tracking-widest cursor-pointer hover:bg-slate-800 transition-colors border-r border-slate-700 ${
-        align === "center"
-          ? "text-center"
-          : align === "right"
-            ? "text-right"
-            : "text-left"
-      } ${isActive ? "text-white" : "text-slate-200"} ${className}`}
-      onClick={() => onSort(sortKey)}
-    >
-      <div
-        className={`flex items-center gap-1 ${align === "center" ? "justify-center" : align === "right" ? "justify-end" : ""}`}
-      >
-        {label}
-        {isActive ? (
-          sortConfig.direction === "asc" ? (
-            <ArrowUp className="w-3.5 h-3.5" />
-          ) : (
-            <ArrowDown className="w-3.5 h-3.5" />
-          )
-        ) : (
-          <ArrowUpDown className="w-3.5 h-3.5 opacity-30 group-hover:opacity-100" />
-        )}
-      </div>
-    </th>
-  );
-}
+                           xœì}Ùr#W–Ø{ÅF£Û¸UQEV¸T›ëàt÷”*¤RHdfçR$›Í‡q„çÁá{Ü1á%Ú¡°Ãáğ‹ßı=ıÖ'øœ»äzoæM ¬Eb*Ä™w=çÜ³Bøe¶=ß|g:á¾yeDvØ\úæWDã¸N’w†Mv AäûĞFÏğGfØ†»‘Ù}kZ¯5lš"Ï³-Óßs+k´+ÌöĞú¶ydŞ^»ş0 úyóV¯qëŠ4q _|A>Ã.Ú–3°£¡àİ¥%r§Õ
+!v³Ckê¾JH»İÎÍkYû]º [Úã”wÇ–Q¿SB²+¾EŞ@£¸~Ë¸íoµº×|ò^VˆŞ p<ÑkAgDÕÏÜW=²ò¼âí~†®SÙSxë™;öp£òi×Ù³­Ádç®¹DvkAC?Ëñ¢–qè¢)¬nÖöÀ6ñãîíá°ùÄ[“ë¤'KÄÈëŞÉñ!¾ÆŸÓYÿ4å ]¾¨M0\,†XÌA*f'µÉÄüDb!$B@è’
+R5IÂ€Ò6‚àÔ˜ªz7­âİ¶ÖHÔ
+l#4[_¯®’Ğ¼	[×c+4É•ë„­¾m&ìîM@`'L`fŠW‘BzÆ´oŒ«¨Ï
+£(åÍm¯­weT<PúsÉÊŸ–î%¹{·òkra\“,&¡‰üzE¶gÛĞlz«Ï˜­ÛÖzC1Ûè›vú¾í¦v-¿‘l·¿„İ÷“„>ül9£Öµ„$TôDÈ¹ hìW¡áÃL&Ù·H×r,Å
+Ñ¡)†ƒ1|ÓPtEñcçÎ7®qÅTÀGÉØpFğ`Ó¤‡	ĞµöJèuêô]R5áÁÒ˜c×šşš2¦mBsøÒõ§œA;;¤aL¢©'´&e(ñ‚4€z…îxë[gxÁˆL‰õ­³Æ?‡ÆÄüÖùëûw„İ1§Sƒ4aUÉĞ
+&–G&°NäÓ†¹.•uµ%èÄš–£lz„G‡'¤wÑ9ÿòê¢ó{åïÈ…÷l®oÃŞÁ	9î~ë @–¶)J0v=³’€¤ÇsÒİí’®{Ú¦ºroø–X[ä•oÜ’ÖZÇv³ö­sá=}_V«:PÏ–jş%=º5Ü°xt¿9ìvÎÈáĞµÉ¾X¾IÎ¦á]$ö­ö3ç³ªW:Ó¾éó©­Ò©mT½rùnæÓ³‹“Î1;qÉX[M¶ñäğô²ËìãĞ6­’gğûæªÆâáò%+À{2€PFfŠ=ÑÙ(t:R¡ªï^;w›ªŸS$ğºuÙ6ñZOI~Óo­‹ÉiG)ãÔuÜ­DÁ–…¶å˜-ÇuL~ËGâ¸şÜ¤oØÃÌse]1§ğW¶yC~ˆ‚Ğººm™ÎPI~«Øq=6<f¿rmóÜwf”QÙ<ë°‰¬Ã:²b`;ÉØ}gú[©›_*9
+åÉï„z×‚±1t¯[oz7ßáÿ«üÿ¿Y½ZûrİxËÇ;ì¥ÛÖ›5ï¦xÿ&s_4»MmÈš5¡õÎÌ¶»ï~¸ÉşÀ[¦ĞD²BËuZÀ'İyX›iĞ€pX?2< gÏT»§fc`3`‡ò@Bø`İ5HC½©Û0êÂÃ,î "cüÛP‹ˆåÌ™’9â?(¤sÃÌ!9Ä!ÇV â‘î<ú }®4qÉs²Š2QSåSLp˜Ğˆ0oë@£” ÃâÌ^
+”î›áµi:Ê–d<ÜCpox½†cÓàAš’…¼'»pºK%s	[G€Õu
+“y³¶ŠH‘šÅ3AƒûÀ}• Zİ)<	Ç–3ñ]Ç
+`*$rÂhB@²¿µ¦Ø+ë‘•ICÊ½–ÌG_!h‚„šˆ!É¹²*Œ­á°4rmN›ÖÌ*]Í¸Û–…né"n‡ˆÂ’S’n‰m^…„j†{í Ç¥cÓcÓf¦^-Vr&·°«^k•ü±µVÒ¬…7_Ã”+F‚cñ«åOpîL{ŠgÚFeëxÁ;"	0ã¤™A(5ÒÄ¯„ãÙ‡ÇÖ“—ëÖúS­ñş]xûÀãÒF74Â( çÀ„ ê>¶;ú(—¬›¹Á3àˆ­ òT!XßŞ¦'dP£uKø‡êK\š?5¼fO­ebo4õ±L»	bÓ`§õ¹²œaÈÏ	Ş‘ÀÙ;lƒhSÑÑåy¾;Œ¡†¢QCç›aä;
+F!{m_˜ÀÄµ_úÆ•ÇdbŞîÜÁ:İëÀ%Eé-‹dqüi"kh(îuàĞt›€F¨â±†y…‰ˆ?ÕarqÅMz‹u,xå5:5^%„K41|cç¬9İN_°Éu,QxeõMõŞ®>8’«ÎjJDâªû…*„cdÌò|§@,¥õ¨Ò.%. „3õìÄ!'B•N,šZÎNcmV¼ûCxûÁp¸÷†r§t]óšŞõÖ6ñÖ8âex’D¥ƒŒ¿hìcÀmC+„IŸÿZgy<’J¹ë`jƒÖWudê`Ó¥[×-ıC?n®kş`ŒÂÛ9ãƒºTw]³™„‹Ú¹ŸêÀ3»ÒTÙxO>ªÃ!±%
+'Õ•¢?hÃ®KØ•§Cg|tœ!uÁÑ×AwvÕ6ş°«Ò~)yEÓ-#{ÕsÒÈ^Y—ÚK˜ß›;Ù&¢1Çáºg^3œõ¨=^u7?KãRœ–D¡§Ò‘0ò_<rÊc™Bš*´ƒ1	“–†'}ÕİU$BQ-%§/=‹~şZø±D¶jõ¦®"~;;;µÚi8æu£æáEG\¦^Íë‹A2·F.eÜÜø·g«9ã÷×á©,ÔúnäÍa+˜ª”s~íóŒŸ~ü§!çÆ$0Ènd„¨K‹ÈĞÒÖåÖ£Tc+¿JÛXCšú~lÙ‹éQÜwş9Ù‰Oç6jSf¡‡MoÆ“8ƒ¶U~Å%_ÇH³®werÕPåä¯ZXd ˜!ˆ})à»½ñP¯¿şåß$ÚÔÃ‰{«ÜâWvİ!Îô&zDàËí‰;4™^|ÆvTH9ËŒf!xÕÃû¥f=®‰P>0ùO›âûi)1¼â‡÷¾º=Ó÷ vÑ²71gÜ;¾)Ğ«ÛÈ¬ÇÇƒî:åP§
+Ø4ú¹°côîL61kŠü¢Ù9ÓæıoÒÁmZ}<¾ûüø¼¿ã»Î&×e uÛ^Œú#«Rú¤Uuô•µ%ÅY¥Ä9$Ä…K‡µ%Ã‡×Ş}Gq5Qó}®Ôg5b6cmuU"&yøÚ@w<áÁ‚Â ‡î¢¡ğÇÊ¿œ³B­‰ö¸ D§qÿ}I†VhÈ\öqÁ¸«AµDÂsÓXvVÅú”Œ[OK–$ÍÔ–F?qtÚ‡½±ìà‚Nœ{ä“æX%÷‡W)ÉÙ§CØ,b¯^¥¾àÙ«~uÍW0xÄ0é•Ç°}Ó6Cªb~Æ¤"àÏ£è;J´>t¾6¼(@Ğ
+ˆåX=ßÆëïõ9¼j7q•©/¾Ğme Ì¡;-4QC4Éy¨Ìâ›ÂšÖB kwéß¹{ZOZ“¸¡ÇÎ»vúcÊLÃjxŸÏ˜8g|,ı©a×7æÚ–˜R²_úúŠYÒÂ Âü9ƒX¨852Îä³IùG4ö3òÑá—„ü dş¿µldİ“êZÃf0Ùwmä[C‚Z€ çt¸•|}J·a#ç|3Ë®( q–®6,ê2r`»}Ï¨ğ<r‡&™YÁXé·^òj]·ŸäšÍ‰.¹¸Á}F…ªò˜˜±=BRš6fîŸ©¥ÙTÔsù)%cßö$«2›ãRrÍd’W#YÙÆì­Ìã…˜\õ½$ğšmWå>Š)G©øhC(µ“0/Ì~¢5_­Îç•\5½:ğšé˜øyQìT¨Ä#ÅÖº€b;°	[~ÍG±“•}¤ØûgA±EV Gr­u= ¹‰uşšX‹u}$Õ¤úgAª_,wmÚõœpùĞ? ±®•\¹ã.à& ½^}$×É5¹×uz½ˆø°äú(é6{¤àŸ2ÿMdØ\óz(
+›ğHÁs×(8®ë#¤àé×~Fü·†ï¨R˜–úQW²Ò=pm÷QQR¸æ£ÛtQµ$Z’Ÿ…Şİ{$ÏZ×çşà‘6ç¯ùhsğH˜	óÏ‚0CÃ'ëÑÔ¨w=„/nìÀ#•Î_szòñu}¤Õ¿XZ½ñ|e ÌV>“kşL	£ğš'i^s&ÂkáñŒâšÇgÁªYpJV°IDŒ—Ï53T×ZX÷n¾[—EÈ¦¤ª ³@O<ENLgdi¤iÎ_³$¡bïÕOÔV÷•:9êDi¦5Ø^É&<®n¼2[Ê}EÇ0Lm]š¸~…f®/É‘ÿ %¼ÏïçH¶×ÚLÊI<•n‚qf±W4;äÀµ1ş‡~öİkü\VJ"NñF£„ä)ÍUQb50¨Km(Ö»2Ëzº!-°Xl^Q"ï8ºá9aîı+Ë†Å*;šVå1Ô´$IÁ*ã2e/}†5¥0ÉÛğ×å}~6S§Ù¼ëVœQ=Î%¶Tb)[Ò\n˜€Xk¶g­ô¨ßÖÈÍµí•oEÏäÑ(dCÛÊ§×‘WNùZ'A>gÙ¢YkªÇE#£Û:@åR;´ y„élM"ÕÏòæ•Ê;R9-‹š“‘KbÔ.=„J€Uy
+bn0i‘Ge}$™@CAUåKY{ö]»o`†‡Á¡3p§–3Âza'îĞ°Ï<Ói^v`–ğ©²ŒFùs	£4ß¼U¯¬F8#¾‘È”j^7K$êU+«¬IVY
+L¾9*ˆÛíô:Ç
+–¦´,×â€…Ie]ã¹ÙªMZ²pÃ;µW«·óî{ØÏ¯ø~–oãçæßBò¹rr<ùåSå ò×‡VB|Ó½6‡$Õ0Ë<S-Ä)óÉ¨à¦{xztqvzØítÉ> 9ét/jC’‚|IoKnneKæb%¸ßÿt;Ç0ÆÓËÎ199Û‡¿Ù‚pwVğ[ÓœØ·1)*æ¿(Të–Ûr€ÖĞÂSoÖÖVßV§^£µ$S›W6™Xú®‡Ùø|Ì¹—«ÇÅ@0 ()PïB­°…’ˆ\«†À®[ë7v³k› ¨ôOj§ÊÂ`%‚K_Ö{e}»L‚a¹H2Ş(J$¶¢Æ¼O<
+×k×¾“&Û$ãdÊezHÌ¸S¥	)OnÁR8ÏÄÓ´’ò(2d”x{e¼!]¼Ú;ÂéAÃ~DËÇ—K/”K„Y&y^É4É£n"ì PlÂï$ë¯Èß£&>*ÒS€æ¶¦’}É²ÀŒšU@sìª-b²c…õ äl)kü¼gŒ#g‹Ü™,!Û¶vˆwïKrc²—áì5Š/÷ñnõËoOémåëª¸r} N7êO­0Í°fï³»ó¦ËM-íE.[ÊZ6[Ê:¥ò–f1šÖ4ŒæT*j¨°Mcˆ_é!¯'Î}÷
+Æ…9‚ôIóÂSiœ+ì ¶N{&·YfAÄc¬(÷Q(Î^fùdÊ†wT'”µ}µ}“Öho®|»¿2Z&¥!ÒƒmŞ‘v»?UÀ¶h/„“1­=œWÄ6uJÁ#[J^È&´vYª)©İì)ÏmU-·¤à0q'®äf••®‹õ‘ó÷o3÷d"P•Ê.QŞ~¢X½üb0¶¼­÷»Ÿ<bïwßj¯?¢ö#jãu8†ë#Dh‹ëÓÅf:ş÷‚Êk¨üˆÊx½>?ÿyìyŸ0Ãèßo<"ñ ±ú¯XÎäë=ãÚÁ4»t9ø÷krrpúê`ÿ°Ç”Óû‡şé’ÎQç:<9ï×îá19ê]£û¬wvÒévá•‹CÒ»èœv;Gpÿ5|…×.O{—GääğôÕ«Krxz(³ñ)l{RØÚ$±ANUH~á¹ÚÚ<’7 bÆpM´‚±
+¨KµCêõM¬Ù¥ªŞwáNÉùÁÅånçuçtqv"T.ÆPtxtCììï¯Pº¡0Q}.ÑêCÙˆn²G¡a¨4­ü‡³˜ğâñ¤®i(]Hd~‘`÷(œb1Æ„Õı87¥³#Ì1É¤LjîSVm'ÿ£Ü×d1¥,ıÜíIÜœqn¡)¬ôË¡“,Ä½ÔàAŸÓŞQ%'}P)©rÆØù&Pİ““•ßÃ%——J¥¥RY©ZRòÍ?D–oª
+OÈ¥üg+«ÏVÖW×7U­f¥/†!Ÿn© ¦Ñ”HL´õf™˜–ˆRôÙ²h>È-íÀ¡{•ˆ«ÁTÎ)<Í 2É÷Këš¾u7Q_Ûsı-%ğJ¥ÄÇ‡deB¸Áp®©©ÖB´JOó¬·ó÷óª:
+m³SßJFëJÄ¦0)Cèy|%?¤>ä‡Ü§nP;0Äë3/ öö÷½cw}OŒ š C´ãN]eØğ ”ë`²ãŠi}Ô‡e<ÌOâ¸üèpëC*ÂjH!z°§K».ÿla¨”şu`¿;?»è‘ı‹³óîëÃs•ìàÆsıp¿;—l}&=Ø×y=Ø´o¸ ½ªª¦Ã-*nW«À²á—Ôƒ^h@G¡«¡½‚qĞëMVJK<EÚ¢ôY?ıøçŒ¡-(gû¹4ê¨‡ŠÖL=ÈÇ	®+†ûë†¤gNrF‹Û'ÎQ]ËğÈ‘å[SŒ7U)d‡°Âz£q‰ÍÎåª©B5×[	38˜%Áµ˜²"UëÑóÍÖµs"v~“Ä}¼±Çô¿[¥ÊC¤iş¨o4W—éíÕÍ¥·dj9­1@ôSÊœ¦mhøˆ*r×äøaW5‚Ğt#³èL“èeVºĞKÅ?‡²â›s*%U¼ c¼³FFèúímy}×ğ‡ík6‚†Ÿ¥E)0!Û)s l†~¤oƒ§{ÖÔ®«3*Ù×—²LÖSÊš9,ÒèÒĞ:…`'=–7ræ©X)Ëï}9Çy\A¢xR£AErL³aMãùûÂ4Î›È¼°.ıá–ÿ‹Úª<Ì()®¡–Şs½[E¥bB]²' ³–®º¾Î^NÕj{?Ã9-ş³ù˜äOdôa¡wÙ»”Ÿ¹æˆÂ}dó x,80(I!ÛôÃÇ5Ó´GU:OÍ~àÚå¶`dÓÖú*œTWakme´ÒK…7Ò¼]šh	w½ÀñÀ«a‚€€Öß``ê„©Èp¬)öÙ‡ï•nå¯ù³X'@³ø øLÿø+àÆ\<y·w¶wDz¿Sš¦ŠvCw0ydÌ?4c[Í™ÿ¯g€qD¾ ÙØóW¤‰"gn?wşÚpn25cêY6jƒĞÀ¹2aµ$‡˜
++2÷Ù÷f`‘a–…… ¼Oš_Ÿ‡UÀ·¾\/ërí” J©=khLˆ14`ÑCƒ¥w™[\õÌ¢· ¿X>?^ÆjVŸ=:·ŸjAƒá¯Í»×IéöKaÅ~	Ü{–5xdà)|BNyø÷ÏÃSŞ\¨"fÙsÙáÄ"ÇúC$ò¸‰&²C:¾oÜ¶¯|wÚtÌkÒ5Ã¦ÈÔÖ^³éÑ6½¸ì’Hi·ëºè°´´DŒ ø0VşÍÛo$‹Wƒc+å}¾i·ÛB!ü]÷òüüøğà¢»ŒTùĞß.åù81®€Ò*\ ƒš6—Ú¡{‰@²@KDsà4
+-°¢Í¦±LútÒFÛv†mî¹SÏğÍf)wnJæÊĞıÜ7Z¢wİ%ö“:Ã¦ÇÖÓÒ<<Œù2‡ì‘Ã!æåË¾õfõme¯<é´o Ç}ËYø­“#~vfc@ß-z›`ö«Ôƒéb¾¬ûo~¥ÕrëU£²®Hó³ôÚ-ñd}’ñÈ†ïÓN4‡Ÿî+Ñç«²ÙìÃ~U®ñ¼³ÒNô™YCÓï—Ë(tGÁ0Ş	kËs.Â:anËüjr+2”tèê*&/ZFL ß³†[Ÿßá¸ÃĞe¨Û¥”¥¹±¹4¨ÏèLs}™|½tÿ½ªI +lŠ[ä …KĞŒs·†2ºì¾ÀØ˜m‘7o¥òö\çÊÑÇ
+Oİgóîÿ›ïp;‘Fâçådz²\tp»›#*MkXxğ˜À´•Â„@ª€	¤rZR²ø/=£²5ƒİÔmÆÿyËl¸÷d‹xyB®µ+%Ë¡ğbå|sjX@²äŒ §X2§ÏŠs’ïzv•âÛÿÊ +›š â·át’ˆ/¨¬A¶CóÊˆì™7rµƒBÚµ†[¤ÁÉpÎ­!7Ğ*ıqßá•®9ŒØœ«|Z†ßn†eh¤eL¢©'´&ìÎñái§!%´½<øM÷ì´MÓò5éGFÒ@>lî¼ì\÷bè;¦ûnïìôåá«®€¥:cj[ÎÀ€nn©À:±K&¿½-n¬ÖÄVJÕ
+2ğ‘nŸˆòXªu~:‘m/”‘…˜¶ÖûFÄ˜Vv€5"ÀG&¶ú”>ƒ/Õhuh«œà•ğ°j¬7o@@œ‰"h	´¦' * Äx
+vMÒ)˜âYwò‘T²Ñdå	$Ã•Ã*!zéŞèI^ìq9ÓtN2åY­Å)'¡_¢g	·Ql7çNÈü¡)‡LôwMÁ¢)ÄT“¢ñóÚÙS÷El$ÜÆ;3†¡SQ{ATOKŞªvÌ‰¸@A·
+ËşÒå"ºt•XGìH€U‰!²;ø.Œ±™^ËÜâ³fM-“&1f­ÄØ,n7•ãZÊQŠºşÓÔíˆÍL ¯fûfˆ%İ×"¦¥ç›V<dåY§°ğdK‚ãŠÁÆê‹,'%P¹Ñ€Ü?59'*ƒc÷:Và“&^HZ’g¯W„Ù/ï9C„û,¬|¬YˆP¤ËvßÊÀäù-ÁÏnìš‚1†ù+­hJå’ô ^_íã^Vx¤¾ùùåe EéHºÀOl3E9‹R"ÔÂ‘x-‘İƒ‹ıN·sÉ7“¬šªÂJM“d	aá5ªJ$%ÖêòòW]à?Ì)?™©”š¬aõ®¨«i›œ[¶5~F,´È(rhE€)Z›fd
+¼¶Õ/¨*(«”¥Fb&™á/™AH¡Ö‚È-97°È¬@±õŞX+˜{¨95µN(Ky»¯t8J0©Í­åp/ùm0ôíı@jzQ5y‹iæØiaÛ×L2E8ˆw$˜ Ã6{÷}ÚL·6Ü8ö©2ÿåsŞ+±1Ïµğ¡ò\ø)R—ŸDâû$ms6²$“€*4¥njüŸ~üçÿ»™“£µao¾Í|İ'°™|¨ífş§ıÿşï¿§ÈnÎ÷6O()/%˜•°Tf«¶GÚÙª‘H›W!97ÓŞ"LJ‰|ƒªBäDKşºÉ]‘Ş<{önü¶àäùJ÷/©G–`÷ğôÕñAÌ oãÙ;;í]œw•ƒŒMÛE¢ °pË'—áfK]ÀÄ2¬—ägQfŞ{Y¤pÓR şe‰×]E¡#Æ£8İ*Zuäm&«”vÈ#y•RMy¥B@~J	Yhª™·­((¡İ`Ş	ºAœ·HÅÔ¬-[¾}w<UìÁ\˜ªB¥Û®G‘|bŞî`+÷ñÎÀççôïö
+{¦|K¥ëº½ÂvºD`(+¨˜÷“H.¤çİƒ9¹<î¶æ§âœ©EÖ«¤¶ÔhÙÑpb8ÆÏ=Ã–ŒNÖW}Z´1-ú ÔHĞ£ôYZF“´¨’òpa×Ä,ø¢}ŠÚ	3hTy	o$ÇDûYùæG&Ì²9¤M›’M*ªfh-Gqš¡óK
+|âú½ğCĞ’æ ‡øhlxQ Dæ²’¸z>ÙÆóÆ]VŒ–Ãû/;òBoreEù2ªÊêé.cc_¼f«œEWı
+ÒŠºÑ€t£3¼·ØúzŞÃÙŠ8Õ® k¨àS¹‚*<Ó%Ñ4'¯»›ÂËä5‚­îş×,ıá¥h6]¼H‡s¢ÜWzº»O`v±æéƒ ‹v™pÍ1SÔ{9[fÎ¡4?".å	ËıëP9Ã2—·køÑÕJ\böÌÔO[…bã	ëp6ñÃµâhjDå9æó—NÎùüÅÅ‚¯™>I‘	…EŒZÂ`ú’&ë]Ï4qK§V4ÕŸ­$äæ†²‚y:XGÒTf}Gÿè"õ¥Bc.»Pyó[¨±!Gæí¾{íhÕÈ_Ô
+İ¹”!ØªKX™#¢~³ÁÀğĞé¯x˜Õi·¤l@öRŠ—’},³F©ÉÌÊ,ˆ‰,cŠöÑòu¸´>N=iEOùU—Ÿü  4WùËæ+ëÁNŞrQD—¿| V´
+^4ÚÑagÏlé(ÎÙ•SŸÏLL©U´'¹¸CæÈòPz§¤ÌMØ“z–—ôîë„\é·J½\©Ç˜çK\«çÓ<W¸$6e¼Y•ÅxÈ.½ÕbC¤¼ç‡·p°K‡ÜeA€º1óøŸjƒ»2fOÄ]Üg¥¼ó\|¦ªB=S»Ê"|•f‘øÉùØÁ:çx|£õNâŒ©bıçëÔ«Nßb`xezO½¼ kz‡yh…6,ßnd„iU‚ÎËš‡î¹å|ó’¤m:fÜÙÈmYâsš	j<ÇÁ•ÿÎw^ƒ™˜rÓ‘©³B®°æ¤à–İÚÌr_?[x.ƒOrÙÚsØ]$ØšÎÀ²¸¨–ûè 7„<+à.ÊìòËYj™Y<Äö|#¯/bé0dµÄ+Ù©ÜDåĞ&®”DìÉ$×'¯ĞËm&o‰*¶vn[
+6-ïøŸÛJî­  î{AH'Œ°&JÖ)Œ4sÆs¥Àô§?‘Õ{2´<|©ÜqƒòÀ \X†‚Wr,Wkpô×`öÎÂdªj#F¶ĞXÀ´4©ÂÍsõÉ×¦j@;Br÷Ã\Û¤«”wÄÌ¦Ï•2‡Y¼X§¾*ÕšµûYµØÌsD{cs01‡¹È±ÒHAèCCvVD9I›µèzâ0Wó€f~Ô²8›¢dí1å%Û¨Aä®ßò\‹¾ÃÓúÉÇ§êì•,»¶"0ã}x9ñ‚½àßÑÁG¿í´óö³Õ•¤õËı¹Ÿ­ÊC6tÍ\*Ÿïì¥yî×1™2¥ù ÷¢ïŞèê{lïvî’mÒKstUæ)e`M:B]/ÅEskÄ3Ğ×´áU¦m«7
+İÓ6ô¥sˆòLd:µt$^b©1ã7€Œéß,1ĞƒMÛcñ¨õ#g€ŞÂXŸ÷Ôô]¨Ü¨û
+eZåIªÇw2>3ayà”¤%Q-G°¤å¼g†CJ"‘UaÏ)s¹·1œ¯ácåÁ£è(júóá}5Cú×ÿú_0¶æHÄ¥–àÏ"'Œ&É†-±Q–cUsZà©k•I'ã©&åN+9’VÛwå3Ô¤P5›%¸T#è¯…>àU­ë×ÓôW’±’~æ 8=#/Ï.N:=Ò;89?îôH÷àø`¯wvAšãßv~ß%—İÂó-•ES|–ITm!áºŸ9ÌÃ¬LzÙÈ²‹O‹qÆ7A)íÙ5íhJS`ÇÁÛ4ÿ5—lÉĞ°©ğ@zÓ&]Ë¦áÜ8J|rEyÛf?D
+nªÀî¹¶òâòø K»=ÜRÒ{-¶ò`?	+†ÉíŞ¢#`ôæğ¹4}“™TIÖY…*Ùµ,™BüÌøi1}ZR*^é7"ü@ÄÓñèš!š”mòü#Õ,fByÃB;Û~d›‚ıP–™Œ»^?­\¤Å¥\ĞWÎx¦3p.­ Šµ_‰ë€øìMÂPë,®ì˜A[£’ôã•ËªiDĞÌ_Ÿ¾Pî 4øÓæ÷èÖ˜t v·™@›#o[qç‚q]Ï³ÜÀ²iğ°iÃ“}ãÚ0œß/éJt’);ëÏüW¶Û7ì²tIò«šAÒç²eYİ‡±¾ùZÏ±ìCZ[4Í+±50C) ñŒ¾oMDªÈùyÄíó
+`f¼7¸Î’É›)Y¼ĞÒİêÙLfÄNc8dTù"º9ŒÏœ)}B‰Zn6+àÏ45`©è!‘@QĞÜ/Œ º˜‹EªO@“ÂãÇebo–´bÈ±ûÊõ¤‚6L­j@öİ÷^’Gsqn®d”×„ĞÒ‘³áûŒ>é)²™‚\œ+_ÆZvëkm8Ó†gdôaÕºl‘û³ÜT*©Ø5“ë£,R¹‚0.ój†ïÈêUøÖhb"×él¨ƒÄÓl*…Å³Õ¬m¦*C}	e¡Ö)¿2~
+Œ~_~
+u4PK°©Öf$iìºËÁ­^Ü»ºWı˜=	 !G¥1ed¢DaZšw¯0y>&6
+1$g@§'Ü_ÿÏb–XÅ]ÊÒë.„~ Àû–Åµo‰ô{.0cp†äkb0Y’W˜i4*emrFğ°`cÇQ x85ÀG•:(òŒÕZüúèæĞ]HİÜ0×ÒDÈÛPsªüo]½H-0—jGb{YZ#rÄ6îoî€¿ÑµæÕƒæ™c”~•0V¬QNYJ—ìÈ¼½†Œ Û¥á[°z4„y…¡>w—âH•™%YÃ‘Ìï3æ˜ÔUØaYkÄ›¬7‘74ûòÒ2í¡³L©¾Ëdæe©µçaƒŠ×Ó_8ª¯ÅlŞ|ŠäXôTLu]_¼¤!Ù{6 ù29·Ç]&§˜„Õ^&«ËúëÚÉµ	³¿£‘Ğ/ãéÅúmhì…üÉ½°ºv#³aëÂ)Ôl—×‘½t¬°ÒS1îî£&dLå½S0ìô‘tÍKº<#@h\ÁbŠ®¦PX—\=R‹mZ³‡ÜÌÈ.§\Öç$MJ'–¼có;ü†¬>ÅPûÕXÿ:áÄâJÓ‘)Î”ı»ğ¶D©Nş‚ÈJaóĞ˜‚¶¼.qÉ íƒ˜kZ2u??¼êd®0l÷Y½‡ÆóßDSÛ“^¸WU«ÀˆE¶Ñxş’} =º‹õ[Ö™—™;Š—¶ˆ¢Ş¡;ØÕ,u2c¨Ğ’/$[Ç:hğ è™ é)eŞa­²Î®‚˜º›BZ†W‰ºõ67Ã	ğ¬WB-X61&c³$°†H‹Z]sBİ:kg*ª£yb×Ç€<Hä€|h¼áÃxD™:³Ì ®Şõhë&»™Aqà…”&©r'Éuí¼R…o)ÿ¬Ì†A¦è³7/7ÿÓş·ä7S›—BD†•%zzLz=,×ÔÄAxúY%1ô ‡¼Z_P6ŠÄ4™D´ùqEó‘úF­:Â\!Á³Úg|nIN«rMéİ˜şå¶V¦OH–g•°°êBã9ga;°CVkp¢µ¤ºÎ½YO½ô™à9ó¦ïÖ<ítÖ¥»_Ì)'×Ñ£.Ğ)ÂÇ\æ¨Š¥FVMaå×ß*ıt5´7)‚²6A‰½X
+…ıòI
+ëô£¢)‰h)QYû9•3Çü€4…õş)‘”VjĞöÒGETÖç#*"ï—Œ¬ˆßŞ3aI§"ûhHK²NÄeıçH\z×’aa½JÄ%-5È‹xíA	ÌBÕ|paÙŒtÒÍô³¢á2¢L#üĞqUTê;F¿g^\»P_±À±Ú«’–LwòÚ4PÕ'€„âç´LâÑ©;¯7 @W+ª+*+=¾Ÿ~ùìÙæ×eÑí”2?ÿéÇşG4ÏÎ˜*V™‚¡*÷A1[S&æB şª00Š¤^% v—.ÿ"]¾ ñ
+›oÆ’((¾ëBg†#ê“-LÅ´BîdõÈï¹ûC	ø–Í¶œ{@ÀéØÖÈ!{®M€p½$™—>Í%šÉô]Q‘«4v¥*‡si‚ªÅÙ¹+´JU~9õµkŸ›S+0ÆäÈµ1P´kz °?%ÖíJ4PÖ¾Ò}Ô	 (ÖµGÖ½f#4úêº¶ìÊ™¤ÒÅ+ö.Ù¬=zÍTLAzĞÌ$‰ça$2ÊÙÈD†äà©©üT¯Šá¶¥—´”9Ö°`Å0ĞÈÜà~Ñî‰Q·cpwhµ<#€±ÙğTÊOLrb|7p¯B ¤“—?åºè‚Ñ›ffh8<`aƒ4l~©={YL/i~.‘ït…wUz¢W‡1,<©hói(úG	¢]
+< ]äÈòROÌi³(‡ÆÔ³0ætBÉ\`ş`ü`øv}Ã³äö‘5aAª¿aĞñ¼e2€OËbğÀæ4	æ€ÌÔ0[Ä–ü¶3P–rš¥?–œßÜ¨B9]*C×;²1¡å`
+ÂõgTãP=½ò¥1‹HÁ!æêuPczàp?Cª‹…®nÌ¡ÈøtUV‹šçĞKGZcúß­R yHÔ7š«Ëô¿öêæR³–aÕşô§R›¸Ôœ–d*Iò5¥²Şæ² Äè^•å¢Äãí+`¾J«WQ€œŞ°õA]eø×¶÷¼G£d0SÊAÚCs"’¥°œíêü
+Ê  ‡:q·›”e`*SSªÒÏT
+@İÎá£Ô€æEÀõ1–Ù]ò	](1IÏ=`ÖHº.™`ÁwTJ5ØµE¾»¦ÁHqO<*	Z©’‹÷À#“hZø·ñyIaíF»‚ VlT…È«<ĞªÅ,f»ÆìRb,D@ nò˜õ©Ä"ÄÓ–PÖÊÃ¾Vòšî0E'–x‚Òò|ñÎá!ÜØ–×wØ¾öğaÍtsåí¤Rl0pè¹ hÍĞÌê7{ÖÔt£°™p4’¦húÉ¥eµ´ÉÒÔCHú6æ¶L¯UÙ’ª&X÷º:‚è*áH6Òw¹¦ãÒcÂ½6‡˜?]ª.I‚À#”ùò÷Ë,¬K¸å?Ì’o}]MÚJ)Êëİª¤Óßà(Úp_ÂU2I*³„Ç}Ûí“â˜×ÈYõ›oRí¼]&wT‘L4ÂÎŠg–óp¡> İN^µ¾ú¦Aî+0–udƒ´İAGWØf…Jl¿5F£¢|¿=öÍ+häòâ˜¿ÖÿøŞÄ‰hdÈ©;nq\Æ©p.Wœ/È÷ŒØ|‡¶ï˜Jÿ»Ï³y7_dÓnbt]Û7©ÓXsåÛà_­Œ–Iã»z-6xºÿûvx~_ÑùV¶ó²C–6§±°˜ç1} DB±DåÌjU,o¼µ}wxÛ6€9Ã½±e›Ø…Îöæ«Ê]f»ñÍ)ÍnŞ©¯¬3ôHì?8±¹<Áo÷~×›™Ø—p©ÊŸÔ*r§pY ”Ë!T Rğ§q6ü[¤Îœ’çdã%}æ7mm‚D{RÜVzGñ†Ò´rëé%Â£¦%kƒdMq8´GqæÃ±¦Øg¾Ô’ç_ÿòg±dpzÇ\ëgõ¶D"MHŸ•ÜÌP¤û¥f6
+wôğè¸sJözdïìôåáÅ	99ÛïçvöÎšØ†ÓsY]â^¤ôê&–Ô½µJşh¹˜]‰U<£s¼¥+_¯‚À7˜}×ƒMŒüÖtXXo‰¹-ãêı´H€¸5#×Ğ$Áäªq±ÒM¬Vº™!KWk_®|ü³áW’İWeÔÜoÄûõ» ¡qÂiµ?ŠŠuS£¼îœ_vÉ~§×a»şBŠşãéÈå‰·E <¡Sıä²‚æ\N‚)©Êi³í=WçetFcšˆ)\à«iG¨ V1í¥ _š»cj­hšÏJQíˆƒj Ã{«hS&Km<Ï"W;dmˆ,ó%Êì­šõº»ğH¾GläÜœö[\@ø~ìÛì†è!ÑlXÃÖá~cIcD¹†÷Ü†F{ê~c®Š›M¨Ô—@ûÕm•9ïélŠ•29¬h79LÏ¾é éRè˜¤|¡Vñ')ªj2zjvÓÍÊ†2FJb»@À¥Û©æ†´;]w®7EºËÓîŠ•~Ÿ«üûÎ2;0j­´._R¸UdL/ÂY9Kì±ä½lÓ@6ì38fáNV¹“ÊHsïQÃsĞ8¸8<}¨*ã?F¶Eq>*¸™»i(ıR·šx’ı)ÑàŸœ¾b`÷àøòâò5ew;İ¥ğXæŞ"ãK¬&³–0bÆé%T]õ,Xª	cçı€ŒŸ¸Î¿ ï×G0ÃlçËÜ8¤hjj<â‡È ŸúH…ƒ±å‘æ~wi™qËÌš?3…­EÀ‘}ä8Y^¼¡áq«9°P0"yò;ÅÒ|R<ˆ‚Úrs‡zÍf¢„÷`	9—Ü6ÌË¹Á­3 åêzºbÊ]¡[¢õ7®+ä9j;¶-)ËT§¹Wº XÔyşĞ¸ˆz¯\wX»Ÿınëk<ÿ[ÓœØ·•ó©FÕ»÷èl3ôæWo	\Ûl›¾ïúÍÆşÃ‰¾¦¨ÍD*‰ycJ:º²x²lç³ T1pé}…|Dâ£æ»çĞ&ËIIj¡ĞI#>İÛí6õ;‹Ùw8îO.;RÖâaØxéoÛ+SÃrbµ2U<œŸ]ôÈùÅÙ«‹ƒn·ÀàßYSÔyùfdYújv~m&v~3ÏÎÓÌÁ9/+œc†•G«µõjV>3‰´÷‚Ífîlß¾ôĞv°g»QÎÀ°¶aVë…¤´9uvŞÙI&0È„‰¬¬ƒ"ÕjÉêÙ¢»7Kz{#'Ê¸’`»(?HxÖ`ZízubN=¤EA‚ÛƒÈÇ¤è÷@Œ}«ğ+ÕÀİËÅ `j­B©¬G)CĞ¼^ÇuI@@&änÜÚ`;{	²BìR¡¶0Î,f¤ ›Íô“#ÃÈ7è´Dš°ñ-7’ØÁƒğÖ6wîd'ÀG8Ş"ß~wb„ã6í¬Ù”ï Y!²Å_"¿&° K÷ûır¡‡ÂÉõ\‡ænd¾&*TÚù{oKÈa`¼<˜•Îf{ùyÃÜ cÿÛªõ¨Tä$U>ßõ„ÉÛ&Úx–Ó´ïL	m+Òqn7-Rp9iøh‰zÚÛÔ¿½‰@Êoizätò8)#ã…¦ÕÉs²&Mv§CôuT¨N ¹®s€l`÷rZ/ÕÈ3-`]sˆ¶S1‘e26|Ã#a„êâé)İ}ªwFâ(ğp'™â,{øÓ¬ô<Shr‚M¶˜¥'šTS ‰gAúİŠc.s$F8øh&Ï+c`–Å?®I`¡‘ç¨£²¨Ç[„?ğæ-
+4}–”xC„¾Rd~£Z‘w®5¤_‡KSr*úmŞÅ.³>–ã–ÉıVép™ˆÎ<ıŞXŠ÷ËLhÆoÉ¹0ATlGÙhS"4) ­/³H)ü(y©ÑH½G3ºÉ]PßÄøIøºıºwr¼o½ã^Ï™Ñğä9VV°Ë@ˆÅÛ0CBıß j DŠÛ:¸ºÂuIk—âEd&3ª…:co6ÍwĞÛ9qñUüœ(.ĞW45àxİ?“ÜoÃCÖ&Ï>@Œ€œºC3SS1^äœV‚ÁûûîÃ!Ø±„¦cúÍÆ‹½7–%Sâ­1¿Öœ–-n”ùÎÒî=şs¿LŞ¼e»Ã6V¸Ur(Ko.0nf;øÈÜ¶¯€V5ih¯m©k)KÙ zÊAøÛ,^Ò ê¸%‚Šõ!BL8Füi<Dm„R—‘ú	³VÚ€–ÓæÒRaÜ,Ù\]&ÏV—¾ÁáØÖÔ
+ÑujbšÇô c`İh‹lˆLÿzM»ÇîµéïÁ¸›Ù}½ğ±â^VgÊP\ÒôÚøÄóã#÷ÑX’õ¼è0¿^xCV´^äÃÃ.Û–3°#`‰štVKø&uÜÍİ¡[­MV©}véB×Ã»ÀqcÜ{€·ĞÅñÎ6F#‹K²@ÁÖ’C… {FÅU¼4;ğôÕÎ]
+—ïcPNÍr¤°›ÉÑXâz øgŒ´fT¼øı„zRZ‰«Ájor pvá¹øíÔ1Xd0ª.¤™Hò— —‹Ey;b¿Ç½ÖX(kíÄ%ÀÒ­¬óVĞSR‘1;uB,Š>tCC3|Ò¥ÌIV-oüõ/ÿ›œõÎN:½Ã.iv.{g-ø¼÷z)Ã”§ßsÌköêO?şÓ¿óÎQ·Cv/;=²Û¹¸$û‡äÍ#g¯d|wœú.Ì“J¸õ}â—Îï¦0ù´Hñ÷a³Á¶:#øL2úXZš5§nïÍw¾ë §¯*OÁÔÆŠ'™úd™¬±rUèqcÕiPô‚PúØR×ÚU^èD
+•AijòZ§\pç¡§ëë,L;-Æg!u ?1İÙuorîEc¾@¹V_Štqt­^Ú*ye(ÊíçÄ§8CAÎ–¥ŠR3ÉÀ@¡¡˜ùTõ5”ss¯ñ<QŒœåyøB¨„VTæhZcõGV¥ñöHÉdñ4Môr¤NIŞ
+;Hû@²ÊÏÃr_â;™û+Å[À3#î9£éöó±•yøÊJ‹hnÑk›’¬54áKÄ
+éØ‘Kx	€¼Ÿ¼Ü°+?ã-Ë[/D„ì¥â‘ÅUÓy
+I»’³¦,òˆ¹&‹Iy–)6*îRX‘ãmZŞ:âúĞóÌ	Å²2¤:È4MËÏò¸²$'C#Ÿd¡ S
+ŸÜ5FîÍÊÒVK~X’VKÖX¢³¡ë¥ëƒĞŒ!s®ğÀû@‹+k²ÅoÎXô¼g°•ôn{.ÈB¾¨>hUpSuÁ‹Ët‰˜‡¯»¼ØÇªe{Ò*Ù*ïZ…Ó¢ªRµbSchÅö¥ş	Uà*ÕŒ=4Èf™•ØÔQ‘T¾¯ HÑ§¸DØéü"6M¨•ƒÚ¯$P+óEPC¦Ô+nùÓ;ß¥…ë{•·¡"£Ø×ª²¸"pƒ‹3´›g¯@/©#ÄR¾daòy~9Ü‰U¥5šAÒæª4°ärŸ¤3\
+6¨¸<»é½C$húDşôãş®ÂeÁËdÈ#Ç:Áç53šĞ´b!k‡ŠM¡ÒÜ»Ï›T¿Ú70{s—}Î¼Ø]ß¼1ŠÿZl}˜^<Ãqö^ºÅÄ1NŒ fCà_2c7EÖ¹çMF•`@ÔÕƒÍl‘7—ÇîkÒí|Dº{tvJ^¾zÕ!ÏVÿ–\ö.˜ÇZ‚÷/o™âŞvG.6Xú§û‡‡¿k°®\ ©Ó†ZünÂp¬Ì¸‚¹ZĞÂf9˜i)
+Qªˆœ0š`(s÷0@q€:¡)bÎ-³ü`üQ?b¶Ó¹5¦4†gjÀKSÃÉV mS´) ²ï´É‘1¥iË&îÔ
+¡ŞİÔÄ´:,©TdØ&Ša÷kB0Û²Êõ‰nÓy±°~¦“Ü¾cÓ°Û†–1r\˜Ô H¶iØ§Not—öÙçÌ&İÁ‚À%D£xè½wÉ=ùAEy¬.OéóY$ç²ğæÃ/Ğ)hó­`ß
+¦VÄoÅßË_1\–Á*œrs±†É4
+óâI‚h0€Ÿ0¡õ¤Ÿ,çÊmûO O¹ŠŸÄõ­º²PßrÇŠ{İ6ğë7Œ:¦o¡ê37Ì1MµtüTnâPAw¨N…½ÖHòHğwÙ€PM˜=°Î6Q¯ÊƒÔ66—ÚAÔg4×—É×ñÉn›¡ÎºìğâµL×
+Oí×'Áäƒ–«uq¢1-M¿˜¨r€cÌªÚ zŞª§ƒh˜Ş³!æ!D¹fÓÆ;s¨;
+¶xÚÃ \g£¨z]@uŸ¥5[š×7Æ\qš¥¸Æ¦óK€"Ö¬PRkGÆÈĞÜCnZ^–­½)Hçµ–ƒò	ZOöM;šj=ymü`õµôx:¯Ò`k”Øïø‡˜6i¢'JUŞ´Ûmü‚™b0k9ÇÈeÖÖ='oâíLŞ¦Œå°Ğ0~ö¡fHo…Èh#}‘"±¿ ¥*ÎğtÏ»“Ú	sT2CWåf@…åÕãæ“Ã³VØyØŒÍÁäIl
+
+Ç ×ğ€ ßrÓ¥n·İIÖ¡œÑ8dBaxÌËÃYÏöpŒÅPAOÙfÈóüáÓœOQKÁ•p™|eğÉ7ågŸ=ç.ïò(Çı„‚Ê“¥¼•ˆÿÍ¬lK´™¡‚8nú]€Næ•ƒÀ_KİÁWŸl<m½Ù~úU{íÙ“Ô«é¤Dœ’(Æ3Ù¥JÖƒzÿ7a¦E3eâğÿä%¥hÚ¹'‰ˆâ­'Ë3M-½ÔüÌ­Õ®wSİ!yK.g·^¤W$ÙˆòDmüİÌ«ñÄ (¬Œç*Æ®ÈÒ²ÅO‹\l«™\l÷©>‹\Xæ=7yÌqÑ@ìİ’Ãs¾¨™f96ÿJÁ<¨Kããù·f59ÀÒ }›oõÍGÜ4Q¸IÄÑÌ¢±·§˜		Y¦ì“TeãQÌkÇIAšM¾q‹=ğ:—èÄÇx¦;:<idQcùAò¼§mÖ«ÛÂ§¥Ë|b¥ÏÂ%ßİxÆl>éŸr²\F£#ÚÈPdº Í<ÔWnÁnv¸0ÚLäRe_»3tæçzã"f3%ƒªûó5;ÄâmÖIGÜm÷Ö¦ßC÷Ëô.Çn/Ì1s‡HßpSñsB ÕkU<]à2m^İU¼ôít«Èûcv®-‚QÇğ‰»DqQ/úWˆÜüÍ¾öÆ7í_ï<Á†Ÿ¼M+¿éQJÓ~eÀ¿<×ÜüùI†zÑìcĞ	¼ÄzIÿ732CŞF°{Û3F¨Pj>
+?|²ôfõmYÊ³ÉÒyì$«VôšBêøƒ°LÇ ¶è‘Ud
+W‘X‹…êf–êÔ­+‹‘Ä€œ½3}Û¸M)åîí¡ëµ6¹Ùz-Ö_Ã%‹ßH¼Í…â–ùE´¨LÀŒ4_T0İ‚ÓawLgJî° ä.¸RÍvXĞlgr˜g{§¶Å¢·	p:À*òÌ­zq°•qjÂiÕ•º¬Æ.é¶54[–“Ñ—;×ÇŞ
+ÓmÆ•%,M˜¤P¢¸41XÑãw“ŒqÇ%¢Ö¤vœ+zÆ˜DæKom¨¦÷—RøkH“DKıi¦÷Ì²p­Ä\‹;Õ[‘\ğd&‚r-Jj/|M˜~f®%éÛQ%¡—„ŞV.I×3ü‰mª*Ì¼’gJÑ0•xşZRfD·NKIš<š	ÚOCbÓ…,œCŠõ/€#dZ-²E$€ÉÇMÔåa±j :D((}Hm:ÒŒJ¼|Æü>œÚ“Ö5ì¹ÌìóárTq0ò ¼ì=©U´˜p¡\1qCoİÅ9Å:]2Òì	ƒ¥cF°¯6µ7¥ìäÉªÄÆIñd*Ê"‚È]ÙUØœßé"ˆÌ4—C†dÒÙµ¦ü¶ø8v]*Íxu Ÿ\˜SNÓ-"FNn»—	·ãR*õîKéñË}ê`¥F> ‘Vè¶ #ßÆ%€ci¹h¯Kç‰MÂqËtQ b:ÜBf‡ğÀÈüK†”…â1–çË;®ceŒ Å8=|áxš÷q­ˆ¨K¥!I5U>Gëƒ'õcÓ<0ì\±Ûsc8LûŠfC¿áDe>%G;,ËãE ©HÈ´<,&Ïü”äÌ…Öe­áüÄÉÚ–¸SdW’Ÿ>±¥L*È–s3®¥©(kqbP•29¾„q»K8ÊôL€[,cI4Y:¦’È460!fpüôÆ–N¹ãÙÖm›TÏ2BFh·´ :| ^|È4ÛÒÄğMÇP¸,æÔJÕm7iªäÆóOdß
+]Û˜&'z‚±r0æp‰Ÿ@mY=×h©ÊÃ­¡QiR£?ZÁûbÀ,ı"bùXr!|Á4Ì1²-–óR+OBB–)šÊ+_ÊËZ%ÂÒ´)‘Á°"uSB£¯¸f‹D½Š…çMª}v•µß~úñ?şw²gøöÇR$¸z¶1%kxÇ
+e•ÜTY™ÜLé\Xî°54ÔòíÙ€M1¦çB€/«Ö¢Jf[ÏO0VX2&°ÕÛAè»Îè9ƒ€'ö•YÄ·WàyeCÔmx(
+ŸPğˆ›ãàJq i´I‹8‰gva¡–ÏŠáÊ‘çùãW–*Æ@'ƒĞ|xN¨?
+qj¬Ê”è1!nq‹lÓ Y©õ5V$rMøÇG@’Ö;‰Nù~{{ÓEÍ¬äsÅúLr‘cø[ÑEfô—`a¾°$ °U«?‰W«3’ÌŠ‘•ø·µifn“®	3øÙ¶È¡ŸåMûLÕóöŠ+©„<sş±D^¡F°#xße+×¬‹“ŞGãW|Ösª³‚õˆŸb7Lgˆ-¦)I‘3Q¸)æRƒ2sH™k`C+úÔ‹ôäi(“²?á}Dz!LÈ`—ÎcTlR;aKyuQÕ`yK‰ì#a¤ñó°–
+ —hNh¾ûLÅ<E•­÷$§~,¾#Œ/›ºöŠô….1»ËÎì¦” -é¶(DÊ3Õ…Ú”1,`˜õìax­Ãë*NØ¾Ç,Z_©ÁqqÄ.r]Î-uBób½¼ŠJuàªA?/¶ª$Õ—ÖŞÎ˜8F¡öQEYm_¸Qh™~è-Læx§±Ò &³1ìÜ¥\+c_ğ;ñ	ÓTP«×ÎÿpàÿtO¬€Ûçvîr˜÷°l÷¹˜ÌX sîÔôWX=” =¶=şÛûIÚ5ÇÈš÷ÒiTÂN-gå×é¾;·‹‚ö# ¯)oàt³ì—İÂñû’á²_rÖLÉª§U>…ÌØO™a—î6/”ob{%()èËù 'Ù\?Ä¤¬2:õ½°±8zT ¢†Gæ­øHó ğ›ëàkøÉ E²wH}è©hÕxîÜo‘¸ÑtÖŞxşëŞAƒÌˆ÷·ß æ›t´[¤aê÷74ñƒğúü&œúZ*{æ‹->L|Ÿ3ø‘Z¢¨çR<öÉ°îÓ.ÑVĞ¡ä­¼ñ`_´a¨TÊçôMÁÚùäJân²,ˆYf Bƒ›£ ¹8„¯²Eryè0dMOÈ¢¤*èò½DE._l¾àQÅ_¶Ò/²µÌHñ¦ä'º@w…ÿrCŠ—Y¼›ÔåM):×1Ô×4‰{È¤4š|{ø!#IÚ˜ŞU¬ÑçwÅ•Â‘æ’PÉ&ığ·tF©p”õ’âKrÚ§—$Í %PØ±„uH%Ïémw€ô\_zzZÜ"7ÆŞ/	}Î·ğ+U[b$eaÔ.ëVxÛÚX%#à(¼ƒuq{m5Ç›W'³á8¦zÿ  ÿÿ Tù7
