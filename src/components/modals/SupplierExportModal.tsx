@@ -581,12 +581,9 @@ export function SupplierExportModal({
     return lines.join("\n");
   };
 
-  const handleImportProducts = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-
   if (!isOpen) return null;
   return (
-(() => {
+    (() => {
             const uniqueProductSuppliers = Array.from(new Set(products.map((p) => p.supplier).filter(Boolean))) as string[];
             const suppliersList = Array.from(new Set([...DROPSHIP_SUPPLIERS, ...uniqueProductSuppliers]))
               .filter(s => s && s.trim().toUpperCase() !== "KIM")
@@ -1216,5 +1213,4 @@ export function SupplierExportModal({
             );
           })()
   );
-}
 }
