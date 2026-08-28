@@ -4729,21 +4729,21 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                 </div>
 
                 {/* Drafting Area */}
-                <div className="flex-1 overflow-y-auto min-h-[220px] bg-slate-100/70 p-3 md:p-4">
+                <div className="flex-1 overflow-y-auto min-h-[300px] bg-slate-100/70 p-4 md:p-6">
                   {draftSalesDS.length === 0 ? (
-                    <div className="p-12 text-center border-2 border-dashed border-slate-300 bg-white flex flex-col items-center justify-center gap-3 min-h-[300px]">
-                      <div className="w-12 h-12 rounded-full bg-indigo-50 border-2 border-indigo-200 flex items-center justify-center text-indigo-600">
-                        <ShoppingBag className="w-6 h-6" />
+                    <div className="p-12 md:p-16 text-center border-2 border-dashed border-slate-300 bg-white flex flex-col items-center justify-center gap-3 min-h-[340px] rounded-lg">
+                      <div className="w-14 h-14 rounded-full bg-indigo-50 border-2 border-indigo-200 flex items-center justify-center text-indigo-600 shadow-sm">
+                        <ShoppingBag className="w-7 h-7" />
                       </div>
                       <div>
-                        <p className="text-xs font-black text-slate-800 uppercase tracking-widest">Antrian Dropship Kosong</p>
-                        <p className="text-[11px] text-slate-500 font-medium mt-1 max-w-md text-center leading-relaxed">
-                          Silakan langsung <span className="font-bold text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-200">Paste (Ctrl+V)</span> rincian invoice/teks Dropship di mana saja, atau klik <span className="font-bold text-slate-800">Tambah Baris</span> untuk input manual.
+                        <p className="text-sm font-black text-slate-800 uppercase tracking-widest">Antrian Dropship Kosong</p>
+                        <p className="text-xs text-slate-500 font-medium mt-1.5 max-w-md text-center leading-relaxed">
+                          Silakan langsung <span className="font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">Paste (Ctrl+V)</span> rincian invoice / teks Dropship di mana saja pada layar ini, atau klik tombol <span className="font-bold text-slate-800">Tambah Baris</span> di bar atas.
                         </p>
                       </div>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-1 xl:grid-cols-2 gap-3.5 animate-fadeIn">
+                    <div className={`grid gap-4 md:gap-6 animate-fadeIn w-full ${draftSalesDS.length === 1 ? 'grid-cols-1 max-w-5xl mx-auto' : 'grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3'}`}>
                       {draftSalesDS.map((draft, idx) => {
                         const hppNum = draft.hpp || 0;
                         const qtyNum = Number(draft.qty) || 1;
@@ -4752,19 +4752,19 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                         const autoLaba = totalPenjualanNum - (hppNum * qtyNum) - okNum;
 
                         return (
-                          <div key={draft.id} className="bg-white border-2 border-slate-900 shadow-[3px_3px_0px_0px_#0f172a] hover:shadow-[4px_4px_0px_0px_#0f172a] transition-all flex flex-col justify-between">
+                          <div key={draft.id} className="bg-white border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] hover:shadow-[6px_6px_0px_0px_#0f172a] transition-all flex flex-col justify-between rounded-sm w-full">
                             <div>
                               {/* Header Card */}
-                              <div className="bg-slate-900 px-3 py-2 flex justify-between items-center">
-                                <div className="flex items-center gap-2">
-                                  <span className="bg-indigo-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-sm">
+                              <div className="bg-slate-900 px-4 py-2.5 flex justify-between items-center">
+                                <div className="flex items-center gap-2.5">
+                                  <span className="bg-indigo-600 text-white text-xs font-black px-2 py-0.5 rounded-sm">
                                     #{idx + 1}
                                   </span>
-                                  <span className="text-[11px] font-black text-white uppercase tracking-wider">
+                                  <span className="text-xs font-black text-white uppercase tracking-wider">
                                     Draft Dropship
                                   </span>
                                   {draft.kodeSupplier && (
-                                    <span className="text-[9px] font-extrabold text-amber-300 bg-slate-800 px-1.5 py-0.5 rounded border border-slate-700">
+                                    <span className="text-[10px] font-extrabold text-amber-300 bg-slate-800 px-2 py-0.5 rounded border border-slate-700">
                                       {draft.kodeSupplier}
                                     </span>
                                   )}
@@ -4772,22 +4772,22 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                 <button
                                   type="button"
                                   onClick={() => handleRemoveDraftRowDS(draft.id)}
-                                  className="p-1 text-slate-300 hover:text-white hover:bg-rose-600 rounded transition-colors cursor-pointer"
+                                  className="p-1.5 text-slate-300 hover:text-white hover:bg-rose-600 rounded transition-colors cursor-pointer"
                                   title="Hapus baris draft ini"
                                 >
-                                  <Trash2 className="w-3.5 h-3.5" />
+                                  <Trash2 className="w-4 h-4" />
                                 </button>
                               </div>
 
-                              {/* Form Fields - Compact Grid */}
-                              <div className="p-3 space-y-2.5">
+                              {/* Form Fields - Spacious Responsive Grid */}
+                              <div className="p-4 sm:p-5 space-y-3.5">
                                 {/* Row 1: Supplier, Tgl Order, Channel */}
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-tight block">Supplier</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-tight block">Supplier</label>
                                     <div className="relative group/select">
                                       <select 
-                                        className="w-full bg-slate-50 border border-slate-300 py-1.5 px-2 text-xs font-black text-indigo-700 rounded focus:border-indigo-600 focus:bg-white outline-none appearance-none cursor-pointer transition-colors pr-6 uppercase tracking-wider"
+                                        className="w-full bg-slate-50 border-2 border-slate-300 h-10 px-3 text-xs sm:text-sm font-bold text-indigo-700 rounded focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 outline-none appearance-none cursor-pointer transition-all pr-8 uppercase tracking-wider shadow-sm"
                                         value={draft.kodeSupplier}
                                         onChange={(e) => handleUpdateDraftDS(draft.id, "kodeSupplier", e.target.value)}
                                       >
@@ -4796,27 +4796,27 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                           <option key={s} value={s}>{s}</option>
                                         ))}
                                       </select>
-                                      <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-indigo-600 pointer-events-none" />
+                                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-indigo-600 pointer-events-none" />
                                     </div>
                                   </div>
 
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-tight block">Tgl Order</label>
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-tight block">Tgl Order</label>
                                     <input 
                                       type="text" 
                                       placeholder="DD/MM/YYYY" 
-                                      className="w-full bg-white border border-slate-300 py-1.5 px-2 text-xs font-semibold text-slate-900 rounded focus:border-indigo-600 outline-none" 
+                                      className="w-full bg-white border-2 border-slate-300 h-10 px-3 text-xs sm:text-sm font-semibold text-slate-900 rounded focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm transition-all" 
                                       value={draft.tanggalOrder} 
                                       onChange={(e) => handleUpdateDraftDS(draft.id, "tanggalOrder", e.target.value)} 
                                     />
                                   </div>
 
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-tight block">Channel</label>
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-tight block">Channel</label>
                                     <input 
                                       type="text" 
                                       placeholder="Shopee / WA / IG" 
-                                      className="w-full bg-white border border-slate-300 py-1.5 px-2 text-xs font-semibold text-slate-900 rounded focus:border-indigo-600 outline-none" 
+                                      className="w-full bg-white border-2 border-slate-300 h-10 px-3 text-xs sm:text-sm font-semibold text-slate-900 rounded focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm transition-all" 
                                       value={draft.channel} 
                                       onChange={(e) => handleUpdateDraftDS(draft.id, "channel", e.target.value)} 
                                     />
@@ -4824,23 +4824,23 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                 </div>
                                 
                                 {/* Row 2: No Pesanan, No Resi */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-tight block">No Pesanan</label>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-tight block">No Pesanan</label>
                                     <input 
                                       type="text" 
                                       placeholder="Contoh: 260826XXXXX" 
-                                      className="w-full bg-white border border-slate-300 py-1.5 px-2 text-xs font-mono font-semibold text-slate-900 rounded focus:border-indigo-600 outline-none" 
+                                      className="w-full bg-white border-2 border-slate-300 h-10 px-3 text-xs sm:text-sm font-mono font-semibold text-slate-900 rounded focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm transition-all" 
                                       value={draft.noPesanan} 
                                       onChange={(e) => handleUpdateDraftDS(draft.id, "noPesanan", e.target.value)} 
                                     />
                                   </div>
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-tight block">No Resi</label>
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-tight block">No Resi</label>
                                     <input 
                                       type="text" 
                                       placeholder="Contoh: JP123456789" 
-                                      className="w-full bg-white border border-slate-300 py-1.5 px-2 text-xs font-mono font-semibold text-slate-900 rounded focus:border-indigo-600 outline-none" 
+                                      className="w-full bg-white border-2 border-slate-300 h-10 px-3 text-xs sm:text-sm font-mono font-semibold text-slate-900 rounded focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm transition-all" 
                                       value={draft.noResi} 
                                       onChange={(e) => handleUpdateDraftDS(draft.id, "noResi", e.target.value)} 
                                     />
@@ -4848,27 +4848,27 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                 </div>
 
                                 {/* Row 3: Data Pelanggan */}
-                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-tight flex items-center gap-1">
-                                      <FileText className="w-2.5 h-2.5 text-indigo-600" /> Nama Pelanggan
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-tight flex items-center gap-1.5">
+                                      <FileText className="w-3.5 h-3.5 text-indigo-600" /> Nama Pelanggan
                                     </label>
                                     <input 
                                       type="text" 
                                       placeholder="Nama Pembeli" 
-                                      className="w-full bg-white border border-slate-300 py-1.5 px-2 text-xs font-semibold text-slate-900 rounded focus:border-indigo-600 outline-none" 
+                                      className="w-full bg-white border-2 border-slate-300 h-10 px-3 text-xs sm:text-sm font-semibold text-slate-900 rounded focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm transition-all" 
                                       value={draft.namaPelanggan} 
                                       onChange={(e) => handleUpdateDraftDS(draft.id, "namaPelanggan", e.target.value)} 
                                     />
                                   </div>
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-tight block">
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-tight block">
                                       Alamat Pengiriman
                                     </label>
                                     <input 
                                       type="text" 
                                       placeholder="Alamat / Kota / Ekspedisi" 
-                                      className="w-full bg-white border border-slate-300 py-1.5 px-2 text-xs font-semibold text-slate-900 rounded focus:border-indigo-600 outline-none" 
+                                      className="w-full bg-white border-2 border-slate-300 h-10 px-3 text-xs sm:text-sm font-semibold text-slate-900 rounded focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm transition-all" 
                                       value={draft.alamatPelanggan} 
                                       onChange={(e) => handleUpdateDraftDS(draft.id, "alamatPelanggan", e.target.value)} 
                                     />
@@ -4876,55 +4876,55 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                 </div>
 
                                 {/* Row 4: Nama Produk DS */}
-                                <div className="space-y-1">
-                                  <label className="text-[10px] font-black text-indigo-900 uppercase tracking-tight flex items-center gap-1">
-                                    <Package className="w-2.5 h-2.5 text-indigo-600" /> Nama & Variasi Produk DS
+                                <div className="space-y-1.5">
+                                  <label className="text-xs font-bold text-indigo-900 uppercase tracking-tight flex items-center gap-1.5">
+                                    <Package className="w-3.5 h-3.5 text-indigo-600" /> Nama & Variasi Produk DS
                                   </label>
                                   <textarea 
-                                    rows={1}
+                                    rows={2}
                                     placeholder="Contoh: New Look Grey -2.00 (x1)"
-                                    className="w-full bg-indigo-50/50 border border-indigo-200 py-1.5 px-2 text-xs font-bold text-indigo-950 rounded focus:border-indigo-600 focus:bg-white outline-none resize-none" 
+                                    className="w-full bg-indigo-50/70 border-2 border-indigo-200 py-2 px-3 text-xs sm:text-sm font-bold text-indigo-950 rounded focus:border-indigo-600 focus:bg-white focus:ring-2 focus:ring-indigo-100 outline-none resize-none shadow-sm transition-all" 
                                     value={draft.namaProduk} 
                                     onChange={(e) => handleUpdateDraftDS(draft.id, "namaProduk", e.target.value)} 
                                   />
                                 </div>
 
                                 {/* Row 5: Financial Metrics (4 Kolom) */}
-                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-0.5">
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-tight block">Qty (Pasang)</label>
+                                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-tight block">Qty (Pasang)</label>
                                     <input 
                                       type="number" 
-                                      className="w-full bg-slate-100 border border-slate-300 py-1.5 px-2 text-xs font-black text-center text-slate-900 rounded focus:border-indigo-600 outline-none" 
+                                      className="w-full bg-slate-100 border-2 border-slate-300 h-10 px-3 text-xs sm:text-sm font-black text-center text-slate-900 rounded focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm transition-all" 
                                       value={draft.qty} 
                                       onChange={(e) => handleUpdateDraftDS(draft.id, "qty", e.target.value === "" ? "" : Number(e.target.value))} 
                                     />
                                   </div>
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-tight block">HPP / Modal</label>
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-tight block">HPP / Modal (Rp)</label>
                                     <input 
                                       type="number" 
-                                      className="w-full bg-white border border-slate-300 py-1.5 px-2 text-xs font-mono font-bold text-right text-slate-900 rounded focus:border-indigo-600 outline-none" 
+                                      className="w-full bg-white border-2 border-slate-300 h-10 px-3 text-xs sm:text-sm font-mono font-bold text-right text-slate-900 rounded focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm transition-all" 
                                       value={draft.hpp || ""} 
                                       placeholder="0"
                                       onChange={(e) => handleUpdateDraftDS(draft.id, "hpp", Number(e.target.value))} 
                                     />
                                   </div>
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-slate-600 uppercase tracking-tight block">Ongkir Cust</label>
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-slate-700 uppercase tracking-tight block">Ongkir Cust (Rp)</label>
                                     <input 
                                       type="number" 
-                                      className="w-full bg-white border border-slate-300 py-1.5 px-2 text-xs font-mono font-bold text-right text-slate-900 rounded focus:border-indigo-600 outline-none" 
+                                      className="w-full bg-white border-2 border-slate-300 h-10 px-3 text-xs sm:text-sm font-mono font-bold text-right text-slate-900 rounded focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm transition-all" 
                                       value={draft.ongkosKirim || ""} 
                                       placeholder="0"
                                       onChange={(e) => handleUpdateDraftDS(draft.id, "ongkosKirim", Number(e.target.value))} 
                                     />
                                   </div>
-                                  <div className="space-y-1">
-                                    <label className="text-[10px] font-black text-indigo-700 uppercase tracking-tight block">Total Jual (Net)</label>
+                                  <div className="space-y-1.5">
+                                    <label className="text-xs font-bold text-indigo-700 uppercase tracking-tight block">Total Jual (Net)</label>
                                     <input 
                                       type="number" 
-                                      className="w-full bg-indigo-50/70 border-2 border-indigo-300 py-1.5 px-2 text-xs font-mono font-black text-right text-indigo-800 rounded focus:border-indigo-600 outline-none" 
+                                      className="w-full bg-indigo-50/80 border-2 border-indigo-300 h-10 px-3 text-xs sm:text-sm font-mono font-black text-right text-indigo-900 rounded focus:border-indigo-600 focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm transition-all" 
                                       value={draft.totalPenjualan || ""} 
                                       placeholder="0"
                                       onChange={(e) => handleUpdateDraftDS(draft.id, "totalPenjualan", Number(e.target.value))} 
@@ -4935,9 +4935,9 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                             </div>
 
                             {/* Card Footer: Laba Kalkulasi */}
-                            <div className="px-3 py-2 flex justify-between items-center border-t-2 border-slate-100 bg-slate-50">
-                              <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">Estimasi Laba DS</span>
-                              <div className={`px-2.5 py-0.5 border-2 font-mono text-xs font-black shadow-[1.5px_1.5px_0px_0px_#0f172a] ${autoLaba >= 0 ? "bg-emerald-50 border-emerald-800 text-emerald-950" : "bg-rose-50 border-rose-800 text-rose-950"}`}>
+                            <div className="px-4 py-3 flex justify-between items-center border-t-2 border-slate-200 bg-slate-50">
+                              <span className="text-xs font-black text-slate-600 uppercase tracking-wider">Estimasi Laba DS</span>
+                              <div className={`px-3.5 py-1 border-2 font-mono text-xs sm:text-sm font-black shadow-[2px_2px_0px_0px_#0f172a] ${autoLaba >= 0 ? "bg-emerald-50 border-emerald-800 text-emerald-950" : "bg-rose-50 border-rose-800 text-rose-950"}`}>
                                 Rp {autoLaba.toLocaleString("id-ID")}
                               </div>
                             </div>

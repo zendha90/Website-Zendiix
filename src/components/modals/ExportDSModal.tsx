@@ -37,10 +37,22 @@ export function ExportDSModal({ isOpen, onClose, exportDSText }: ExportDSModalPr
           </div>
           <div className="flex flex-wrap gap-4 pt-2">
             <button
-              onClick={() => {
-                navigator.clipboard.writeText(exportDSText);
+              onClick={async () => {
+                try {
+                  await navigator.clipboard.writeText(exportDSText);
+                } catch {
+                  const textarea = document.createElement("textarea");
+                  textarea.value = exportDSText;
+                  document.body.appendChild(textarea);
+                  textarea.select();
+                  document.execCommand("copy");
+                  document.body.removeChild(textarea);
+                }
                 setExportDSToast(true);
-                setTimeout(() => setExportDSToast(false), 2000);
+                setTimeout(() => {
+                  setExportDSToast(false);
+                  onClose();
+                }, 400);
               }}
               className="flex-1 py-4 bg-amber-400 hover:bg-amber-500 border-2 border-slate-900 text-slate-900 font-black uppercase tracking-widest text-xs shadow-[4px_4px_0px_0px_#0f172a] active:shadow-none transition-all flex items-center justify-center gap-2"
             >
