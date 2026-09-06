@@ -208,13 +208,37 @@ async function startServer() {
   const CIRCUIT_COOLDOWN_MS = 15000; // Keep DB offline for 15 seconds after failing
   let isCheckingHealth = false;
 
-  function tripDbCircuit(reason: string) {
+  function tripDbCircuit(reason: string, err?: any) {
+    if (err) {
+      const code = err?.code || '';
+      const msg = err?.message || '';
+      // Don't trip the connection breaker for pure SQL syntax/schema issues (like missing column or duplicate key)
+      if (code === 'ER_BAD_FIELD_ERROR' || code === 'ER_NO_SUCH_TABLE' || code === 'ER_DUP_ENTRY' || msg.includes('Unknown column')) {
+        return;
+      }
+    }
     if (isDbOnline) {
       console.error(`TRIPPING DATABASE CIRCUIT BREAKER. Reason: ${reason}. Bypassing database for the next ${CIRCUIT_COOLDOWN_MS / 1000}s.`);
       isDbOnline = false;
       dbCircuitTrippedAt = Date.now();
     }
   }
+
+  // Periodic Heartbeat Ping (keeps MySQL connection pool warm and prevents cPanel wait_timeout disconnects)
+  setInterval(async () => {
+    if (isDbOnline && process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('dummy_user')) {
+      try {
+        await db.execute(sql`SELECT 1`);
+      } catch (e: any) {
+        // If it's a connection loss, trigger health check
+        const msg = e?.message || '';
+        if (msg.includes('closed') || msg.includes('ETIMEDOUT') || msg.includes('ECONNRESET')) {
+          console.warn('Heartbeat detected broken connection, triggering reconnect check...');
+          checkDbHealthInBackground();
+        }
+      }
+    }
+  }, 25000); // 25s ping keeps connection active under MySQL 30s-60s idle timeout
 
   async function checkDbHealthInBackground() {
     if (isCheckingHealth) return;
