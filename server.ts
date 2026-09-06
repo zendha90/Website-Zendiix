@@ -319,6 +319,9 @@ async function startServer() {
       await db.execute(sql`ALTER TABLE products ADD COLUMN not_softlens TINYINT(1) DEFAULT 0 NULL`);
     } catch (e) {}
     try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN sync_stock TINYINT(1) DEFAULT 1 NULL`);
+    } catch (e) {}
+    try {
       await db.execute(sql`ALTER TABLE products ADD COLUMN description VARCHAR(1000) NULL`);
     } catch (e) {}
     try {
@@ -419,7 +422,7 @@ async function startServer() {
       'stokAwal', 'stokBarang', 'terjual', 'color', 'bc', 'kadarAir',
       'imageUrl', 'seriesImageUrl', 'durasi', 'gDia', 'diameter', 'rating', 'reviewsCount',
       'allowDualPower', 'groupName', 'customCategory', 'hideSpecs',
-      'notSoftlens', 'description', 'isFlashSale'
+      'notSoftlens', 'syncStock', 'description', 'isFlashSale'
     ];
     const cleaned: any = {};
     for (const key of allowed) {
@@ -495,6 +498,17 @@ async function startServer() {
             serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
             console.log(`Background SWR cache refresh successful for key "${key}"`);
           } catch (err: any) {
+            if (err?.code === 'ER_BAD_FIELD_ERROR' || (err?.message && err.message.includes('Unknown column'))) {
+              if (err.message && err.message.includes('sync_stock')) {
+                console.warn(`[Auto-migration SWR] Adding missing column sync_stock to products table...`);
+                try {
+                  await db.execute(sql`ALTER TABLE products ADD COLUMN sync_stock TINYINT(1) DEFAULT 1 NULL`);
+                  const fresh = await executeWithRetry(fetchFn);
+                  serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
+                  return;
+                } catch (autoErr) {}
+              }
+            }
             console.error(`Background SWR cache refresh failed or timed out for key "${key}":`, err?.message || err);
             tripDbCircuit(`Background read error or timeout on key "${key}": ${err?.message || err}`);
           } finally {
@@ -517,6 +531,21 @@ async function startServer() {
           ]);
           serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
           return fresh;
+        } catch (err: any) {
+          if (err?.code === 'ER_BAD_FIELD_ERROR' || (err?.message && err.message.includes('Unknown column'))) {
+            if (err.message && err.message.includes('sync_stock')) {
+              console.warn(`[Auto-migration] Detected missing 'sync_stock' column. Adding to products table...`);
+              try {
+                await db.execute(sql`ALTER TABLE products ADD COLUMN sync_stock TINYINT(1) DEFAULT 1 NULL`);
+                const fresh = await executeWithRetry(fetchFn);
+                serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
+                return fresh;
+              } catch (autoErr: any) {
+                console.error('[Auto-migration] Failed to auto-migrate sync_stock column:', autoErr);
+              }
+            }
+          }
+          throw err;
         } finally {
           pendingQueries.delete(key);
         }
@@ -582,11 +611,27 @@ async function startServer() {
       }
 
       await runDbWrite(async () => {
-        const existing = data.id ? await db.select().from(products).where(eq(products.id, data.id)).limit(1) : [];
-        if (existing.length > 0) {
-          await db.update(products).set({ ...cleaned, updatedAt: new Date() }).where(eq(products.id, id));
-        } else {
-          await db.insert(products).values({ ...cleaned, id });
+        try {
+          const existing = data.id ? await db.select().from(products).where(eq(products.id, data.id)).limit(1) : [];
+          if (existing.length > 0) {
+            await db.update(products).set({ ...cleaned, updatedAt: new Date() }).where(eq(products.id, id));
+          } else {
+            await db.insert(products).values({ ...cleaned, id });
+          }
+        } catch (writeErr: any) {
+          if (writeErr?.code === 'ER_BAD_FIELD_ERROR' && writeErr?.message?.includes('sync_stock')) {
+            try {
+              await db.execute(sql`ALTER TABLE products ADD COLUMN sync_stock TINYINT(1) DEFAULT 1 NULL`);
+              const existing = data.id ? await db.select().from(products).where(eq(products.id, data.id)).limit(1) : [];
+              if (existing.length > 0) {
+                await db.update(products).set({ ...cleaned, updatedAt: new Date() }).where(eq(products.id, id));
+              } else {
+                await db.insert(products).values({ ...cleaned, id });
+              }
+              return;
+            } catch (retryErr) {}
+          }
+          throw writeErr;
         }
       });
       clearCache('products');
@@ -1215,7 +1260,20 @@ async function startServer() {
         saveFallbackData();
         return res.json({ success: true });
       }
-      await db.update(products).set({ ...cleaned, updatedAt: new Date() }).where(eq(products.id, id));
+      try {
+        await db.update(products).set({ ...cleaned, updatedAt: new Date() }).where(eq(products.id, id));
+      } catch (updateErr: any) {
+        if (updateErr?.code === 'ER_BAD_FIELD_ERROR' && updateErr?.message?.includes('sync_stock')) {
+          try {
+            await db.execute(sql`ALTER TABLE products ADD COLUMN sync_stock TINYINT(1) DEFAULT 1 NULL`);
+            await db.update(products).set({ ...cleaned, updatedAt: new Date() }).where(eq(products.id, id));
+          } catch (retryErr) {
+            throw updateErr;
+          }
+        } else {
+          throw updateErr;
+        }
+      }
       clearCache('products');
       res.json({ success: true });
     } catch (error) {

@@ -171,6 +171,7 @@ export function KatalogTab({ products }: KatalogTabProps) {
   const [customCategory, setCustomCategory] = useState("");
   const [hideSpecs, setHideSpecs] = useState(false);
   const [notSoftlens, setNotSoftlens] = useState(false);
+  const [syncStock, setSyncStock] = useState(true);
   const [description, setDescription] = useState("");
   const [isFlashSale, setIsFlashSale] = useState(false);
 
@@ -303,6 +304,7 @@ export function KatalogTab({ products }: KatalogTabProps) {
     setCustomCategory(rp.customCategory || "");
     setHideSpecs(rp.hideSpecs || false);
     setNotSoftlens(rp.notSoftlens || false);
+    setSyncStock(rp.syncStock !== false);
     setDescription(rp.description || "");
     setIsFlashSale(rp.isFlashSale || false);
 
@@ -420,10 +422,11 @@ export function KatalogTab({ products }: KatalogTabProps) {
           gDia: gDia || undefined,
           rating: parsedRating,
           reviewsCount: parsedReviewsCount,
-          allowDualPower: allowDualPower,
+          allowDualPower: notSoftlens ? false : allowDualPower,
           customCategory: customCategory || undefined,
           hideSpecs: hideSpecs,
           notSoftlens: notSoftlens,
+          syncStock: syncStock,
           isFlashSale: isFlashSale,
           description: description || undefined,
           createdAt: prod.createdAt,
@@ -568,6 +571,14 @@ export function KatalogTab({ products }: KatalogTabProps) {
                               rp.allowDualPower !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-pink-100 text-pink-800'
                             }`}>
                               {rp.allowDualPower !== false ? "Mendukung" : "Sama Saja"}
+                            </span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">Status Stok</span>
+                            <span className={`font-black uppercase tracking-wider text-[10px] px-2 rounded ${
+                              rp.syncStock !== false ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'
+                            }`}>
+                              {rp.syncStock !== false ? "Tersinkron DB" : "Selalu Ready"}
                             </span>
                           </div>
                           {rp.customCategory && (
@@ -1045,8 +1056,12 @@ export function KatalogTab({ products }: KatalogTabProps) {
                             type="checkbox"
                             checked={notSoftlens}
                             onChange={(e) => {
-                              setNotSoftlens(e.target.checked);
-                              setHideSpecs(e.target.checked);
+                              const isChecked = e.target.checked;
+                              setNotSoftlens(isChecked);
+                              setHideSpecs(isChecked);
+                              if (isChecked) {
+                                setAllowDualPower(false);
+                              }
                             }}
                             className="w-5 h-5 rounded text-amber-600 border-2 border-slate-900 focus:ring-0 cursor-pointer mt-0.5 transition-transform duration-200 active:scale-90"
                           />
@@ -1062,24 +1077,83 @@ export function KatalogTab({ products }: KatalogTabProps) {
                       </div>
 
                       {/* Allow Dual Power (Same or Dual) */}
+                      <div className={`p-4 border-2 rounded-lg transition-all ${
+                        notSoftlens
+                          ? "bg-slate-100/80 border-slate-300 opacity-60 cursor-not-allowed shadow-none"
+                          : allowDualPower 
+                            ? "border-slate-900 bg-indigo-50/60 shadow-[3px_3px_0px_0px_#4f46e5]" 
+                            : "border-slate-900 bg-slate-50 shadow-[2px_2px_0px_0px_#475569]"
+                      }`}>
+                        <label className={`flex items-start gap-3 select-none ${notSoftlens ? "cursor-not-allowed" : "cursor-pointer"}`}>
+                          <input
+                            type="checkbox"
+                            disabled={notSoftlens}
+                            checked={!notSoftlens && allowDualPower}
+                            onChange={(e) => {
+                              if (!notSoftlens) {
+                                setAllowDualPower(e.target.checked);
+                              }
+                            }}
+                            className={`w-5 h-5 rounded border-2 focus:ring-0 mt-0.5 transition-transform duration-200 ${
+                              notSoftlens
+                                ? "text-slate-400 border-slate-300 cursor-not-allowed bg-slate-200"
+                                : "text-indigo-600 border-slate-900 cursor-pointer active:scale-90"
+                            }`}
+                          />
+                          <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className={`block text-[10px] font-black uppercase tracking-wider ${
+                                notSoftlens ? "text-slate-400" : "text-slate-900"
+                              }`}>
+                                Mata Beda SPH Sifatnya Opsional
+                              </span>
+                              {notSoftlens && (
+                                <span className="bg-slate-200 text-slate-500 text-[8px] font-extrabold px-1.5 py-0.5 rounded border border-slate-300 uppercase">
+                                  Terkunci
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[8px] text-slate-500 font-bold leading-normal mt-1">
+                              {notSoftlens
+                                ? "Opsi ini otomatis dinonaktifkan & tidak dapat diklik karena produk bukan lensa kontak (tidak memiliki ukuran SPH/minus)."
+                                : "Pembeli diperbolehkan check out dengan ukuran mata kanan & kiri yang berbeda (dual power) di halaman toko."
+                              }
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+
+                      {/* Sync dengan Stok atau Selalu Tersedia */}
                       <div className={`p-4 border-2 border-slate-900 rounded-lg transition-all ${
-                        allowDualPower 
-                          ? "bg-indigo-50/60 shadow-[3px_3px_0px_0px_#4f46e5]" 
-                          : "bg-slate-50 shadow-[2px_2px_0px_0px_#475569]"
+                        syncStock
+                          ? "bg-emerald-50/70 shadow-[3px_3px_0px_0px_#059669]"
+                          : "bg-amber-50/70 shadow-[3px_3px_0px_0px_#d97706]"
                       }`}>
                         <label className="flex items-start gap-3 cursor-pointer select-none">
                           <input
                             type="checkbox"
-                            checked={allowDualPower}
-                            onChange={(e) => setAllowDualPower(e.target.checked)}
-                            className="w-5 h-5 rounded text-indigo-600 border-2 border-slate-900 focus:ring-0 cursor-pointer mt-0.5 transition-transform duration-200 active:scale-90"
+                            checked={syncStock}
+                            onChange={(e) => setSyncStock(e.target.checked)}
+                            className="w-5 h-5 rounded text-emerald-600 border-2 border-slate-900 focus:ring-0 cursor-pointer mt-0.5 transition-transform duration-200 active:scale-90"
                           />
                           <div>
-                            <span className="block text-[10px] font-black text-slate-900 uppercase tracking-wider">
-                              Mata Beda SPH Sifatnya Opsional
-                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="block text-[10px] font-black text-slate-900 uppercase tracking-wider">
+                                Sinkronisasi Stok Database
+                              </span>
+                              <span className={`text-[8px] font-extrabold px-1.5 py-0.5 rounded border uppercase ${
+                                syncStock
+                                  ? "bg-emerald-150 bg-emerald-100 text-emerald-800 border-emerald-300"
+                                  : "bg-amber-150 bg-amber-100 text-amber-800 border-amber-300"
+                              }`}>
+                                {syncStock ? "Stok Tersinkron" : "Selalu Available (Unlimited)"}
+                              </span>
+                            </div>
                             <p className="text-[8px] text-slate-500 font-bold leading-normal mt-1">
-                              Pembeli diperbolehkan check out dengan ukuran mata kanan & kiri yang berbeda (dual power) di halaman toko.
+                              {syncStock
+                                ? "Stok produk di storefront mengikuti jumlah stok realtime di database (jika habis pembeli tidak bisa checkout)."
+                                : "Stok selalu TERSEDIA / READY di etalase toko online tanpa dibatasi oleh kuota stok fisik di database."
+                              }
                             </p>
                           </div>
                         </label>

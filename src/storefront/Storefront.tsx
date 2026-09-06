@@ -970,12 +970,26 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
 
   // STOCK SYNC MONITOR - Checks the live database stock for currently selected parameters
   const activeStockStatus = useMemo(() => {
-    if (!selectedSeries) return { available: false, count: 0, variantL: null, variantR: null };
+    if (!selectedSeries) return { available: false, count: 0, variantL: null, variantR: null, isAlwaysAvailable: false };
     const isNotSoftlens = !!selectedSeries.representativeProduct.notSoftlens;
+    const isAlwaysAvailable = selectedSeries.representativeProduct.syncStock === false;
 
     const varL = selectedSeries.variants.find(
       v => v.color.toLowerCase() === modalColor.toLowerCase() && (isNotSoftlens || v.power === selectedPowerL)
     );
+
+    if (isAlwaysAvailable) {
+      const varR = (modalIsDualPower && !isNotSoftlens)
+        ? selectedSeries.variants.find(v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === selectedPowerR)
+        : null;
+      return {
+        available: true,
+        count: 999,
+        variantL: varL,
+        variantR: varR,
+        isAlwaysAvailable: true
+      };
+    }
 
     if (modalIsDualPower && !isNotSoftlens) {
       const varR = selectedSeries.variants.find(
@@ -990,7 +1004,8 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
         available: stockL > 0 && stockR > 0 && combinedMinStock >= buyQty,
         count: combinedMinStock,
         variantL: varL,
-        variantR: varR
+        variantR: varR,
+        isAlwaysAvailable: false
       };
     } else {
       const stockL = varL?.stokBarang ?? 0;
@@ -998,7 +1013,8 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
         available: stockL >= buyQty,
         count: stockL,
         variantL: varL,
-        variantR: null
+        variantR: null,
+        isAlwaysAvailable: false
       };
     }
   }, [selectedSeries, modalColor, selectedPowerL, selectedPowerR, modalIsDualPower, buyQty]);
@@ -1341,10 +1357,12 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                                 const matchingVariant = selectedSeries.variants.find(
                                   v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === pow
                                 );
+                                const isSync = selectedSeries.representativeProduct.syncStock !== false;
                                 const stockVal = matchingVariant?.stokBarang ?? 0;
+                                const isOutOfStock = isSync && stockVal <= 0;
                                 return (
                                   <option key={pow} value={pow}>
-                                    SPH: {pow} {stockVal <= 0 ? '- [Stok Kosong]' : ''}
+                                    SPH: {pow} {isOutOfStock ? '- [Stok Kosong]' : ''}
                                   </option>
                                 );
                               })}
@@ -1366,10 +1384,12 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                                   const matchingVariant = selectedSeries.variants.find(
                                     v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === pow
                                   );
+                                  const isSync = selectedSeries.representativeProduct.syncStock !== false;
                                   const stockVal = matchingVariant?.stokBarang ?? 0;
+                                  const isOutOfStock = isSync && stockVal <= 0;
                                   return (
                                     <option key={pow} value={pow}>
-                                      L: {pow} {stockVal <= 0 ? '- [Stok Kosong]' : ''}
+                                      L: {pow} {isOutOfStock ? '- [Stok Kosong]' : ''}
                                     </option>
                                   );
                                 })}
@@ -1390,10 +1410,12 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                                   const matchingVariant = selectedSeries.variants.find(
                                     v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === pow
                                   );
+                                  const isSync = selectedSeries.representativeProduct.syncStock !== false;
                                   const stockVal = matchingVariant?.stokBarang ?? 0;
+                                  const isOutOfStock = isSync && stockVal <= 0;
                                   return (
                                     <option key={pow} value={pow}>
-                                      R: {pow} {stockVal <= 0 ? '- [Stok Kosong]' : ''}
+                                      R: {pow} {isOutOfStock ? '- [Stok Kosong]' : ''}
                                     </option>
                                   );
                                 })}
@@ -1893,7 +1915,8 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
               <div className="grid grid-cols-2 gap-2">
                 {random8Products.map((series, idx) => {
                   const stats = getSeriesStatistics(series);
-                  const isAvailable = series.variants.some(v => v.stokBarang > 0);
+                  const isSync = series.representativeProduct.syncStock !== false;
+                  const isAvailable = !isSync || series.variants.some(v => v.stokBarang > 0);
                   const rating = series.representativeProduct.rating !== undefined ? Number(series.representativeProduct.rating) : (4.8 + ((idx % 3) * 0.1));
                   const reviews = series.representativeProduct.reviewsCount !== undefined ? Number(series.representativeProduct.reviewsCount) : (72 + (idx * 14));
                   
@@ -2383,10 +2406,12 @@ export const Storefront: React.FC<StorefrontProps> = ({ products, banners = [], 
                                 const matchingVariant = selectedSeries.variants.find(
                                   v => v.color.toLowerCase() === modalColor.toLowerCase() && v.power === pow
                                 );
+                                const isSync = selectedSeries.representativeProduct.syncStock !== false;
                                 const stockVal = matchingVariant?.stokBarang ?? 0;
+                                const isOutOfStock = isSync && stockVal <= 0;
                                 return (
                                   <option key={pow} value={pow}>
-                                    SPH: {pow} {stockVal <= 0 ? '- [Stok Kosong]' : ''}
+                                    SPH: {pow} {isOutOfStock ? '- [Stok Kosong]' : ''}
                                   </option>
                                 );
                               })}

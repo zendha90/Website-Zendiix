@@ -25,6 +25,7 @@ export interface Product {
   customCategory?: string;
   hideSpecs?: boolean;
   notSoftlens?: boolean;
+  syncStock?: boolean;
   description?: string;
   isFlashSale?: boolean;
   createdAt?: any;

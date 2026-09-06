@@ -25,6 +25,7 @@ export const products = mysqlTable('products', {
   customCategory: varchar('custom_category', { length: 255 }),
   hideSpecs: boolean('hide_specs').default(false),
   notSoftlens: boolean('not_softlens').default(false),
+  syncStock: boolean('sync_stock').default(true),
   description: varchar('description', { length: 1000 }),
   isFlashSale: boolean('is_flash_sale').default(false),
   createdAt: timestamp('created_at').defaultNow(),
