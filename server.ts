@@ -123,39 +123,30 @@ async function startServer() {
         const parsed = JSON.parse(contents);
         if (parsed.products) {
           fallbackData.products = parsed.products;
-          serverCache.set('products', { data: fallbackData.products, expires: Date.now() + CACHE_STALE_MS });
         }
         if (parsed.incomingGoods) {
           fallbackData.incomingGoods = parsed.incomingGoods;
-          serverCache.set('incoming-goods', { data: fallbackData.incomingGoods, expires: Date.now() + CACHE_STALE_MS });
         }
         if (parsed.sales) {
           fallbackData.sales = parsed.sales;
-          serverCache.set('sales', { data: fallbackData.sales, expires: Date.now() + CACHE_STALE_MS });
         }
         if (parsed.salesDs) {
           fallbackData.salesDs = parsed.salesDs;
-          serverCache.set('sales-ds', { data: fallbackData.salesDs, expires: Date.now() + CACHE_STALE_MS });
         }
         if (parsed.iklan) {
           fallbackData.iklan = parsed.iklan;
-          serverCache.set('iklan', { data: fallbackData.iklan, expires: Date.now() + CACHE_STALE_MS });
         }
         if (parsed.weeklySales) {
           fallbackData.weeklySales = parsed.weeklySales;
-          serverCache.set('weekly-sales', { data: fallbackData.weeklySales, expires: Date.now() + CACHE_STALE_MS });
         }
         if (parsed.storefrontBanners) {
           fallbackData.storefrontBanners = parsed.storefrontBanners;
-          serverCache.set('banners', { data: fallbackData.storefrontBanners, expires: Date.now() + CACHE_STALE_MS });
         }
         if (parsed.settings) {
           fallbackData.settings = parsed.settings;
-          serverCache.set('branding', { data: fallbackData.settings[0] || null, expires: Date.now() + CACHE_STALE_MS });
         }
         if (parsed.reviews) {
           fallbackData.reviews = parsed.reviews;
-          serverCache.set('reviews', { data: fallbackData.reviews, expires: Date.now() + CACHE_STALE_MS });
         }
       } else {
         saveFallbackData();
@@ -246,8 +237,8 @@ async function startServer() {
     console.log('Checking database health in the background...');
     try {
       await Promise.race([
-        executeWithRetry(() => db.execute(sql`SELECT 1`)),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 3000))
+        executeWithRetry(() => db.execute(sql`SELECT 1`), 2, 500),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Health check timeout')), 8000))
       ]);
       console.log('Database health check succeeded. Restoring database connection.');
       isDbOnline = true;
@@ -276,16 +267,15 @@ async function startServer() {
 
     console.log('Starting background database connectivity check...');
     try {
-      // Establish a quick ping. If this rejects, we abort the upgrades immediately to avoid blocking pool slots.
+      // Establish a ping with generous timeout for remote connection
       await Promise.race([
-        executeWithRetry(() => db.execute(sql`SELECT 1`), 2, 500),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Ping timeout')), 4000))
+        executeWithRetry(() => db.execute(sql`SELECT 1`), 3, 1000),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Ping timeout')), 10000))
       ]);
       console.log('Database connectivity verified. Proceeding with passive schema checks...');
       isDbOnline = true;
     } catch (err: any) {
-      console.warn('Skipping background database schema bootstrap: Database is offline, unreachable, or timed out:', err?.message || err);
-      tripDbCircuit(`Background startup bootstrap ping failed: ${err?.message || err}`);
+      console.warn('Skipping background database schema bootstrap: Database ping timed out or slow:', err?.message || err);
       return;
     }
 
@@ -602,14 +592,17 @@ async function startServer() {
   // Products
   app.get('/api/products', async (req, res) => {
     try {
-      if (!isDbOnline) {
-        const sorted = [...fallbackData.products].sort((a, b) => b.id.localeCompare(a.id));
-        return res.json(stripDuplicateImages(sorted));
+      if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('dummy_user')) {
+        const allProducts = await getCached('products', () => 
+          db.select().from(products).orderBy(desc(products.createdAt))
+        );
+        if (allProducts && allProducts.length > 0) {
+          isDbOnline = true;
+          return res.json(stripDuplicateImages(allProducts));
+        }
       }
-      const allProducts = await getCached('products', () => 
-        db.select().from(products).orderBy(desc(products.createdAt))
-      );
-      res.json(stripDuplicateImages(allProducts));
+      const sorted = [...fallbackData.products].sort((a, b) => b.id.localeCompare(a.id));
+      res.json(stripDuplicateImages(sorted));
     } catch (error) {
       console.error('Error fetching products, returning local fallback products:', error);
       const sorted = [...fallbackData.products].sort((a, b) => b.id.localeCompare(a.id));

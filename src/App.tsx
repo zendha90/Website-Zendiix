@@ -4247,33 +4247,32 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                 {isAuthenticated && loadingWeekly && <span className="block">• Laporan Mingguan</span>}
               </div>
             </div>
-          ) : dbError ? (
-            <div className="bg-rose-50 border-2 border-rose-700 p-3 flex flex-col gap-1.5 shadow-[3px_3px_0px_0px_#be123c] rounded animate-pulse">
+          ) : (dbError || (products.length <= 10 && products.some(p => p.id === "A+-10ML"))) ? (
+            <div className="bg-amber-50 border-2 border-amber-700 p-3 flex flex-col gap-1.5 shadow-[3px_3px_0px_0px_#b45309] rounded">
               <div className="flex items-center gap-3">
-                <div className="w-2.5 h-2.5 bg-rose-500 border border-slate-900 rounded-full"></div>
-                <span className="text-[10px] font-black text-rose-700 uppercase tracking-widest leading-none">
-                  DATABASE OFFLINE
+                <div className="w-2.5 h-2.5 bg-amber-500 border border-slate-900 rounded-full animate-pulse"></div>
+                <span className="text-[10px] font-black text-amber-800 uppercase tracking-widest leading-none">
+                  {dbError ? "DATABASE OFFLINE" : "DEMO / FALLBACK AKTIF"}
                 </span>
               </div>
-              <div className="text-[8px] font-bold text-rose-600 pl-5.5 space-y-0.5">
-                <span className="block text-rose-700 font-extrabold uppercase">• FALLBACK AKTIF</span>
-                <span className="block">• {products.length} produk terload</span>
-                <span className="block">• {sales.length} data terjual</span>
-                <span className="block">• {incomingGoods.length} data stok masuk</span>
+              <div className="text-[8px] font-bold text-amber-700 pl-5.5 space-y-0.5">
+                <span className="block text-amber-900 font-extrabold uppercase">• {dbError ? "Koneksi Terputus" : "10 Produk Sampel Lokal"}</span>
+                <span className="block">• Data live belum termuat</span>
+                <span className="block">• Cek koneksi MySQL cPanel</span>
               </div>
             </div>
           ) : (
-            <div className="bg-green-50 border-2 border-green-700 p-3 flex flex-col gap-1.5 shadow-[3px_3px_0px_0px_#15803d] rounded">
+            <div className="bg-emerald-50 border-2 border-emerald-700 p-3 flex flex-col gap-1.5 shadow-[3px_3px_0px_0px_#047857] rounded">
               <div className="flex items-center gap-3">
-                <div className="w-2.5 h-2.5 bg-green-500 border border-slate-900 rounded-full animate-pulse"></div>
-                <span className="text-[10px] font-black text-green-700 uppercase tracking-widest leading-none">
-                  SYSTEM ONLINE
+                <div className="w-2.5 h-2.5 bg-emerald-500 border border-slate-900 rounded-full animate-pulse"></div>
+                <span className="text-[10px] font-black text-emerald-800 uppercase tracking-widest leading-none">
+                  LIVE MYSQL ONLINE
                 </span>
               </div>
-              <div className="text-[8px] font-bold text-green-600 pl-5.5 space-y-0.5">
-                <span className="block">• {products.length} produk terload</span>
-                <span className="block">• {sales.length} data terjual</span>
-                <span className="block">• {incomingGoods.length} data stok masuk</span>
+              <div className="text-[8px] font-bold text-emerald-700 pl-5.5 space-y-0.5">
+                <span className="block">• {products.length.toLocaleString('id-ID')} produk live terload</span>
+                <span className="block">• {isAuthenticated ? `${sales.length.toLocaleString('id-ID')} data terjual` : "Data penjualan (login admin)"}</span>
+                <span className="block">• {isAuthenticated ? `${incomingGoods.length.toLocaleString('id-ID')} data stok masuk` : "Data stok masuk (login admin)"}</span>
               </div>
             </div>
           )}
