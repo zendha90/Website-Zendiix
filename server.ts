@@ -1,4 +1,5 @@
 import express from 'express';
+import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
@@ -23,6 +24,8 @@ async function startServer() {
     return expressApp;
   }
 
+  // High-performance gzip/deflate compression for large payloads (e.g. 48k sales, 2k products)
+  app.use(compression());
   app.use(express.json({ limit: '50mb' }));
   app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -362,6 +365,26 @@ async function startServer() {
     try {
       await db.execute(sql`ALTER TABLE reviews ADD COLUMN is_pinned TINYINT(1) DEFAULT 0 NULL`);
     } catch (e) {}
+
+    // Performance Indexes: Accelerate ORDER BY and lookups for large tables (e.g. sales 48k rows)
+    const indexesToEnsure = [
+      { name: 'idx_sales_tanggal', table: 'sales', col: 'tanggal' },
+      { name: 'idx_sales_product', table: 'sales', col: 'product_id' },
+      { name: 'idx_incoming_tanggal', table: 'incoming_goods', col: 'tanggal' },
+      { name: 'idx_incoming_product', table: 'incoming_goods', col: 'product_id' },
+      { name: 'idx_products_created', table: 'products', col: 'created_at' },
+      { name: 'idx_products_kode', table: 'products', col: 'kode_barang' },
+      { name: 'idx_sales_ds_tanggal', table: 'sales_ds', col: 'tanggal' },
+    ];
+    for (const idx of indexesToEnsure) {
+      try {
+        await db.execute(sql.raw(`CREATE INDEX ${idx.name} ON ${idx.table} (${idx.col})`));
+        console.log(`[Database Optimizer] Created index ${idx.name} on ${idx.table}(${idx.col})`);
+      } catch (idxErr: any) {
+        // Ignored if already exists (ER_DUP_KEYNAME / code 1061)
+      }
+    }
+
     console.log('Background schema check and bootstrap completed successfully.');
   })().catch(err => {
     console.error('Warning: Background database schema bootstrap check failed, server will remain active:', err);
@@ -490,7 +513,8 @@ async function startServer() {
   // When a database read fails due to connections, we serve the latest stale cached data or defaults.
   // We use Stale-While-Revalidate and Request Coalescing to make reads sub-millisecond and protect the pool from concurrent spikes.
   
-  async function getCached<T>(key: string, fetchFn: () => Promise<T>): Promise<T> {
+  async function getCached<T>(key: string, fetchFn: () => Promise<T>, customTtlMs?: number): Promise<T> {
+    const ttl = customTtlMs || CACHE_STALE_MS;
     const cached = serverCache.get(key);
     const now = Date.now();
     
@@ -509,7 +533,7 @@ async function startServer() {
               executeWithRetry(fetchFn),
               new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 20000))
             ]);
-            serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
+            serverCache.set(key, { data: fresh, expires: Date.now() + ttl });
             console.log(`Background SWR cache refresh successful for key "${key}"`);
           } catch (err: any) {
             if (err?.code === 'ER_BAD_FIELD_ERROR' || (err?.message && err.message.includes('Unknown column'))) {
@@ -518,7 +542,7 @@ async function startServer() {
                 try {
                   await db.execute(sql`ALTER TABLE products ADD COLUMN sync_stock TINYINT(1) DEFAULT 1 NULL`);
                   const fresh = await executeWithRetry(fetchFn);
-                  serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
+                  serverCache.set(key, { data: fresh, expires: Date.now() + ttl });
                   return;
                 } catch (autoErr) {}
               }
@@ -543,7 +567,7 @@ async function startServer() {
             executeWithRetry(fetchFn),
             new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Database query timed out')), 20000))
           ]);
-          serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
+          serverCache.set(key, { data: fresh, expires: Date.now() + ttl });
           return fresh;
         } catch (err: any) {
           if (err?.code === 'ER_BAD_FIELD_ERROR' || (err?.message && err.message.includes('Unknown column'))) {
@@ -552,7 +576,7 @@ async function startServer() {
               try {
                 await db.execute(sql`ALTER TABLE products ADD COLUMN sync_stock TINYINT(1) DEFAULT 1 NULL`);
                 const fresh = await executeWithRetry(fetchFn);
-                serverCache.set(key, { data: fresh, expires: Date.now() + CACHE_STALE_MS });
+                serverCache.set(key, { data: fresh, expires: Date.now() + ttl });
                 return fresh;
               } catch (autoErr: any) {
                 console.error('[Auto-migration] Failed to auto-migrate sync_stock column:', autoErr);
@@ -594,7 +618,8 @@ async function startServer() {
     try {
       if (process.env.DATABASE_URL && !process.env.DATABASE_URL.includes('dummy_user')) {
         const allProducts = await getCached('products', () => 
-          db.select().from(products).orderBy(desc(products.createdAt))
+          db.select().from(products).orderBy(desc(products.createdAt)),
+          120000 // 2 minutes cache TTL (cleared immediately on any product edit/create)
         );
         if (allProducts && allProducts.length > 0) {
           isDbOnline = true;
@@ -674,7 +699,8 @@ async function startServer() {
         return res.json(fallbackData.settings[0] || null);
       }
       const result = await getCached('branding', () =>
-        db.select().from(settings).where(eq(settings.id, 'branding')).limit(1)
+        db.select().from(settings).where(eq(settings.id, 'branding')).limit(1),
+        180000 // 3 minutes cache
       );
       res.json(result[0] || null);
     } catch (error) {
@@ -726,7 +752,8 @@ async function startServer() {
         return res.json(fallbackData.storefrontBanners);
       }
       const bannersList = await getCached('banners', () =>
-        db.select().from(storefrontBanners).orderBy(desc(storefrontBanners.createdAt))
+        db.select().from(storefrontBanners).orderBy(desc(storefrontBanners.createdAt)),
+        180000 // 3 minutes cache
       );
       res.json(bannersList);
     } catch (error) {
@@ -742,7 +769,8 @@ async function startServer() {
         return res.json(fallbackData.incomingGoods);
       }
       const result = await getCached('incoming-goods', () =>
-        db.select().from(incomingGoods).orderBy(desc(incomingGoods.tanggal))
+        db.select().from(incomingGoods).orderBy(desc(incomingGoods.tanggal)),
+        60000 // 1 minute cache
       );
       res.json(result);
     } catch (error) {
@@ -806,7 +834,8 @@ async function startServer() {
         return res.json(fallbackData.sales);
       }
       const result = await getCached('sales', () =>
-        db.select().from(sales).orderBy(desc(sales.tanggal))
+        db.select().from(sales).orderBy(desc(sales.tanggal)),
+        60000 // 1 minute cache
       );
       res.json(result);
     } catch (error) {
