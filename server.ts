@@ -260,27 +260,29 @@ const app = express();
     }
   }, 10000); // Check every 10 seconds if we need to heal
 
-  // Run cPanel MySQL passive schema upgrades safely in the background (non-blocking)
-  (async () => {
+  // Run cPanel MySQL passive schema upgrades safely in the background (non-blocking with automatic retry)
+  const bootstrapDatabaseSchema = async (retryCount = 0) => {
     if (!process.env.DATABASE_URL || process.env.DATABASE_URL.includes('dummy_user')) {
       console.log('Skipping background schema bootstrap: DATABASE_URL is not set or is a dummy placeholder.');
       return;
     }
 
-    console.log('Starting background database connectivity check...');
     try {
-      // Establish a ping with generous timeout for remote connection
-      await Promise.race([
-        executeWithRetry(() => db.execute(sql`SELECT 1`), 3, 1000),
-        new Promise((_, reject) => setTimeout(() => reject(new Error('Ping timeout')), 10000))
-      ]);
+      console.log(`Starting background database connectivity check (attempt ${retryCount + 1})...`);
+      await executeWithRetry(() => db.execute(sql`SELECT 1`), 4, 1500);
       console.log('Database connectivity verified. Proceeding with passive schema checks...');
       isDbOnline = true;
     } catch (err: any) {
-      console.warn('Skipping background database schema bootstrap: Database ping timed out or slow:', err?.message || err);
+      console.warn('Database ping delayed or slow. Scheduling background retry in 10s:', err?.message || err);
+      if (retryCount < 6) {
+        setTimeout(() => bootstrapDatabaseSchema(retryCount + 1), 10000);
+      }
       return;
     }
 
+    try {
+      await db.execute(sql`ALTER TABLE products ADD COLUMN series_image_url MEDIUMTEXT NULL`);
+    } catch (e) {}
     try {
       await db.execute(sql`ALTER TABLE settings ADD COLUMN browser_title VARCHAR(255) NULL`);
     } catch (e) {}
@@ -289,9 +291,6 @@ const app = express();
     } catch (e) {}
     try {
       await db.execute(sql`ALTER TABLE products MODIFY COLUMN image_url MEDIUMTEXT NULL`);
-    } catch (e) {}
-    try {
-      await db.execute(sql`ALTER TABLE products ADD COLUMN series_image_url MEDIUMTEXT NULL`);
     } catch (e) {}
     try {
       await db.execute(sql`ALTER TABLE settings MODIFY COLUMN logo_url MEDIUMTEXT NULL`);
@@ -385,7 +384,9 @@ const app = express();
     }
 
     console.log('Background schema check and bootstrap completed successfully.');
-  })().catch(err => {
+  };
+
+  bootstrapDatabaseSchema().catch(err => {
     console.error('Warning: Background database schema bootstrap check failed, server will remain active:', err);
   });
 
@@ -469,14 +470,37 @@ const app = express();
     return cleaned;
   };
 
+  const safeDate = (val: any): Date => {
+    if (!val) return new Date();
+    if (val instanceof Date) {
+      return isNaN(val.getTime()) ? new Date() : val;
+    }
+    const d = new Date(val);
+    if (!isNaN(d.getTime())) return d;
+    if (typeof val === 'string') {
+      const cleaned = val.replace(' ', 'T');
+      const d2 = new Date(cleaned);
+      if (!isNaN(d2.getTime())) return d2;
+      const parts = val.split(/[-/]/);
+      if (parts.length === 3) {
+        if (parts[0].length === 2 && parts[2].length === 4) {
+          const d3 = new Date(`${parts[2]}-${parts[1]}-${parts[0]}`);
+          if (!isNaN(d3.getTime())) return d3;
+        }
+      }
+    }
+    return new Date();
+  };
+
   const stripDuplicateImages = (productsList: any[]) => {
+    if (!Array.isArray(productsList)) return [];
     const seriesImageSaved = new Set<string>();
     const colorImageSaved = new Set<string>();
     
-    return productsList.map(p => {
-      let seriesName = p.groupName ? p.groupName.trim() : "";
+    return productsList.filter(Boolean).map(p => {
+      let seriesName = p.groupName ? String(p.groupName).trim() : "";
       if (!seriesName && p.namaBarang) {
-        let name = p.namaBarang;
+        let name = String(p.namaBarang);
         name = name.replace(/series master families/i, '').replace(/master families/i, '').replace(/\bseries\b/i, '');
         name = name.replace(/-\s*\d+[,.]\d+/g, '').replace(/-\s*\d+/g, '');
         name = name.replace(/\s+/g, ' ').trim();
@@ -488,7 +512,7 @@ const app = express();
       
       const copy = { ...p };
       
-      if (copy.seriesImageUrl && copy.seriesImageUrl.trim() !== "") {
+      if (copy.seriesImageUrl && typeof copy.seriesImageUrl === 'string' && copy.seriesImageUrl.trim() !== "") {
         if (seriesImageSaved.has(seriesKey)) {
           copy.seriesImageUrl = "";
         } else {
@@ -496,7 +520,7 @@ const app = express();
         }
       }
       
-      if (copy.imageUrl && copy.imageUrl.trim() !== "") {
+      if (copy.imageUrl && typeof copy.imageUrl === 'string' && copy.imageUrl.trim() !== "") {
         if (colorImageSaved.has(colorKey)) {
           copy.imageUrl = "";
         } else {
@@ -620,16 +644,23 @@ const app = express();
           db.select().from(products).orderBy(desc(products.createdAt)),
           120000 // 2 minutes cache TTL (cleared immediately on any product edit/create)
         );
-        if (allProducts && allProducts.length > 0) {
+        if (allProducts && Array.isArray(allProducts) && allProducts.length > 0) {
           isDbOnline = true;
           return res.json(stripDuplicateImages(allProducts));
         }
       }
-      const sorted = [...fallbackData.products].sort((a, b) => b.id.localeCompare(a.id));
+      const pList = Array.isArray(fallbackData?.products) ? fallbackData.products : [];
+      const sorted = [...pList].sort((a, b) => String(b.id || "").localeCompare(String(a.id || "")));
       res.json(stripDuplicateImages(sorted));
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error fetching products, returning local fallback products:', error);
-      const sorted = [...fallbackData.products].sort((a, b) => b.id.localeCompare(a.id));
+      // Auto-heal missing column in background
+      const errMsg = String(error?.message || '') + String(error?.cause?.message || '');
+      if (errMsg.includes('series_image_url') || errMsg.includes('Unknown column')) {
+        db.execute(sql`ALTER TABLE products ADD COLUMN series_image_url MEDIUMTEXT NULL`).catch(() => {});
+      }
+      const pList = Array.isArray(fallbackData?.products) ? fallbackData.products : [];
+      const sorted = [...pList].sort((a, b) => String(b.id || "").localeCompare(String(a.id || "")));
       res.json(stripDuplicateImages(sorted));
     }
   });
@@ -806,9 +837,13 @@ const app = express();
     if (!Array.isArray(items)) return res.status(400).send('Invalid batch');
     try {
       const itemsWithId = items.map(item => ({
-        ...item,
         id: item.id || uuidv4(),
-        tanggal: item.tanggal ? new Date(item.tanggal) : new Date()
+        productId: item.productId || item.kodeBarang || '',
+        kodeBarang: item.kodeBarang || '',
+        namaBarang: item.namaBarang || '',
+        qty: Number(item.qty) || 0,
+        supplier: item.supplier || '',
+        tanggal: safeDate(item.tanggal)
       }));
       if (isDbOnline) {
         await runDbWrite(async () => {
@@ -852,7 +887,7 @@ const app = express();
         saveFallbackData();
         return res.json({ id, ...data });
       }
-      const finalTanggal = data.tanggal ? new Date(data.tanggal) : new Date();
+      const finalTanggal = safeDate(data.tanggal);
       await db.insert(sales).values({ ...data, id, tanggal: finalTanggal });
       clearCache('sales');
       res.json({ id, ...data });
@@ -883,11 +918,10 @@ const app = express();
       
       const insertData = items.map(data => {
         const id = data.id || Math.random().toString(36).substring(2, 15);
-        const finalTanggal = data.tanggal ? new Date(data.tanggal) : new Date();
         return {
           ...data,
           id,
-          tanggal: finalTanggal
+          tanggal: safeDate(data.tanggal)
         };
       });
       
@@ -1398,8 +1432,8 @@ const app = express();
     try {
       const updateData = { ...data };
       delete updateData.id;
-      if (updateData.tanggal) {
-        updateData.tanggal = new Date(updateData.tanggal);
+      if (updateData.tanggal !== undefined) {
+        updateData.tanggal = safeDate(updateData.tanggal);
       }
 
       if (!isDbOnline) {
@@ -1490,8 +1524,8 @@ const app = express();
     try {
       const updateData = { ...data };
       delete updateData.id;
-      if (updateData.tanggal) {
-        updateData.tanggal = new Date(updateData.tanggal);
+      if (updateData.tanggal !== undefined) {
+        updateData.tanggal = safeDate(updateData.tanggal);
       }
 
       if (!isDbOnline) {
@@ -2141,7 +2175,8 @@ const app = express();
     } catch (err: any) {
       console.error('Optimized query error, serving fallback:', err);
       // Fallback
-      const sortedProducts = [...fallbackData.products].sort((a, b) => a.id.localeCompare(b.id));
+      const pList = Array.isArray(fallbackData?.products) ? fallbackData.products : [];
+      const sortedProducts = [...pList].sort((a, b) => String(a.id || "").localeCompare(String(b.id || "")));
       const results = sortedProducts.slice(0, limit);
       const nextCursor = results.length === limit ? results[results.length - 1].id : null;
       

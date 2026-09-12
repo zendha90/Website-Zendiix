@@ -6,6 +6,21 @@
 const fs = require('fs');
 const path = require('path');
 
+// Tambahkan path nodevenv cPanel secara otomatis jika ada
+if (process.env.HOME) {
+  const possiblePaths = [
+    path.join(process.cwd(), 'node_modules'),
+    path.join(process.env.HOME, 'nodevenv', path.basename(process.cwd()), '20', 'lib', 'node_modules'),
+    path.join(process.env.HOME, 'nodevenv', path.basename(process.cwd()), '22', 'lib', 'node_modules'),
+    path.join(process.env.HOME, 'nodevenv', 'zendiixsoftlens', '20', 'lib', 'node_modules'),
+  ];
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p) && !module.paths.includes(p)) {
+      module.paths.unshift(p);
+    }
+  }
+}
+
 // Fungsi pembantu untuk mencatat error langsung ke file cpanel_error.log
 function logErrorToFile(type, error) {
   const logPath = path.join(process.cwd(), 'cpanel_error.log');
