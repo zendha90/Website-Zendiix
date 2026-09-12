@@ -8,6 +8,13 @@
 // Menandakan runtime dalam mode produksi
 process.env.NODE_ENV = 'production';
 
-// Memulai backend server yang sudah di-bundle oleh esbuild
 console.log('Memulai Zendiix Server di cPanel...');
-import './dist/server.cjs';
+
+// Memulai backend server yang sudah di-bundle oleh esbuild dengan penanganan error yang ramah
+import('./dist/server.cjs').catch(err => {
+  console.error('\n❌ ERROR: Gagal memuat server.cjs!');
+  console.error('Silakan pastikan Anda sudah menjalankan perintah "npm run build" terlebih dahulu sebelum menjalankan aplikasi di cPanel.');
+  console.error('Penyebab: File "./dist/server.cjs" tidak ditemukan atau gagal dieksekusi.');
+  console.error('Detail Error:', err.message || err);
+  process.exit(1);
+});

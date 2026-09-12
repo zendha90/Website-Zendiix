@@ -2274,9 +2274,22 @@ FROM products p;
     });
   }
 
-  app.listen(Number(PORT), "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
-  });
+  // Super robust app.listen block for cPanel Phusion Passenger & Local Dev
+  // Passenger often passes a Unix Socket path or a non-numeric string in process.env.PORT.
+  // Converting it unconditionally via Number(PORT) will result in NaN, crashing the server with Error: listen NaN.
+  const isNumeric = (val: any) => !isNaN(val) && !isNaN(parseFloat(val));
+  
+  if (isNumeric(PORT)) {
+    const portNum = Number(PORT);
+    app.listen(portNum, "0.0.0.0", () => {
+      console.log(`[Zendiix Server] Running on http://0.0.0.0:${portNum}`);
+    });
+  } else {
+    // Port is a Unix socket path or a custom string identifier (Passenger default)
+    app.listen(PORT, () => {
+      console.log(`[Zendiix Server] Running on Unix socket / Passenger pipe: ${PORT}`);
+    });
+  }
 }
 
 startServer();
