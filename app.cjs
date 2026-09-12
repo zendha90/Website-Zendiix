@@ -1,5 +1,5 @@
 /**
- * cPanel Passenger Entry Point (app.js)
+ * cPanel Passenger Entry Point (app.cjs)
  * Kompatibel dengan CloudLinux Node.js Selector & Phusion Passenger
  */
 
@@ -27,4 +27,3 @@ const app = (serverModule && serverModule.default) ? serverModule.default : serv
 
 // Ekspor objek app Express untuk Phusion Passenger node-loader
 module.exports = app;
-

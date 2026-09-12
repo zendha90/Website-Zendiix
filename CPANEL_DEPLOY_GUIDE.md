@@ -52,17 +52,17 @@ Karena aplikasi dan database MySQL akan berjalan berdampingan pada server cPanel
 
 Setelah aplikasi berhasil dibuat di cPanel, gulir ke bawah ke bagian **Environment variables**:
 
-1. Tambahkan variabel baru:
+1. Tambahkan variabel:
    - **Name**: `DATABASE_URL`
    - **Value**: Masukkan kredensial MySQL cPanel Anda dengan format:
      `mysql://nama_user_db:password_db@localhost:3306/nama_db`
      *(Contoh: `mysql://zendhare_admin:ZendiixSandi123@localhost:3306/zendhare_zendiixdb`)*
-2. Tambahkan variabel baru:
+2. Tambahkan variabel:
    - **Name**: `NODE_ENV`
    - **Value**: `production`
-3. Tambahkan variabel baru (opsional, jika Anda menggunakan layanan eksternal):
-   - **Name**: `PORT`
-   - **Value**: `3000` (atau biarkan kosong karena cPanel Passenger akan otomatis mengaturnya melalui socket lokal).
+3. ⚠️ **PENTING TENTANG VARIABEL `PORT`:**
+   - **JANGAN menambahkan variabel `PORT`** di cPanel Environment Variables!
+   - cPanel Phusion Passenger secara otomatis mengelola koneksi web server melalui internal pipe (`passenger`), bukan port TCP manual. Menambahkan port manual seperti `3000` atau `8080` justru dapat menyebabkan konflik port (`EADDRINUSE`) yang memicu error 503. Jika sebelumnya Anda menambahkan variabel `PORT`, silakan **HAPUS** variabel tersebut.
 4. Klik **Save** setelah menambahkan variabel lingkungan.
 
 ---
@@ -105,4 +105,17 @@ Karena database Anda di cPanel masih baru dan kosong, Anda perlu membuat tabel-t
 2. Klik tombol **Restart** di bagian atas konfigurasi aplikasi Anda.
 3. Buka URL domain atau subdomain Anda di peramban web (browser). Aplikasi online Zendiix Anda kini siap digunakan!
 
-*Catatan: Jika sewaktu-waktu Anda mengunggah pembaruan kode, Anda hanya perlu mengunggah filenya lalu mengklik tombol **Restart** di menu Setup Node.js App cPanel Anda.*
+---
+
+## 🔍 Panduan Khusus: Cara Mengatasi Error 503 (Service Unavailable) di cPanel
+
+Jika setelah deploy Anda masih melihat tampilan **503 Service Unavailable**, lakukan 4 langkah pemeriksaan cepat berikut:
+
+1. **Pastikan `node_modules` Sudah Terpasang:**
+   Buka **File Manager** di cPanel, buka folder aplikasi Anda. Pastikan folder `node_modules` ada dan terisi paket-paket. Jika belum ada atau kosong, klik tombol **Run NPM Install** di menu Node.js App cPanel.
+2. **Hapus Variabel `PORT`:**
+   Di menu **Setup Node.js App**, periksa bagian **Environment variables**. Jika ada variabel bernama `PORT`, klik ikon hapus (trash/delete) lalu klik **Save** dan **Restart**. Passenger akan otomatis menghubungkan aplikasi tanpa port manual.
+3. **Pastikan Application Startup File Bernama `app.js`:**
+   Di formulir konfigurasi cPanel, pastikan kolom **Application startup file** terisi persis: `app.js` (atau `app.cjs`).
+4. **Cek Berkas `stderr.log` di File Manager:**
+   Buka folder aplikasi di File Manager cPanel. Buka file `stderr.log` (jika ada). File ini mencatat pesan error detail dari Node.js jika terjadi kendala pada server.

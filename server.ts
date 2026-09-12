@@ -1,9 +1,9 @@
+import 'dotenv/config';
 import express from 'express';
 import compression from 'compression';
 import path from 'path';
 import fs from 'fs';
 import { v4 as uuidv4 } from 'uuid';
-import { createServer as createViteServer } from 'vite';
 import { db } from './src/db';
 import { products, incomingGoods, sales, salesDs, iklan, weeklySales, storefrontBanners, settings, reviews } from './src/db/schema';
 import { eq, desc, sql, and, ne, inArray } from 'drizzle-orm';
@@ -16,8 +16,7 @@ process.on('uncaughtException', (err, origin) => {
   console.error(`Caught exception: ${err}\nException origin: ${origin}`);
 });
 
-async function startServer() {
-  const app = reportUnhandledLogs(express());
+const app = express();
   const PORT = process.env.PORT || 3000;
 
   function reportUnhandledLogs(expressApp: any) {
@@ -2259,37 +2258,74 @@ FROM products p;
     next();
   });
 
-  // Vite middleware for development
-  if (process.env.NODE_ENV !== "production") {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: "spa",
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
-    });
+  async function startServer() {
+    // Vite middleware for development (dynamically imported to keep production bundle lean)
+    if (process.env.NODE_ENV !== "production") {
+      const { createServer: createViteServer } = await import('vite');
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: "spa",
+      });
+      app.use(vite.middlewares);
+    } else {
+      const candidatePaths = [
+        path.join(process.cwd(), 'dist'),
+        path.join(__dirname),
+        path.join(__dirname, 'dist'),
+        process.cwd()
+      ];
+      const distPath = candidatePaths.find(p => fs.existsSync(path.join(p, 'index.html'))) || path.join(process.cwd(), 'dist');
+      console.log(`[Zendiix Server] Menyajikan file produksi dari: ${distPath}`);
+      app.use(express.static(distPath));
+      app.get('*', (req, res) => {
+        const indexPath = path.join(distPath, 'index.html');
+        if (fs.existsSync(indexPath)) {
+          res.sendFile(indexPath);
+        } else {
+          res.status(500).send(`[Zendiix Server Error] File dist/index.html tidak ditemukan di ${distPath}. Silakan jalankan 'npm run build' terlebih dahulu.`);
+        }
+      });
+    }
+
+    // Comprehensive Phusion Passenger (cPanel) & Standalone listener
+    const isPassenger = 
+      typeof (globalThis as any).PhusionPassenger !== 'undefined' ||
+      typeof (global as any).PhusionPassenger !== 'undefined' ||
+      process.env.PASSENGER_APP_ENV !== undefined ||
+      process.env.PASSENGER_BASE_URI !== undefined ||
+      process.env.PHUSION_PASSENGER !== undefined ||
+      process.env.PORT === 'passenger';
+
+    if (isPassenger) {
+      console.log('[Zendiix Server] Terdeteksi lingkungan cPanel Phusion Passenger. Mendengarkan socket Passenger...');
+      try {
+        app.listen('passenger', () => {
+          console.log('[Zendiix Server] Siap menerima request dari cPanel Phusion Passenger!');
+        });
+      } catch (passengerErr: any) {
+        console.warn('[Zendiix Server] Passenger listener notice:', passengerErr?.message || passengerErr);
+      }
+    } else if (process.env.PORT) {
+      const rawPort = process.env.PORT;
+      const isNum = !isNaN(Number(rawPort)) && !isNaN(parseFloat(rawPort));
+      if (isNum) {
+        const portNum = Number(rawPort);
+        app.listen(portNum, "0.0.0.0", () => {
+          console.log(`[Zendiix Server] Running on http://0.0.0.0:${portNum}`);
+        });
+      } else {
+        app.listen(rawPort, () => {
+          console.log(`[Zendiix Server] Running on pipe/socket: ${rawPort}`);
+        });
+      }
+    } else {
+      const defaultPort = 3000;
+      app.listen(defaultPort, "0.0.0.0", () => {
+        console.log(`[Zendiix Server] Running on http://0.0.0.0:${defaultPort}`);
+      });
+    }
   }
 
-  // Super robust app.listen block for cPanel Phusion Passenger & Local Dev
-  // Passenger often passes a Unix Socket path or a non-numeric string in process.env.PORT.
-  // Converting it unconditionally via Number(PORT) will result in NaN, crashing the server with Error: listen NaN.
-  const isNumeric = (val: any) => !isNaN(val) && !isNaN(parseFloat(val));
-  
-  if (isNumeric(PORT)) {
-    const portNum = Number(PORT);
-    app.listen(portNum, "0.0.0.0", () => {
-      console.log(`[Zendiix Server] Running on http://0.0.0.0:${portNum}`);
-    });
-  } else {
-    // Port is a Unix socket path or a custom string identifier (Passenger default)
-    app.listen(PORT, () => {
-      console.log(`[Zendiix Server] Running on Unix socket / Passenger pipe: ${PORT}`);
-    });
-  }
-}
+  startServer();
 
-startServer();
+  export default app;
