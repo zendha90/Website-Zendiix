@@ -130,20 +130,35 @@ export interface BrandingSettings {
   updatedAt?: any;
 }
 
-// Utility for fetching
-export async function fetchApi(path: string, options?: RequestInit) {
-  const res = await fetch(path, {
-    ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      ...options?.headers,
-    },
-  });
-  if (!res.ok) {
-    const errText = await res.text();
-    throw new Error(`API Error: ${res.status} ${errText || res.statusText}`);
+// Utility for fetching with automatic retry on transient network hiccups
+export async function fetchApi(path: string, options?: RequestInit, retries = 2, delayMs = 600): Promise<any> {
+  let lastError: any;
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(path, {
+        ...options,
+        headers: {
+          'Content-Type': 'application/json',
+          ...options?.headers,
+        },
+      });
+      if (!res.ok) {
+        const errText = await res.text();
+        throw new Error(`API Error: ${res.status} ${errText || res.statusText}`);
+      }
+      return await res.json();
+    } catch (err: any) {
+      lastError = err;
+      // Do not retry 4xx errors (e.g. 400 Bad Request, 404 Not Found)
+      if (err.message && err.message.startsWith('API Error: 4')) {
+        throw err;
+      }
+      if (attempt < retries) {
+        await new Promise((resolve) => setTimeout(resolve, delayMs * (attempt + 1)));
+      }
+    }
   }
-  return res.json();
+  throw lastError;
 }
 
 // Registry to store the runFetch callbacks for all active smart subscribers
@@ -156,7 +171,7 @@ export function triggerFetch(path: string) {
       try {
         runFetch();
       } catch (e) {
-        console.error(`Error triggering subscriber for ${path}:`, e);
+        console.warn(`Error triggering subscriber for ${path}:`, e);
       }
     });
   }
@@ -165,7 +180,9 @@ export function triggerFetch(path: string) {
 // Smart subscription creator to save background API requests, optimize memory queries, and respect tab visibility states
 function createSmartSubscriber<T>(path: string, callback: (data: T) => void, intervalMs = 60000, defaultValue?: T) {
   let active = true;
-  const runFetch = () => {
+  let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+  const runFetch = (isInitial = false) => {
     if (!active || document.visibilityState !== 'visible') return;
     fetchApi(path)
       .then(data => {
@@ -174,7 +191,19 @@ function createSmartSubscriber<T>(path: string, callback: (data: T) => void, int
           else if (defaultValue !== undefined) callback(defaultValue);
         }
       })
-      .catch(err => console.error(`SmartSubscriber fetch error for ${path}:`, err));
+      .catch(err => {
+        if (!active) return;
+        // If initial fetch encounters transient network error, retry shortly
+        if (isInitial) {
+          console.warn(`SmartSubscriber initial attempt for ${path} will retry:`, err?.message || err);
+          if (retryTimer) clearTimeout(retryTimer);
+          retryTimer = setTimeout(() => {
+            if (active) runFetch(false);
+          }, 2500);
+        } else {
+          console.warn(`SmartSubscriber background fetch issue for ${path}:`, err?.message || err);
+        }
+      });
   };
 
   if (!subscribersRegistry.has(path)) {
@@ -184,26 +213,23 @@ function createSmartSubscriber<T>(path: string, callback: (data: T) => void, int
 
   // Initial fetch immediate, but staggered slightly to prevent AI Studio 429 rate limit on burst
   const staggerMs = Math.floor(Math.random() * 500) + 100;
-  setTimeout(() => {
-    fetchApi(path).then(data => {
-      if (active) {
-        if (data !== undefined && data !== null) callback(data);
-        else if (defaultValue !== undefined) callback(defaultValue);
-      }
-    }).catch(err => console.error(`SmartSubscriber initial fetch error for ${path}:`, err));
+  const initialTimer = setTimeout(() => {
+    runFetch(true);
   }, staggerMs);
 
-  const interval = setInterval(runFetch, intervalMs);
+  const interval = setInterval(() => runFetch(false), intervalMs);
 
   const handleVisibilityChange = () => {
     if (document.visibilityState === 'visible') {
-      setTimeout(runFetch, Math.floor(Math.random() * 500)); // Stagger visibility fetches too
+      setTimeout(() => runFetch(false), Math.floor(Math.random() * 500)); // Stagger visibility fetches too
     }
   };
   document.addEventListener('visibilitychange', handleVisibilityChange);
 
   return () => {
     active = false;
+    clearTimeout(initialTimer);
+    if (retryTimer) clearTimeout(retryTimer);
     clearInterval(interval);
     document.removeEventListener('visibilitychange', handleVisibilityChange);
     subscribersRegistry.get(path)?.delete(runFetch);

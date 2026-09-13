@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Routes, Route, Navigate, useLocation, Link } from "react-router-dom";
 import {
@@ -39,7 +39,8 @@ import {
   Save,
   ExternalLink,
   ChevronDown,
-  ChevronUp
+  ChevronUp,
+  CheckCircle2
 } from "lucide-react";
 import {
   subscribeToProducts,
@@ -431,6 +432,35 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
   const [searchIklanQuery, setSearchIklanQuery] = useState("");
   const [showFullIklan, setShowFullIklan] = useState(false);
   const [iklanDisplayLimit, setIklanDisplayLimit] = useState(5);
+  const [filterDuplicateIklanOnly, setFilterDuplicateIklanOnly] = useState(false);
+
+  // Group duplicate advertisement order numbers (No. Pesanan)
+  const duplicateIklanMap = useMemo(() => {
+    const map = new Map<string, Iklan[]>();
+    iklanList.forEach((iklan) => {
+      const np = (iklan.noPesanan || "").trim().toLowerCase();
+      if (np && np !== "-") {
+        const list = map.get(np) || [];
+        list.push(iklan);
+        map.set(np, list);
+      }
+    });
+    const dupes = new Map<string, Iklan[]>();
+    map.forEach((items, key) => {
+      if (items.length > 1) {
+        dupes.set(key, items);
+      }
+    });
+    return dupes;
+  }, [iklanList]);
+
+  const totalDuplicateIklanEntries = useMemo(() => {
+    let count = 0;
+    duplicateIklanMap.forEach((items) => {
+      count += items.length;
+    });
+    return count;
+  }, [duplicateIklanMap]);
   const [selectedReportYear, setSelectedReportYear] = useState<number>(() => new Date().getFullYear());
   const [expandedMonths, setExpandedMonths] = useState<Record<number, boolean>>(() => {
     const currentMonthNum = new Date().getMonth() + 1;
@@ -2451,6 +2481,23 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
     e.preventDefault();
     if (!editingIklan.tanggal || !editingIklan.totalPembayaran) return;
 
+    const targetNoPesanan = (editingIklan.noPesanan || "").trim().toLowerCase();
+    if (targetNoPesanan && targetNoPesanan !== "-") {
+      const existingMatch = iklanList.find(
+        (item) =>
+          item.id !== editingIklan.id &&
+          (item.noPesanan || "").trim().toLowerCase() === targetNoPesanan
+      );
+      if (existingMatch) {
+        const confirmSave = window.confirm(
+          `⚠️ PERINGATAN DOUBLE INPUT:\n\nNo. Pesanan "${editingIklan.noPesanan}" sudah pernah diinput sebelumnya pada tanggal ${existingMatch.tanggal} sebesar Rp ${Number(existingMatch.totalPembayaran).toLocaleString("id-ID")}.\n\nApakah Anda yakin ingin tetap menyimpan data ganda ini?`
+        );
+        if (!confirmSave) {
+          return;
+        }
+      }
+    }
+
     setSavingProgress({ current: 0, total: 1, title: "Menyimpan Data Pengeluaran Iklan" });
 
     const data = {
@@ -2626,6 +2673,35 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
     if (validDrafts.length === 0) {
       alert("Tidak ada baris valid untuk disimpan. Pastikan tanggal dan total pembayaran terisi.");
       return;
+    }
+
+    // Check for duplicate No. Pesanan against existing database or within the batch
+    const existingOrders = new Set(
+      iklanList
+        .map((item) => (item.noPesanan || "").trim().toLowerCase())
+        .filter((np) => np && np !== "-")
+    );
+    const duplicatesFound: string[] = [];
+    const batchSeen = new Set<string>();
+
+    validDrafts.forEach((d) => {
+      const np = (d.noPesanan || "").trim().toLowerCase();
+      if (np && np !== "-") {
+        if (existingOrders.has(np) || batchSeen.has(np)) {
+          duplicatesFound.push(d.noPesanan);
+        }
+        batchSeen.add(np);
+      }
+    });
+
+    if (duplicatesFound.length > 0) {
+      const uniqueDupes = Array.from(new Set(duplicatesFound));
+      const proceed = window.confirm(
+        `⚠️ PERINGATAN DOUBLE INPUT:\n\nDitemukan ${duplicatesFound.length} baris dengan No. Pesanan yang sudah ada di database atau ganda dalam draft:\n${uniqueDupes.slice(0, 5).join(", ")}${uniqueDupes.length > 5 ? ` ...dan ${uniqueDupes.length - 5} lainnya` : ""}\n\nApakah Anda yakin ingin tetap menyimpan seluruh data ini?`
+      );
+      if (!proceed) {
+        return;
+      }
     }
 
     setSavingProgress({ current: 0, total: validDrafts.length, title: "Menyimpan Pengeluaran Iklan" });
@@ -6908,6 +6984,25 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                       />
                     </div>
                     <button
+                      type="button"
+                      onClick={() => setFilterDuplicateIklanOnly((prev) => !prev)}
+                      className={`px-4 py-3 border-2 border-slate-900 font-black uppercase tracking-wider text-xs shadow-[4px_4px_0px_0px_#0f172a] hover:translate-x-[1px] hover:translate-y-[1px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-x-[2px] active:translate-y-[2px] active:shadow-none transition-all flex items-center justify-center gap-2 ${
+                        filterDuplicateIklanOnly
+                          ? "bg-amber-400 text-slate-950 ring-2 ring-amber-500"
+                          : duplicateIklanMap.size > 0
+                            ? "bg-amber-100 hover:bg-amber-200 text-amber-950"
+                            : "bg-white hover:bg-slate-100 text-slate-700"
+                      }`}
+                      title={duplicateIklanMap.size > 0 ? `${duplicateIklanMap.size} No. Pesanan ganda terdeteksi` : "Tidak ada No. Pesanan ganda"}
+                    >
+                      <AlertTriangle className={`w-4 h-4 ${duplicateIklanMap.size > 0 ? "text-amber-700" : "text-slate-400"}`} />
+                      <span>
+                        {filterDuplicateIklanOnly
+                          ? `HANYA DUPLIKAT (${duplicateIklanMap.size})`
+                          : `CEK DUPLIKAT (${duplicateIklanMap.size})`}
+                      </span>
+                    </button>
+                    <button
                       onClick={() => handleOpenIklanModal()}
                       className="px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase tracking-widest text-xs border-2 border-slate-900 shadow-[4px_4px_0px_0px_#0f172a] hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-[2px_2px_0px_0px_#0f172a] active:translate-x-[4px] active:translate-y-[4px] active:shadow-none transition-all flex items-center justify-center gap-2"
                     >
@@ -6915,6 +7010,57 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                     </button>
                   </div>
                 </div>
+
+                {/* Duplicate Notification Banner */}
+                {duplicateIklanMap.size > 0 && (
+                  <div className="bg-amber-50 border-b-2 border-amber-300 px-6 py-3.5 flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded bg-amber-200 border border-amber-400 flex items-center justify-center shrink-0">
+                        <AlertTriangle className="w-4 h-4 text-amber-900" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-black text-amber-950 uppercase tracking-wide">
+                            Terdeteksi {duplicateIklanMap.size} No. Pesanan Ganda ({totalDuplicateIklanEntries} Baris Data)
+                          </span>
+                          <span className="px-2 py-0.5 bg-amber-200 border border-amber-400 text-amber-950 text-[10px] font-black rounded">
+                            POTENSI DOUBLE INPUT
+                          </span>
+                        </div>
+                        <p className="text-amber-800 text-[11px] mt-0.5">
+                          Periksa baris bertanda kuning di bawah untuk menghindari pencatatan pengeluaran iklan ganda.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setFilterDuplicateIklanOnly((prev) => !prev)}
+                        className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 border-2 border-slate-900 text-slate-950 font-black text-[10px] uppercase tracking-wider shadow-[2px_2px_0px_0px_#0f172a] transition-all"
+                      >
+                        {filterDuplicateIklanOnly ? "TAMPILKAN SEMUA DATA" : "FILTER HANYA DUPLIKAT"}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {filterDuplicateIklanOnly && duplicateIklanMap.size === 0 && (
+                  <div className="bg-emerald-50 border-b-2 border-emerald-300 px-6 py-3.5 flex items-center justify-between gap-3 text-xs">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span className="font-bold text-emerald-900">
+                        Sempurna! Tidak ditemukan No. Pesanan yang sama / ganda di database iklan.
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFilterDuplicateIklanOnly(false)}
+                      className="px-3 py-1 bg-white border border-emerald-500 text-emerald-800 text-[10px] uppercase font-black"
+                    >
+                      Kembali ke Semua Data
+                    </button>
+                  </div>
+                )}
 
                 {/* Table View */}
                 <div className="flex-1 overflow-auto min-h-[400px]">
@@ -6937,50 +7083,94 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                             const db = parseToDate(b.tanggal) || new Date(0);
                             return db.getTime() - da.getTime();
                           })
-                          .filter(iklan => 
-                            iklan.tanggal.toLowerCase().includes(searchIklanQuery.toLowerCase()) ||
-                            iklan.noPesanan?.toLowerCase().includes(searchIklanQuery.toLowerCase())
-                          );
+                          .filter(iklan => {
+                            if (filterDuplicateIklanOnly) {
+                              const np = (iklan.noPesanan || "").trim().toLowerCase();
+                              if (!np || !duplicateIklanMap.has(np)) return false;
+                            }
+                            const q = searchIklanQuery.toLowerCase();
+                            return (
+                              iklan.tanggal.toLowerCase().includes(q) ||
+                              (iklan.noPesanan && iklan.noPesanan.toLowerCase().includes(q))
+                            );
+                          });
                         
-                        const displayList = showFullIklan ? sortedFiltered : sortedFiltered.slice(0, 5);
+                        const displayList = (showFullIklan || filterDuplicateIklanOnly) ? sortedFiltered : sortedFiltered.slice(0, 5);
                         
                         return (
                           <>
-                            {displayList.map((iklan, index) => (
-                              <tr key={iklan.id} className="hover:bg-slate-50 transition-colors group">
-                                <td className="px-6 py-4 border-r border-slate-100 text-center font-mono font-bold text-slate-400 bg-slate-50/50">
-                                  {index + 1}
-                                </td>
-                                <td className="px-6 py-4 border-r border-slate-100 font-bold text-slate-900">
-                                  {iklan.tanggal}
-                                </td>
-                                <td className="px-6 py-4 border-r border-slate-100 text-right font-mono font-black text-emerald-700 text-sm">
-                                  Rp {iklan.totalPembayaran.toLocaleString("id-ID")}
-                                </td>
-                                <td className="px-6 py-4 border-r border-slate-100 font-mono text-slate-500">
-                                  {iklan.noPesanan || "-"}
-                                </td>
-                                <td className="px-6 py-4 text-center">
-                                  <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button
-                                      onClick={() => handleOpenIklanModal(iklan)}
-                                      className="p-2 bg-indigo-50 text-indigo-600 border-2 border-indigo-200 rounded hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all"
-                                      title="Edit"
-                                    >
-                                      <Pencil className="w-3.5 h-3.5" />
-                                    </button>
-                                    <button
-                                      onClick={() => setIklanToDelete(iklan)}
-                                      className="p-2 bg-rose-50 text-rose-600 border-2 border-rose-200 rounded hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all"
-                                      title="Hapus"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </td>
-                              </tr>
-                            ))}
-                            {sortedFiltered.length > 5 && (
+                            {displayList.map((iklan, index) => {
+                              const normNoPesanan = (iklan.noPesanan || "").trim().toLowerCase();
+                              const duplicateItems = normNoPesanan && normNoPesanan !== "-" ? duplicateIklanMap.get(normNoPesanan) : undefined;
+                              const isDuplicate = !!duplicateItems && duplicateItems.length > 1;
+
+                              return (
+                                <tr
+                                  key={iklan.id}
+                                  className={`transition-colors group ${
+                                    isDuplicate
+                                      ? "bg-amber-50/70 hover:bg-amber-100/70"
+                                      : "hover:bg-slate-50"
+                                  }`}
+                                >
+                                  <td className={`px-6 py-4 border-r border-slate-100 text-center font-mono font-bold ${
+                                    isDuplicate ? "bg-amber-100/60 text-amber-900" : "text-slate-400 bg-slate-50/50"
+                                  }`}>
+                                    <div className="flex items-center justify-center gap-1">
+                                      {isDuplicate && <span className="text-amber-600 text-xs" title="Data Duplikat">⚠️</span>}
+                                      <span>{index + 1}</span>
+                                    </div>
+                                  </td>
+                                  <td className="px-6 py-4 border-r border-slate-100 font-bold text-slate-900">
+                                    {iklan.tanggal}
+                                  </td>
+                                  <td className="px-6 py-4 border-r border-slate-100 text-right font-mono font-black text-emerald-700 text-sm">
+                                    Rp {iklan.totalPembayaran.toLocaleString("id-ID")}
+                                  </td>
+                                  <td className="px-6 py-4 border-r border-slate-100 font-mono text-slate-500">
+                                    {iklan.noPesanan ? (
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className={`font-mono ${isDuplicate ? "font-black text-amber-950" : "text-slate-700"}`}>
+                                          {iklan.noPesanan}
+                                        </span>
+                                        {isDuplicate && (
+                                          <button
+                                            type="button"
+                                            onClick={() => setSearchIklanQuery(iklan.noPesanan)}
+                                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black bg-amber-200 hover:bg-amber-300 text-amber-950 border border-amber-400 transition-colors"
+                                            title={`No. Pesanan ini muncul ${duplicateItems.length} kali di database. Klik untuk memfilter No. Pesanan ini.`}
+                                          >
+                                            <AlertTriangle className="w-3 h-3 text-amber-700" />
+                                            GANDA ({duplicateItems.length}x)
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : (
+                                      <span className="text-slate-400">-</span>
+                                    )}
+                                  </td>
+                                  <td className="px-6 py-4 text-center">
+                                    <div className="flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                                      <button
+                                        onClick={() => handleOpenIklanModal(iklan)}
+                                        className="p-2 bg-indigo-50 text-indigo-600 border-2 border-indigo-200 rounded hover:bg-indigo-600 hover:text-white hover:border-indigo-600 transition-all"
+                                        title="Edit"
+                                      >
+                                        <Pencil className="w-3.5 h-3.5" />
+                                      </button>
+                                      <button
+                                        onClick={() => setIklanToDelete(iklan)}
+                                        className="p-2 bg-rose-50 text-rose-600 border-2 border-rose-200 rounded hover:bg-rose-600 hover:text-white hover:border-rose-600 transition-all"
+                                        title="Hapus"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                            {sortedFiltered.length > 5 && !filterDuplicateIklanOnly && (
                               <tr>
                                 <td colSpan={5} className="p-0">
                                   <button
@@ -6997,6 +7187,28 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                                       </>
                                     )}
                                   </button>
+                                </td>
+                              </tr>
+                            )}
+                            {iklanList.length > 0 && sortedFiltered.length === 0 && filterDuplicateIklanOnly && (
+                              <tr>
+                                <td colSpan={5} className="px-6 py-12 text-center">
+                                  <div className="flex flex-col items-center gap-2">
+                                    <CheckCircle2 className="w-10 h-10 text-emerald-500" />
+                                    <p className="font-black text-slate-800 uppercase tracking-wider text-sm">
+                                      Tidak Ada Data Duplikat
+                                    </p>
+                                    <p className="text-xs text-slate-500">
+                                      Semua No. Pesanan pengeluaran iklan tercatat unik tanpa double input.
+                                    </p>
+                                    <button
+                                      type="button"
+                                      onClick={() => setFilterDuplicateIklanOnly(false)}
+                                      className="mt-2 px-4 py-2 bg-slate-900 text-white font-black uppercase text-[10px] tracking-widest border border-slate-900"
+                                    >
+                                      Tampilkan Semua Data
+                                    </button>
+                                  </div>
                                 </td>
                               </tr>
                             )}
@@ -7875,6 +8087,7 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
         setEditingIklan={setEditingIklan}
         handleSaveIklan={handleSaveIklan}
         handlePasteInIklanModal={handlePasteInIklanModal}
+        iklanList={iklanList}
       />
 
       <ExportDSModal

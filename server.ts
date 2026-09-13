@@ -17,7 +17,7 @@ process.on('uncaughtException', (err, origin) => {
 });
 
 const app = express();
-  const PORT = process.env.PORT || 3000;
+  const PORT = 3000;
 
   function reportUnhandledLogs(expressApp: any) {
     return expressApp;
@@ -2340,23 +2340,10 @@ FROM products p;
       } catch (passengerErr: any) {
         console.warn('[Zendiix Server] Passenger listener notice:', passengerErr?.message || passengerErr);
       }
-    } else if (process.env.PORT) {
-      const rawPort = process.env.PORT;
-      const isNum = !isNaN(Number(rawPort)) && !isNaN(parseFloat(rawPort));
-      if (isNum) {
-        const portNum = Number(rawPort);
-        app.listen(portNum, "0.0.0.0", () => {
-          console.log(`[Zendiix Server] Running on http://0.0.0.0:${portNum}`);
-        });
-      } else {
-        app.listen(rawPort, () => {
-          console.log(`[Zendiix Server] Running on pipe/socket: ${rawPort}`);
-        });
-      }
     } else {
-      const defaultPort = 3000;
-      app.listen(defaultPort, "0.0.0.0", () => {
-        console.log(`[Zendiix Server] Running on http://0.0.0.0:${defaultPort}`);
+      const portNum = 3000;
+      app.listen(portNum, "0.0.0.0", () => {
+        console.log(`[Zendiix Server] Running on http://0.0.0.0:${portNum}`);
       });
     }
   }
