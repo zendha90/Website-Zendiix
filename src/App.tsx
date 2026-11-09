@@ -40,7 +40,8 @@ import {
   ExternalLink,
   ChevronDown,
   ChevronUp,
-  CheckCircle2
+  CheckCircle2,
+  Percent
 } from "lucide-react";
 import {
   subscribeToProducts,
@@ -1832,6 +1833,41 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
 
         return result;
       });
+
+      // Hitung margin persentase laba thd HPP dari rekapan yang baru di-paste
+      let batchPenjualan = 0;
+      let batchHpp = 0;
+      let batchDanger = 0;
+      const uniqueResi = new Set<string>();
+
+      newDrafts.forEach((draft, idx) => {
+        const prod = findMatchedProduct(draft.jenisBarang, draft.productId);
+        const qty = Number(draft.qty) || 1;
+        const hpp = prod ? (prod.hargaBeli || 0) : 0;
+        const totHpp = hpp * qty;
+        const totJual = Number(draft.totalPenjualan) || 0;
+        const laba = prod ? (totJual - totHpp) : totJual;
+        if (prod && totHpp > 0 && laba < 0) {
+          batchDanger++;
+        }
+        batchPenjualan += totJual;
+        batchHpp += totHpp;
+        const rKey = (draft.noResi || "").trim() || (draft.noPesanan || "").trim() || `baris-${idx}`;
+        uniqueResi.add(rKey);
+      });
+
+      const batchLaba = batchPenjualan - batchHpp;
+      const batchPct = batchHpp > 0 ? (batchLaba / batchHpp) * 100 : null;
+
+      // Munculkan popup 3 detik secara otomatis (tanpa window atau klik tambahan)
+      triggerPasteHppToast({
+        pct: batchPct,
+        totalLaba: batchLaba,
+        totalHpp: batchHpp,
+        totalPenjualan: batchPenjualan,
+        totalResi: uniqueResi.size,
+        dangerCount: batchDanger,
+      });
     }
   };
 
@@ -1874,6 +1910,222 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
     });
     return match;
   };
+
+  // Toast Popup 3 Detik: Monitor Persentase Laba terhadap HPP saat paste data rekapan (muncul 3 detik, tanpa window/modal tambahan)
+  const [pasteHppToast, setPasteHppToast] = useState<{
+    pct: number | null;
+    totalLaba: number;
+    totalHpp: number;
+    totalPenjualan: number;
+    totalResi: number;
+    dangerCount: number;
+    key: number;
+  } | null>(null);
+
+  const toastTimeoutRef = useRef<any>(null);
+
+  const triggerPasteHppToast = (stats?: {
+    pct: number | null;
+    totalLaba: number;
+    totalHpp: number;
+    totalPenjualan: number;
+    totalResi: number;
+    dangerCount: number;
+  }) => {
+    if (toastTimeoutRef.current) {
+      clearTimeout(toastTimeoutRef.current);
+    }
+    const data = stats || {
+      pct: resiProfitMonitor.overallPct,
+      totalLaba: resiProfitMonitor.totalAllLaba,
+      totalHpp: resiProfitMonitor.totalAllHpp,
+      totalPenjualan: resiProfitMonitor.totalAllPenjualan,
+      totalResi: resiProfitMonitor.totalResi,
+      dangerCount: resiProfitMonitor.dangerCount,
+    };
+    setPasteHppToast({
+      ...data,
+      key: Date.now(),
+    });
+    toastTimeoutRef.current = setTimeout(() => {
+      setPasteHppToast(null);
+    }, 3000);
+  };
+
+  const [resiProfitFilter, setResiProfitFilter] = useState<"all" | "danger" | "warning" | "success">("all");
+  const [resiProfitSearch, setResiProfitSearch] = useState<string>("");
+
+  const resiProfitMonitor = useMemo(() => {
+    // Ambil semua baris draft yang memiliki setidaknya salah satu data (tidak kosong melompong)
+    const activeRows = draftSales
+      .map((draft, index) => {
+        const product = findMatchedProduct(draft.jenisBarang, draft.productId);
+        const qty = Number(draft.qty) || 1;
+        const hpp = product ? (product.hargaBeli || 0) : 0;
+        const totalHpp = hpp * qty;
+        const totalPenjualan = Number(draft.totalPenjualan) || 0;
+        const laba = product ? (totalPenjualan - totalHpp) : totalPenjualan;
+        const resiKey = (draft.noResi || "").trim() || (draft.noPesanan || "").trim() || `(Baris #${index + 1})`;
+        const hasContent = Boolean(
+          draft.tanggalOrder?.trim() ||
+          draft.channel?.trim() ||
+          draft.noPesanan?.trim() ||
+          draft.noResi?.trim() ||
+          draft.jenisBarang?.trim() ||
+          draft.totalPenjualan > 0
+        );
+        return {
+          draft,
+          index,
+          product,
+          qty,
+          hpp,
+          totalHpp,
+          totalPenjualan,
+          laba,
+          resiKey,
+          hasContent,
+        };
+      })
+      .filter((r) => r.hasContent);
+
+    // Kelompokkan data per No. Resi
+    const groupMap = new Map<
+      string,
+      {
+        key: string;
+        noResi: string;
+        noPesanan: string;
+        channel: string;
+        ekspedisi: string;
+        itemCount: number;
+        rows: typeof activeRows;
+        totalPenjualan: number;
+        totalHpp: number;
+        totalLaba: number;
+        persentaseLaba: number | null; // (totalLaba / totalHpp) * 100
+        hasMissingProduct: boolean;
+      }
+    >();
+
+    activeRows.forEach((r) => {
+      let group = groupMap.get(r.resiKey);
+      if (!group) {
+        group = {
+          key: r.resiKey,
+          noResi: (r.draft.noResi || "").trim(),
+          noPesanan: (r.draft.noPesanan || "").trim(),
+          channel: (r.draft.channel || "").trim(),
+          ekspedisi: (r.draft.namaEkspedisi || "").trim(),
+          itemCount: 0,
+          rows: [],
+          totalPenjualan: 0,
+          totalHpp: 0,
+          totalLaba: 0,
+          persentaseLaba: null,
+          hasMissingProduct: false,
+        };
+        groupMap.set(r.resiKey, group);
+      }
+      group.itemCount += 1;
+      group.rows.push(r);
+      group.totalPenjualan += r.totalPenjualan;
+      group.totalHpp += r.totalHpp;
+      group.totalLaba += r.laba;
+      if (!r.product && r.draft.jenisBarang) {
+        group.hasMissingProduct = true;
+      }
+      if (!group.channel && r.draft.channel) group.channel = r.draft.channel.trim();
+      if (!group.ekspedisi && r.draft.namaEkspedisi) group.ekspedisi = r.draft.namaEkspedisi.trim();
+      if (!group.noPesanan && r.draft.noPesanan) group.noPesanan = r.draft.noPesanan.trim();
+      if (!group.noResi && r.draft.noResi) group.noResi = r.draft.noResi.trim();
+    });
+
+    const groups = Array.from(groupMap.values()).map((g) => {
+      // Rumus: (Total Laba ÷ Total HPP) × 100
+      const persentase = g.totalHpp > 0 ? (g.totalLaba / g.totalHpp) * 100 : null;
+      return {
+        ...g,
+        persentaseLaba: persentase,
+      };
+    });
+
+    const totalAllPenjualan = groups.reduce((sum, g) => sum + g.totalPenjualan, 0);
+    const totalAllHpp = groups.reduce((sum, g) => sum + g.totalHpp, 0);
+    const totalAllLaba = groups.reduce((sum, g) => sum + g.totalLaba, 0);
+    const overallPct = totalAllHpp > 0 ? (totalAllLaba / totalAllHpp) * 100 : null;
+
+    // Map per draft.id untuk render langsung di tiap baris tabel spreadsheet
+    const rowStatMap = new Map<
+      string,
+      {
+        rowPct: number | null;
+        resiPct: number | null;
+        resiKey: string;
+        isMultiItem: boolean;
+      }
+    >();
+
+    groups.forEach((g) => {
+      const isMulti = g.rows.length > 1;
+      g.rows.forEach((r) => {
+        const rowPct = r.totalHpp > 0 ? (r.laba / r.totalHpp) * 100 : null;
+        rowStatMap.set(r.draft.id, {
+          rowPct,
+          resiPct: g.persentaseLaba,
+          resiKey: g.key,
+          isMultiItem: isMulti,
+        });
+      });
+    });
+
+    const dangerCount = groups.filter((g) => g.persentaseLaba !== null && g.persentaseLaba < 0).length;
+    const warningCount = groups.filter((g) => g.persentaseLaba !== null && g.persentaseLaba >= 0 && g.persentaseLaba < 25).length;
+    const successCount = groups.filter((g) => g.persentaseLaba !== null && g.persentaseLaba >= 25).length;
+    const missingHppCount = groups.filter((g) => g.totalHpp === 0).length;
+
+    return {
+      groups,
+      totalResi: groups.length,
+      totalAllPenjualan,
+      totalAllHpp,
+      totalAllLaba,
+      overallPct,
+      rowStatMap,
+      dangerCount,
+      warningCount,
+      successCount,
+      missingHppCount,
+    };
+  }, [draftSales, products]);
+
+  const filteredResiList = useMemo(() => {
+    return resiProfitMonitor.groups.filter((g) => {
+      // Filter status margin
+      if (resiProfitFilter === "danger") {
+        if (g.persentaseLaba === null || g.persentaseLaba >= 0) return false;
+      } else if (resiProfitFilter === "warning") {
+        if (g.persentaseLaba === null || g.persentaseLaba < 0 || g.persentaseLaba >= 25) return false;
+      } else if (resiProfitFilter === "success") {
+        if (g.persentaseLaba === null || g.persentaseLaba < 25) return false;
+      }
+
+      // Filter pencarian
+      if (resiProfitSearch.trim()) {
+        const q = resiProfitSearch.trim().toLowerCase();
+        const matchesResi = g.noResi.toLowerCase().includes(q);
+        const matchesPesanan = g.noPesanan.toLowerCase().includes(q);
+        const matchesChannel = g.channel.toLowerCase().includes(q);
+        const matchesEkspedisi = g.ekspedisi.toLowerCase().includes(q);
+        const matchesItems = g.rows.some((r) => r.draft.jenisBarang?.toLowerCase().includes(q));
+        if (!matchesResi && !matchesPesanan && !matchesChannel && !matchesEkspedisi && !matchesItems) {
+          return false;
+        }
+      }
+
+      return true;
+    });
+  }, [resiProfitMonitor.groups, resiProfitFilter, resiProfitSearch]);
 
   const handleSaveDraftSales = async () => {
     if (draftSales.length === 0) return;
@@ -4680,6 +4932,93 @@ function AppContent({ sharedProducts, sharedBanners, sharedBranding, sharedLoadi
                   </div>
                 </div>
               </div>
+
+              {/* Toast Popup 3 Detik: Monitor Persentase Laba terhadap HPP (muncul 3 detik, tanpa klik & tanpa window tambahan) */}
+              {pasteHppToast && (
+                <div
+                  key={pasteHppToast.key}
+                  className="fixed top-6 left-1/2 -translate-x-1/2 z-50 pointer-events-auto transition-all"
+                  style={{ minWidth: "320px", maxWidth: "94vw" }}
+                >
+                  <div className="bg-white border-2 border-slate-900 shadow-[6px_6px_0px_0px_#0f172a] rounded-sm overflow-hidden">
+                    {/* Top Status Header */}
+                    <div className="bg-slate-900 text-white px-3 py-1.5 flex items-center justify-between text-[10px] font-black uppercase tracking-wider">
+                      <div className="flex items-center gap-1.5">
+                        <Percent className="w-3.5 h-3.5 text-amber-400 stroke-[3px]" />
+                        <span>Persentase Laba thd HPP</span>
+                      </div>
+                    </div>
+
+                    {/* Content Stat */}
+                    <div className="p-3 bg-white">
+                      <div className="flex items-baseline gap-2">
+                        <span
+                          className={`text-2xl sm:text-3xl font-black font-mono leading-none ${
+                            pasteHppToast.pct === null
+                              ? "text-slate-400"
+                              : pasteHppToast.pct < 0
+                              ? "text-rose-600"
+                              : pasteHppToast.pct < 25
+                              ? "text-amber-700"
+                              : "text-emerald-700"
+                          }`}
+                        >
+                          {pasteHppToast.pct !== null
+                            ? `${pasteHppToast.pct > 0 ? "+" : ""}${pasteHppToast.pct.toFixed(1)}%`
+                            : "HPP 0"}
+                        </span>
+                        <span
+                          className={`text-[9px] font-black px-1.5 py-0.5 rounded uppercase ${
+                            pasteHppToast.pct === null
+                              ? "bg-slate-200 text-slate-700"
+                              : pasteHppToast.pct < 0
+                              ? "bg-rose-600 text-white animate-pulse"
+                              : pasteHppToast.pct < 25
+                              ? "bg-amber-400 text-slate-950 font-black"
+                              : "bg-emerald-600 text-white"
+                          }`}
+                        >
+                          {pasteHppToast.pct === null
+                            ? "Data HPP 0"
+                            : pasteHppToast.pct < 0
+                            ? "RUGI"
+                            : pasteHppToast.pct < 25
+                            ? "MARGIN TIPIS"
+                            : "SEHAT"}
+                        </span>
+                        {pasteHppToast.dangerCount > 0 && (
+                          <span className="text-[9px] font-black px-1.5 py-0.5 rounded uppercase bg-rose-100 text-rose-700 border border-rose-300">
+                            ⚠️ {pasteHppToast.dangerCount} Minus
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-[10px] text-slate-600 font-medium mt-1">
+                        Laba:{" "}
+                        <strong
+                          className={
+                            pasteHppToast.totalLaba >= 0
+                              ? "text-emerald-700 font-mono font-black"
+                              : "text-rose-600 font-mono font-black"
+                          }
+                        >
+                          Rp {pasteHppToast.totalLaba.toLocaleString("id-ID")}
+                        </strong>
+                        {" • "}
+                        HPP:{" "}
+                        <span className="font-mono text-slate-700 font-bold">
+                          Rp {pasteHppToast.totalHpp.toLocaleString("id-ID")}
+                        </span>
+                        {" • "}
+                        Jual:{" "}
+                        <span className="font-mono text-slate-700 font-bold">
+                          Rp {pasteHppToast.totalPenjualan.toLocaleString("id-ID")}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </section>
           )}
 
